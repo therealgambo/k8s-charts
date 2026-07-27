@@ -1,0 +1,54 @@
+name: updatecli
+
+on:
+  # Catch broken manifests before they land on main.
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "updatecli/**"
+      - ".github/workflows/updatecli.yaml"
+  # Check every tracked package for a new upstream release.
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  dry-run:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install updatecli
+        uses: updatecli/updatecli-action@v2
+
+      - name: updatecli pipeline diff
+        run: updatecli pipeline diff --config ./updatecli/updatecli.d --values ./updatecli/values.yaml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+
+  apply:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install updatecli
+        uses: updatecli/updatecli-action@v2
+
+      - name: updatecli pipeline apply
+        run: updatecli pipeline apply --config ./updatecli/updatecli.d --values ./updatecli/values.yaml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}

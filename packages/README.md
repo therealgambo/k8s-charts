@@ -47,3 +47,10 @@ make clean     # removes the working charts/ directory so the repo is PR-ready
 ```
 
 Scope any target to one package with `PACKAGE=<name>`.
+
+## Staying up to date with upstream
+
+Once a package exists here, add a matching manifest under
+[`updatecli/updatecli.d/<name>.yaml`](../updatecli/README.md) so
+[updatecli](https://www.updatecli.io/) checks it for new upstream releases
+and opens a PR — running this same workflow — whenever one appears.

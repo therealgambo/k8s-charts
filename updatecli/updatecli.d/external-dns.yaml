@@ -1,0 +1,95 @@
+name: "Bump external-dns chart to the latest upstream release"
+
+scms:
+  default:
+    kind: github
+    spec:
+      owner: '{{ .github.owner }}'
+      repository: '{{ .github.repository }}'
+      branch: '{{ .github.branch }}'
+      user: '{{ .bot.user }}'
+      email: '{{ .bot.email }}'
+      username: '{{ .bot.username }}'
+      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
+      commitmessage:
+        type: "chore"
+        scope: "external-dns"
+
+# external-dns publishes its Helm chart as a release asset tagged
+# "external-dns-helm-chart-<version>", separately from the application's own
+# "vX.Y.Z" release tags. Filter to just the chart releases and pull out the
+# bare version.
+sources:
+  lastRelease:
+    name: "Get the latest external-dns helm chart release"
+    kind: githubrelease
+    spec:
+      owner: "kubernetes-sigs"
+      repository: "external-dns"
+      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
+      versionfilter:
+        kind: "regex"
+        pattern: '^external-dns-helm-chart-\d+\.\d+\.\d+$'
+    transformers:
+      - findsubmatch:
+          pattern: '^external-dns-helm-chart-(\d+\.\d+\.\d+)$'
+          captureindex: 1
+
+conditions:
+  chartAssetPublished:
+    name: "Check the release tgz asset is published"
+    kind: shell
+    disablesourceinput: true
+    spec:
+      command: >-
+        curl --fail --silent --show-error --location --output /dev/null
+        "https://github.com/kubernetes-sigs/external-dns/releases/download/external-dns-helm-chart-{{ source "lastRelease" }}/external-dns-{{ source "lastRelease" }}.tgz"
+
+targets:
+  packageURL:
+    name: "Point packages/external-dns/package.yaml at the new release asset"
+    kind: yaml
+    sourceid: "lastRelease"
+    scmid: "default"
+    spec:
+      file: "packages/external-dns/package.yaml"
+      key: "$.url"
+      value: 'https://github.com/kubernetes-sigs/external-dns/releases/download/external-dns-helm-chart-{{ source "lastRelease" }}/external-dns-{{ source "lastRelease" }}.tgz'
+
+  packageBuildVersion:
+    name: "Reset packageVersion to 01 for the new upstream release"
+    kind: yaml
+    sourceid: "lastRelease"
+    scmid: "default"
+    spec:
+      file: "packages/external-dns/package.yaml"
+      key: "$.packageVersion"
+      value: "01"
+
+  buildChart:
+    name: "Regenerate the chart via charts-build-scripts"
+    kind: shell
+    scmid: "default"
+    disablesourceinput: true
+    dependson:
+      - "packageURL"
+      - "packageBuildVersion"
+    spec:
+      command: "make prepare PACKAGE=external-dns && make patch PACKAGE=external-dns && make charts PACKAGE=external-dns && make clean PACKAGE=external-dns"
+
+actions:
+  default:
+    kind: "github/pullrequest"
+    scmid: "default"
+    spec:
+      title: 'chore(external-dns): bump chart to {{ source "lastRelease" }}'
+      description: |
+        Automated upstream sync via [updatecli](https://www.updatecli.io/).
+
+        Pulls in `external-dns` `{{ source "lastRelease" }}` and regenerates
+        the chart via `make prepare`, `make patch` and `make charts`. Review
+        the diff under `charts/`, `assets/` and `packages/external-dns/` as
+        you would any other chart bump before merging.
+      labels:
+        - "dependencies"
+        - "external-dns"

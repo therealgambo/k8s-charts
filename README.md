@@ -15,6 +15,7 @@ instead of a manual re-vendor.
 - `config/configuration.yaml` — options for the build scripts (validation source, Helm repo CNAME)
 - `scripts/version` — pins the `charts-build-scripts` release used by `make`
 - `bin/` — downloaded `charts-build-scripts` binary (gitignored, fetched on demand)
+- `updatecli/` — automated upstream version checks that open PRs for each package (see [updatecli/README.md](updatecli/README.md))
 
 ## Usage
 
@@ -28,3 +29,8 @@ make clean     # remove local working state so the repo is ready for a PR
 Scope any target to a single package with `PACKAGE=<name>`. The first run of
 any target downloads the pinned `charts-build-scripts` binary into `bin/`
 automatically.
+
+Package version bumps are normally opened automatically by
+[updatecli](updatecli/README.md), which runs this same `make` pipeline — the
+targets above are what you'd run by hand to reproduce or debug one of those
+PRs, or to add a brand-new package.
