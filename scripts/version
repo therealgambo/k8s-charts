@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Pinned release of https://github.com/rancher/charts-build-scripts
+# Bump CHARTS_BUILD_SCRIPT_VERSION to pick up a newer build of the tool itself.
+
+CHARTS_BUILD_SCRIPTS_REPO="https://github.com/rancher/charts-build-scripts"
+CHARTS_BUILD_SCRIPT_VERSION="${CHARTS_BUILD_SCRIPT_VERSION:-v1.9.27}"

@@ -1,0 +1,6 @@
+helmRepo:
+  cname: ""
+
+validate:
+  url: https://github.com/therealgambo/k8s-charts.git
+  branch: main
