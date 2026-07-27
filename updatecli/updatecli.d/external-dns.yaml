@@ -48,6 +48,25 @@ conditions:
         curl --fail --silent --show-error --location --output /dev/null
         "https://github.com/kubernetes-sigs/external-dns/releases/download/external-dns-helm-chart-{{ source "lastRelease" }}/external-dns-{{ source "lastRelease" }}.tgz"
 
+  # buildChart below always "succeeds with output" (make's own logging is
+  # never empty), so updatecli can't tell from the shell target alone
+  # whether a rebuild was actually necessary - it would run make on every
+  # scheduled check and then error out with "no changed file to commit"
+  # once nothing was left to stage. Gate the whole pipeline here instead:
+  # skip cleanly, before any target runs, unless this release isn't already
+  # applied. failwhen inverts the normal yaml-condition pass criteria
+  # (equal = pass) into "equal = stop the pipeline here, cleanly".
+  upstreamVersionChanged:
+    name: "Only continue if this release isn't already applied"
+    kind: yaml
+    scmid: "default"
+    disablesourceinput: true
+    failwhen: true
+    spec:
+      file: "packages/external-dns/package.yaml"
+      key: "$.url"
+      value: 'https://github.com/kubernetes-sigs/external-dns/releases/download/external-dns-helm-chart-{{ source "lastRelease" }}/external-dns-{{ source "lastRelease" }}.tgz'
+
 targets:
   packageURL:
     name: "Point packages/external-dns/package.yaml at the new release asset"

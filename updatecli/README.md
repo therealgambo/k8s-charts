@@ -24,8 +24,12 @@ Each `updatecli.d/<name>.yaml` follows the same four stages:
 
 1. **source** — resolve the latest upstream version (e.g. via the
    `githubrelease` resource)
-2. **condition** — sanity-check the resolved version actually exists before
-   touching anything (e.g. the release asset is reachable)
+2. **conditions** — sanity-check the resolved version actually exists (e.g.
+   the release asset is reachable), and gate the whole run on it actually
+   being new: a `failwhen: true` condition compares it against what's
+   already in `package.yaml` and stops the pipeline cleanly (no error, no
+   PR) when there's nothing to do, before any target — including the
+   `make`-running one — runs at all
 3. **targets** — write the new version into `packages/<name>/package.yaml`,
    then run `make prepare PACKAGE=<name> && make patch PACKAGE=<name> && make
    charts PACKAGE=<name> && make clean PACKAGE=<name>` (via a `shell` target)
@@ -107,13 +111,15 @@ does not need "Read and write" — the default token is only used for
 
 - A version bump gets its own PR/branch; if a newer version shows up before
   the previous PR is merged, the old PR is left open rather than superseded.
-- The `buildChart` shell target reports "changed" based on its command
-  producing output (which `make` always does via its own logging), not on
-  whether the regenerated `charts/`/`assets/`/`index.yaml` actually differ
-  from what's already committed. In practice the SCM still only pushes/opens
-  a PR when there's a real git diff, but if you ever see a same-content PR
-  open on a day with no upstream release, that's the mechanism to fix (via
-  the shell target's `changedif` option).
+- The `buildChart` shell target's own "changed" signal is just "did the
+  command produce output" (which `make`'s logging always does), so it can't
+  be trusted to decide whether a rebuild is even necessary — that's why
+  `upstreamVersionChanged` exists as a separate, earlier gate (see above)
+  rather than relying on the target itself to skip cleanly.
+- When adding a manifest for a new package, note that `disablesourceinput:
+  true` and `sourceid` can't be set together on the same condition/target
+  (updatecli errors on load) — use one or the other, not both, on every
+  block that sets an explicit `value:`.
 
 ## Running locally
 
