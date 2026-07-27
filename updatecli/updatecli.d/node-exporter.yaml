@@ -1,0 +1,120 @@
+name: "Bump node-exporter chart to the latest upstream release"
+
+scms:
+  default:
+    kind: github
+    spec:
+      owner: '{{ .github.owner }}'
+      repository: '{{ .github.repository }}'
+      branch: '{{ .github.branch }}'
+      # Matches whoever GITHUB_TOKEN actually authenticates as (the
+      # updatecli GitHub App in CI, or a human token for local runs) rather
+      # than a hardcoded identity.
+      user: '{{ requiredEnv "GITHUB_ACTOR" }}'
+      email: '{{ requiredEnv "GITHUB_ACTOR" }}@users.noreply.github.com'
+      username: "x-access-token"
+      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
+      commitmessage:
+        type: "chore"
+        scope: "node-exporter"
+
+# prometheus-community/helm-charts is a monorepo of many charts, tagging each
+# release "<chart>-<version>". Filter to just prometheus-node-exporter
+# releases and pull out the bare version.
+sources:
+  lastRelease:
+    name: "Get the latest prometheus-node-exporter helm chart release"
+    kind: githubrelease
+    spec:
+      owner: "prometheus-community"
+      repository: "helm-charts"
+      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
+      versionfilter:
+        kind: "regex"
+        pattern: '^prometheus-node-exporter-\d+\.\d+\.\d+$'
+    transformers:
+      - findsubmatch:
+          pattern: '^prometheus-node-exporter-(\d+\.\d+\.\d+)$'
+          captureindex: 1
+
+conditions:
+  chartAssetPublished:
+    name: "Check the release tgz asset is published"
+    kind: shell
+    disablesourceinput: true
+    spec:
+      command: >-
+        curl --fail --silent --show-error --location --output /dev/null
+        "https://github.com/prometheus-community/helm-charts/releases/download/prometheus-node-exporter-{{ source "lastRelease" }}/prometheus-node-exporter-{{ source "lastRelease" }}.tgz"
+
+  # buildChart below always "succeeds with output" (make's own logging is
+  # never empty), so updatecli can't tell from the shell target alone
+  # whether a rebuild was actually necessary - it would run make on every
+  # scheduled check and then error out with "no changed file to commit"
+  # once nothing was left to stage. Gate the whole pipeline here instead:
+  # skip cleanly, before any target runs, unless this release isn't already
+  # applied. failwhen inverts the normal yaml-condition pass criteria
+  # (equal = pass) into "equal = stop the pipeline here, cleanly".
+  upstreamVersionChanged:
+    name: "Only continue if this release isn't already applied"
+    kind: yaml
+    scmid: "default"
+    disablesourceinput: true
+    failwhen: true
+    spec:
+      file: "packages/node-exporter/package.yaml"
+      key: "$.url"
+      value: 'https://github.com/prometheus-community/helm-charts/releases/download/prometheus-node-exporter-{{ source "lastRelease" }}/prometheus-node-exporter-{{ source "lastRelease" }}.tgz'
+
+targets:
+  packageURL:
+    name: "Point packages/node-exporter/package.yaml at the new release asset"
+    kind: yaml
+    sourceid: "lastRelease"
+    scmid: "default"
+    spec:
+      file: "packages/node-exporter/package.yaml"
+      key: "$.url"
+      value: 'https://github.com/prometheus-community/helm-charts/releases/download/prometheus-node-exporter-{{ source "lastRelease" }}/prometheus-node-exporter-{{ source "lastRelease" }}.tgz'
+
+  packageBuildVersion:
+    name: "Reset packageVersion to 1 for the new upstream release"
+    kind: yaml
+    sourceid: "lastRelease"
+    scmid: "default"
+    spec:
+      file: "packages/node-exporter/package.yaml"
+      key: "$.packageVersion"
+      # packageVersion is an int field in charts-build-scripts; a leading
+      # zero (e.g. "01") gets written back quoted as a string by the yaml
+      # target and fails strict unmarshalling. Use "1", not "01".
+      value: "1"
+
+  buildChart:
+    name: "Regenerate the chart via charts-build-scripts"
+    kind: shell
+    scmid: "default"
+    disablesourceinput: true
+    dependson:
+      - "packageURL"
+      - "packageBuildVersion"
+    spec:
+      command: "make prepare PACKAGE=node-exporter && make patch PACKAGE=node-exporter && make charts PACKAGE=node-exporter && make clean PACKAGE=node-exporter"
+
+actions:
+  default:
+    kind: "github/pullrequest"
+    scmid: "default"
+    spec:
+      title: 'chore(node-exporter): bump chart to {{ source "lastRelease" }}'
+      description: |
+        Automated upstream sync via [updatecli](https://www.updatecli.io/).
+
+        Pulls in `prometheus-node-exporter` `{{ source "lastRelease" }}` and
+        regenerates the chart via `make prepare`, `make patch` and `make
+        charts`. Review the diff under `charts/`, `assets/` and
+        `packages/node-exporter/` as you would any other chart bump before
+        merging.
+      labels:
+        - "dependencies"
+        - "node-exporter"

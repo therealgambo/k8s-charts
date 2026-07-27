@@ -61,6 +61,15 @@ package pulls upstream:
   a chart living inside a git repo, with a separate `version` field): use a
   `githubtag` or `githubrelease` source instead, and target the `version` key
   directly rather than `url`.
+- **OCI registry chart** (a `url` like `oci://ghcr.io/<org>/<chart>:<version>`,
+  like `kargo`): use a `dockerimage` source pointed at the OCI image (registry
+  host included, e.g. `ghcr.io/akuity/kargo-charts/kargo`) with a `semver`
+  `versionfilter` — pattern `>=0.0.0` picks the newest stable tag, since
+  semver constraint matching only considers pre-release tags (`-rc.1` etc.)
+  when the constraint itself has a pre-release component. Use a matching
+  `dockerimage` condition (`tag: '{{ source "..." }}'`) in place of the
+  `curl`-based asset check, and target the `url` field with the tag
+  interpolated back in. Copy `updatecli.d/kargo.yaml` as a starting point.
 
 Keep the `scms` and `actions` blocks identical to the existing manifests
 (they just reference `values.yaml`) so every package behaves consistently.
