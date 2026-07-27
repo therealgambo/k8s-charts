@@ -1,0 +1,176 @@
+{{- if and .Values.workloads.install .Values.controller.enabled }}
+{{- $kc := .Values.controller.kubeconfigSecrets.kargo | default .Values.kubeconfigSecrets.kargo }}
+{{- $argocdKc := .Values.controller.kubeconfigSecrets.argocd | default .Values.kubeconfigSecrets.argocd }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kargo.controller.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kargo.labels" . | nindent 4 }}
+    {{- include "kargo.controller.labels" . | nindent 4 }}
+    {{- include "kargo.controller.idLabel" . | nindent 4 }}
+  {{- with (mergeOverwrite (deepCopy .Values.global.labels) .Values.controller.labels) }}
+    {{- range $key, $value := . }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+  {{- end }}
+  {{- include "kargo.annotations" (dict "root" . "annotations" .Values.controller.annotations) | nindent 2 }}
+spec:
+  replicas: 1
+  revisionHistoryLimit: {{ .Values.controller.revisionHistoryLimit }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "kargo.selectorLabels" . | nindent 6 }}
+      {{- include "kargo.controller.labels" . | nindent 6 }}
+      {{- include "kargo.controller.idLabel" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kargo.labels" . | nindent 8 }}
+        {{- include "kargo.controller.labels" . | nindent 8 }}
+        {{- include "kargo.controller.idLabel" . | nindent 8 }}
+      {{- with (mergeOverwrite (deepCopy .Values.global.podLabels) .Values.controller.podLabels) }}
+        {{- range $key, $value := . }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+      {{- end }}
+      annotations:
+        configmap/checksum: {{ pick ( include (print $.Template.BasePath "/controller/configmap.yaml") . | fromYaml ) "data" | toYaml | sha256sum }}
+      {{- with (mergeOverwrite (deepCopy .Values.global.podAnnotations) .Values.controller.podAnnotations) }}
+        {{- range $key, $value := . }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "kargo.controller.fullname" . }}
+      {{- with .Values.controller.affinity | default .Values.global.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.controller.priorityClassName | default .Values.global.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: controller
+        image: {{ include "kargo.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["/sbin/tini", "--", "/usr/local/bin/kargo"]
+        args: ["controller"]
+        env:
+        - name: GOMEMLIMIT
+          valueFrom:
+            resourceFieldRef:
+              containerName: controller
+              divisor: "1"
+              resource: limits.memory
+        - name: GOMAXPROCS
+          valueFrom:
+            resourceFieldRef:
+              containerName: controller
+              divisor: "1"
+              resource: {{ include "kargo.selectCpuResourceField" (dict "resources" .Values.controller.resources) }}
+        {{- with (concat .Values.global.env .Values.controller.env) }}
+        {{- tpl (toYaml .) $ | nindent 8 }}
+        {{- end }}
+        envFrom:
+        - configMapRef:
+            name: {{ include "kargo.controller.fullname" . }}
+        {{- with (concat .Values.global.envFrom .Values.controller.envFrom) }}
+          {{- tpl (toYaml .) $ | nindent 8 }}
+        {{- end }}
+        {{- if .Values.controller.metrics.enabled }}
+        ports:
+        - containerPort: {{ .Values.controller.metrics.service.servicePort }}
+          name: {{ .Values.controller.metrics.service.portName }}
+          protocol: TCP
+        {{- end }}
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp-data
+        {{- if or $kc $argocdKc }}
+        - mountPath: /etc/kargo/kubeconfigs
+          name: kubeconfigs
+          readOnly: true
+        {{- end }}
+        {{- if .Values.controller.gitClient.signingKeySecret.name }}
+        - mountPath: /etc/kargo/git
+          name: git
+          readOnly: true
+        {{- end }}
+        {{- if or .Values.controller.cabundle.configMapName .Values.controller.cabundle.secretName }}
+        {{- include "kargo.cabundle.volumeMount" .Values.controller.cabundle | nindent 8 }}
+        {{- end }}
+        {{- with .Values.controller.volumeMounts }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.controller.securityContext | default .Values.global.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.controller.resources | nindent 10 }}
+      {{- with .Values.controller.containers }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+
+      {{- if or .Values.controller.cabundle.configMapName .Values.controller.cabundle.secretName .Values.controller.initContainers }}
+      initContainers:
+      {{- if or .Values.controller.cabundle.configMapName .Values.controller.cabundle.secretName }}
+      {{- include "kargo.cabundle.initContainer" (dict "cabundle" .Values.controller.cabundle "context" .) | nindent 6 }}
+      {{- end }}
+      {{- with .Values.controller.initContainers }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+      {{- end }}
+      volumes:
+      - name: tmp-data
+        emptyDir: {}
+      {{- if or $kc $argocdKc }}
+      - name: kubeconfigs
+        projected:
+          sources:
+          {{- if $kc }}
+          - secret:
+              name: {{ $kc }}
+              items:
+              - key: kubeconfig.yaml
+                path: kubeconfig.yaml
+                mode: 0644
+          {{- end }}
+          {{- if $argocdKc }}
+          - secret:
+              name: {{ $argocdKc }}
+              items:
+              - key: kubeconfig.yaml
+                path: argocd-kubeconfig.yaml
+                mode: 0644
+          {{- end }}
+      {{- end }}
+      {{- if or .Values.controller.cabundle.configMapName .Values.controller.cabundle.secretName }}
+      {{- include "kargo.cabundle.volumes" .Values.controller.cabundle | nindent 6 }}
+      {{- end }}
+      {{- if .Values.controller.gitClient.signingKeySecret.name }}
+      - name: git
+        secret:
+          secretName: {{ .Values.controller.gitClient.signingKeySecret.name }}
+          defaultMode: 0644
+      {{- end }}
+      {{- with .Values.controller.volumes }}
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+      {{- with .Values.controller.nodeSelector | default .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.controller.tolerations | default .Values.global.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

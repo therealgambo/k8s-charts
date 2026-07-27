@@ -1,0 +1,4 @@
+workingDir: ""
+url: https://github.com/DandyDeveloper/charts/releases/download/redis-ha-4.38.0/redis-ha-4.38.0.tgz
+ignoreDependencies: []
+replacePaths: []
