@@ -7,9 +7,12 @@ scms:
       owner: '{{ .github.owner }}'
       repository: '{{ .github.repository }}'
       branch: '{{ .github.branch }}'
-      user: '{{ .bot.user }}'
-      email: '{{ .bot.email }}'
-      username: '{{ .bot.username }}'
+      # Matches whoever GITHUB_TOKEN actually authenticates as (the
+      # updatecli GitHub App in CI, or a human token for local runs) rather
+      # than a hardcoded identity.
+      user: '{{ requiredEnv "GITHUB_ACTOR" }}'
+      email: '{{ requiredEnv "GITHUB_ACTOR" }}@users.noreply.github.com'
+      username: "x-access-token"
       token: '{{ requiredEnv "GITHUB_TOKEN" }}'
       commitmessage:
         type: "chore"

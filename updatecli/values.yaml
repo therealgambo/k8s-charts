@@ -2,8 +2,3 @@ github:
   owner: "therealgambo"
   repository: "k8s-charts"
   branch: "main"
-
-bot:
-  user: "github-actions[bot]"
-  email: "41898282+github-actions[bot]@users.noreply.github.com"
-  username: "x-access-token"

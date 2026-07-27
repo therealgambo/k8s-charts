@@ -12,9 +12,12 @@ on:
     - cron: "0 6 * * *"
   workflow_dispatch: {}
 
+# updatecli pushes/opens PRs as the "updatecli" GitHub App (see
+# updatecli/README.md), not the default token, so its commits and PRs
+# actually trigger downstream workflows. The default token is only used for
+# checkout, so it only needs read access.
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}
@@ -28,14 +31,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.UPDATECLI_APP_ID }}
+          private-key: ${{ secrets.UPDATECLI_APP_PRIVATE_KEY }}
+
       - name: Install updatecli
         uses: updatecli/updatecli-action@v2
 
       - name: updatecli pipeline diff
         run: updatecli pipeline diff --config ./updatecli/updatecli.d --values ./updatecli/values.yaml
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_ACTOR: ${{ steps.app-token.outputs.app-slug }}[bot]
 
   apply:
     if: github.event_name != 'pull_request'
@@ -44,11 +54,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.UPDATECLI_APP_ID }}
+          private-key: ${{ secrets.UPDATECLI_APP_PRIVATE_KEY }}
+
       - name: Install updatecli
         uses: updatecli/updatecli-action@v2
 
       - name: updatecli pipeline apply
         run: updatecli pipeline apply --config ./updatecli/updatecli.d --values ./updatecli/values.yaml
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_ACTOR: ${{ steps.app-token.outputs.app-slug }}[bot]

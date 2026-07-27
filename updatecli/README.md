@@ -10,8 +10,9 @@ exists, bumps `packages/<name>/package.yaml`, regenerates the chart with
 
 - `updatecli.d/<name>.yaml` — one manifest per package, named to match its
   `packages/<name>/` directory
-- `values.yaml` — repo/bot identity shared by every manifest (`.github.*`,
-  `.bot.*`)
+- `values.yaml` — repo identity shared by every manifest (`.github.*`); commit
+  author/email are derived at runtime from `GITHUB_ACTOR` instead, so they
+  automatically match whichever credential is authenticating (see below)
 - [`.github/workflows/updatecli.yaml`](../.github/workflows/updatecli.yaml) —
   runs `updatecli pipeline diff` on PRs that touch this directory (catches
   broken manifests before merge) and `updatecli pipeline apply` on a daily
@@ -64,21 +65,55 @@ Targets act on whatever is pushed to `main` on GitHub, not your local working
 tree — a new package only becomes bumpable once its `package.yaml` (and, once
 generated, `generated-changes/`) is merged.
 
-## Requirements
+## Authentication: the `updatecli` GitHub App
 
-- Repo setting **Settings → Actions → General → Workflow permissions** must
-  allow "Read and write permissions" (needed for the workflow's default
-  `GITHUB_TOKEN` to push a branch and open a PR).
-- No extra secrets are needed — manifests authenticate with the workflow's
-  built-in `GITHUB_TOKEN`.
+The workflow authenticates as a dedicated GitHub App rather than the default
+`GITHUB_TOKEN`, because commits/PRs made with the default token don't trigger
+other `on: push`/`on: pull_request` workflows (GitHub's anti-recursion
+protection) — so any CI you have wouldn't run on these auto-bump PRs. App
+installation tokens don't have that restriction.
+
+**One-time setup:**
+
+1. Create the App: your GitHub account → **Settings → Developer settings →
+   GitHub Apps → New GitHub App**. Webhook: uncheck "Active" (not needed).
+2. Grant these **Repository permissions** only:
+   | Permission | Level | Why |
+   |---|---|---|
+   | Contents | Read and write | clone/branch/commit/push |
+   | Pull requests | Read and write | open the PR |
+   | Issues | Read and write | the PR labels are set via the shared issues/PR label endpoints |
+   | Metadata | Read-only | mandatory baseline |
+3. "Where can this GitHub App be installed" → **Only on this account**.
+4. Generate a private key (App settings → **Generate a private key**,
+   downloads a `.pem`).
+5. Install the App on this repo (App settings → **Install App**).
+6. In the repo's **Settings → Secrets and variables → Actions**, add:
+   - a repo **variable** `UPDATECLI_APP_ID` — the App ID (App settings page)
+   - a repo **secret** `UPDATECLI_APP_PRIVATE_KEY` — the full contents of the
+     downloaded `.pem`
+
+The workflow exchanges these for a short-lived installation token via
+[`actions/create-github-app-token`](https://github.com/actions/create-github-app-token)
+at the start of each run and passes it through as `GITHUB_TOKEN`/`GITHUB_ACTOR`
+— the same env vars every manifest already reads, so no manifest changes are
+needed when rotating or recreating the App.
+
+With this in place, **Settings → Actions → General → Workflow permissions**
+does not need "Read and write" — the default token is only used for
+`actions/checkout` (read-only).
 
 ## Known limitations
 
 - A version bump gets its own PR/branch; if a newer version shows up before
   the previous PR is merged, the old PR is left open rather than superseded.
-- The default `GITHUB_TOKEN` does not trigger other workflows on the PRs it
-  opens. If you later want CI to run automatically on these PRs, swap the
-  token for a GitHub App or PAT in `values.yaml`/the workflow's secrets.
+- The `buildChart` shell target reports "changed" based on its command
+  producing output (which `make` always does via its own logging), not on
+  whether the regenerated `charts/`/`assets/`/`index.yaml` actually differ
+  from what's already committed. In practice the SCM still only pushes/opens
+  a PR when there's a real git diff, but if you ever see a same-content PR
+  open on a day with no upstream release, that's the mechanism to fix (via
+  the shell target's `changedif` option).
 
 ## Running locally
 
@@ -88,7 +123,10 @@ GITHUB_TOKEN=<a token with repo read/write access> GITHUB_ACTOR=<your github use
   updatecli pipeline diff --config ./updatecli/updatecli.d --values ./updatecli/values.yaml
 ```
 
-`pipeline diff` never pushes or opens a PR — swap in `pipeline apply` to
-actually run the bump locally. Note that targets act on the pushed state of
-`main` on GitHub (it clones the repo fresh), not your local working tree, so
-a package only becomes bumpable once its `package.yaml` has been merged.
+Note that targets act on the pushed state of `main` on GitHub (it clones the
+repo fresh), not your local working tree, so a package only becomes bumpable
+once its `package.yaml` has been merged. Also note `pipeline diff` still
+pushes its `updatecli_main_<id>` working branch for real (it only skips
+opening the actual PR) — delete that branch afterwards if you don't intend to
+let it become a real PR, otherwise the next run rebases onto it instead of a
+clean `main`.
