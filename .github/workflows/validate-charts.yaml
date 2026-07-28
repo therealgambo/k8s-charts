@@ -1,4 +1,4 @@
-name: validate-charts
+name: Validate
 
 on:
   pull_request:

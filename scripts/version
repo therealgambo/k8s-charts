@@ -16,3 +16,7 @@ KUBECONFORM_VERSION="${KUBECONFORM_VERSION:-v0.8.0}"
 
 # https://github.com/helm/helm
 HELM_VERSION="${HELM_VERSION:-v4.2.3}"
+
+# https://github.com/homeport/dyff
+DYFF_REPO="https://github.com/homeport/dyff"
+DYFF_VERSION="${DYFF_VERSION:-v1.12.0}"
