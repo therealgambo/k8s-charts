@@ -23,6 +23,7 @@ instead of a manual re-vendor.
 
 ```
 make prepare   # pull upstream into packages/<name>/charts and apply existing patches
+make template  # render the prepared chart (requires make prepare first)
 make patch     # diff local edits against upstream and (re)generate the patch files
 make charts    # archive the finalized chart(s) into assets/ and charts/, updating index.yaml
 make clean     # remove local working state so the repo is ready for a PR
@@ -31,6 +32,32 @@ make clean     # remove local working state so the repo is ready for a PR
 Scope any target to a single package with `PACKAGE=<name>`. The first run of
 any target downloads the pinned `charts-build-scripts` binary into `bin/`
 automatically.
+
+## Values file ordering
+
+Every packaged chart is rendered with the same values file precedence, so
+environment overrides never accidentally shadow each other:
+
+1. `values.yaml` — the chart's own defaults (applied implicitly by Helm)
+2. `base.values.yaml` — shared overrides for the package, if present
+3. `<env>.values.yaml` — environment-specific overrides (`test`, `staging`,
+   `production`), if present
+
+`base.values.yaml` and `<env>.values.yaml` live alongside `values.yaml`
+inside the prepared chart (`packages/<name>/charts/`), so they're added like
+any other local edit and captured by `make patch` into `generated-changes/`
+to persist across future `make prepare` runs.
+
+Always use `make template` instead of calling `helm template` directly so
+this ordering is applied consistently:
+
+```
+make prepare PACKAGE=<name>
+make template PACKAGE=<name> [ENV=staging]
+```
+
+Both `base.values.yaml` and `ENV` are optional — any file that doesn't exist
+is skipped rather than erroring.
 
 Package version bumps are normally opened automatically by
 [updatecli](updatecli/README.md), which runs this same `make` pipeline — the
@@ -52,7 +79,7 @@ Reproduce either locally after `make prepare PACKAGE=<name>`:
 
 ```
 helm lint packages/<name>/charts
-helm template packages/<name>/charts | kubeconform -strict -summary -ignore-missing-schemas
+make template PACKAGE=<name> | kubeconform -strict -summary -ignore-missing-schemas
 ```
 
 Note: charts that use Helm's `required` function on a value with no default
@@ -73,6 +100,8 @@ empty manifest, so the comment shows the whole rendered chart as additions.
 Reproduce locally after `make prepare PACKAGE=<name>` on both branches:
 
 ```
+make -C main template PACKAGE=<name> > base-manifest.yaml
+make -C pr template PACKAGE=<name> > pr-manifest.yaml
 dyff between --color off -o github base-manifest.yaml pr-manifest.yaml
 ```
 

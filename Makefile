@@ -15,6 +15,7 @@ endif
 # Required by every Build Pipeline target, e.g.:
 #   make prepare PACKAGE=my-chart
 PACKAGE ?=
+ENV ?= staging
 
 .DEFAULT_GOAL := help
 
@@ -22,6 +23,19 @@ PACKAGE ?=
 
 prepare: guard-package pull-scripts ## Pull the upstream chart(s) into packages/<name>/charts and apply existing patches
 	@$(BINARY) $@ --package="$(PACKAGE)"
+
+# values files are layered in this order (later overrides earlier),
+# each skipped if it doesn't exist in the prepared chart:
+#   1. values.yaml        - the chart's own defaults (implicit, always applied by helm)
+#   2. base.values.yaml   - local changes to values.yaml made here, values.yaml shouldn't be modified!
+#   3. $(ENV).values.yaml - environment-specific overrides (test/staging/production)
+template: guard-package ## Render packages/<name>/charts with values.yaml -> base.values.yaml -> [ENV].values.yaml layered (run 'make prepare' first; make template PACKAGE=name [ENV=staging])
+	@chart="packages/$(PACKAGE)/charts"; \
+	test -d "$$chart" || { echo "error: $$chart not found — run 'make prepare PACKAGE=$(PACKAGE)' first" >&2; exit 1; }; \
+	values=(); \
+	[[ -f "$$chart/base.values.yaml" ]] && values+=(-f "$$chart/base.values.yaml"); \
+	[[ -f "$$chart/$(ENV).values.yaml" ]] && values+=(-f "$$chart/$(ENV).values.yaml"); \
+	helm template "$$chart" "$${values[@]}"
 
 patch: guard-package pull-scripts ## Diff local edits against upstream and (re)generate the patch files
 	@$(BINARY) $@ --package="$(PACKAGE)"
@@ -45,4 +59,4 @@ guard-package:
 help: ## Display this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z0-9][a-zA-Z0-9 _-]*:.*?##/ { split($$1, targets, " "); for (i in targets) { printf "  \033[36m%-15s\033[0m %s\n", targets[i], $$2 } } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
-.PHONY: prepare patch charts clean pull-scripts guard-package help
+.PHONY: prepare template patch charts clean pull-scripts guard-package help

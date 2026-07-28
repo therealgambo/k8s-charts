@@ -117,7 +117,7 @@ jobs:
 
       - name: helm template | kubeconform
         run: |
-          helm template "packages/${{ matrix.package }}/charts" \
+          make template PACKAGE=${{ matrix.package }} \
             | bin/kubeconform \
                 -strict \
                 -summary \

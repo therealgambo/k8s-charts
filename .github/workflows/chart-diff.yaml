@@ -90,7 +90,7 @@ jobs:
         id: render_pr
         run: |
           if make -C pr prepare PACKAGE="${{ matrix.package }}" \
-              && helm template "pr/packages/${{ matrix.package }}/charts" \
+              && make -C pr template PACKAGE="${{ matrix.package }}" \
                   > pr-manifest.yaml 2> pr-render.log; then
             echo "ok=true" >> "$GITHUB_OUTPUT"
           else
@@ -110,7 +110,7 @@ jobs:
             exit 0
           fi
           if make -C main prepare PACKAGE="${{ matrix.package }}" \
-              && helm template "main/packages/${{ matrix.package }}/charts" \
+              && make -C main template PACKAGE="${{ matrix.package }}" \
                   > base-manifest.yaml 2> base-render.log; then
             echo "ok=true" >> "$GITHUB_OUTPUT"
           else

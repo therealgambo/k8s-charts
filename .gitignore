@@ -1,2 +1,3 @@
 /bin/
 /.charts-build-scripts-cache/
+/packages/**/charts/

@@ -41,12 +41,21 @@ the full set):
 ```
 make prepare   # pulls upstream into packages/<name>/charts and applies existing patches
 # ...edit packages/<name>/charts as needed...
+make template  # renders the prepared chart with values.yaml -> base.values.yaml -> [ENV].values.yaml layered
 make patch     # diffs your edits against pristine upstream and (re)writes generated-changes/
 make charts    # archives the result into assets/ and charts/, updating index.yaml
 make clean     # removes the working charts/ directory so the repo is PR-ready
 ```
 
 Scope any target to one package with `PACKAGE=<name>`.
+
+To give a package environment-specific values, add `base.values.yaml` and/or
+`test.values.yaml`/`staging.values.yaml`/`production.values.yaml` alongside
+`values.yaml` in `packages/<name>/charts` (after `make prepare`), then run
+`make patch` to capture them into `generated-changes/` like any other local
+edit. Always render with `make template PACKAGE=<name> [ENV=staging]` rather
+than calling `helm template` directly, so the values files stay layered in
+the right order — see [Values file ordering](../README.md#values-file-ordering).
 
 ## Staying up to date with upstream
 
