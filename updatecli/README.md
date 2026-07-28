@@ -62,14 +62,44 @@ package pulls upstream:
   `githubtag` or `githubrelease` source instead, and target the `version` key
   directly rather than `url`.
 - **OCI registry chart** (a `url` like `oci://ghcr.io/<org>/<chart>:<version>`,
-  like `kargo`): use a `dockerimage` source pointed at the OCI image (registry
-  host included, e.g. `ghcr.io/akuity/kargo-charts/kargo`) with a `semver`
-  `versionfilter` — pattern `>=0.0.0` picks the newest stable tag, since
-  semver constraint matching only considers pre-release tags (`-rc.1` etc.)
-  when the constraint itself has a pre-release component. Use a matching
-  `dockerimage` condition (`tag: '{{ source "..." }}'`) in place of the
-  `curl`-based asset check, and target the `url` field with the tag
-  interpolated back in. Copy `updatecli.d/kargo.yaml` as a starting point.
+  like `kargo`, `cert-manager`, `grafana`, `karpenter`, `kyverno`,
+  `node-local-dns`, `node-problem-detector`): use a `dockerimage` source
+  pointed at the OCI image (registry host included, e.g.
+  `ghcr.io/akuity/kargo-charts/kargo` — any standard OCI registry works,
+  not just `ghcr.io`; `quay.io` and `public.ecr.aws` are also in use here)
+  with a `semver` `versionfilter` — pattern `>=0.0.0` picks the newest
+  stable tag, since semver constraint matching only considers pre-release
+  tags (`-rc.1` etc.) when the constraint itself has a pre-release
+  component. **Always pair this with a `tagfilter: '^v?\d+\.\d+\.\d+$'`.**
+  Real-world OCI chart registries are noisy — cosign `sha256-....sig`
+  signatures, `artifacthub.io` verification tags, nightly builds, bare
+  date-stamped tags — and `dockerimage` returns raw tag strings, so a bare
+  integer tag (e.g. a date like `20221219`) parses as a technically-valid
+  but enormous semver major and wins over any real release under
+  `>=0.0.0` if it isn't filtered out first (this bit `karpenter` for real
+  during testing). Some registries (`cert-manager` on `quay.io`) also
+  double-tag every release as both `X.Y.Z` and `vX.Y.Z`; check what's
+  already pinned in `package.yaml` and narrow the `tagfilter` to just that
+  convention (`^v\d+...` vs `^v?\d+...`) so the source can't flip-flop
+  between the two. Use a matching `dockerimage` condition
+  (`tag: '{{ source "..." }}'`) in place of the `curl`-based asset check,
+  and target the `url` field with the tag interpolated back in. Copy
+  `updatecli.d/kargo.yaml` as a starting point.
+- **Classic Helm repository chart** (a `url` like
+  `https://<host>/<path>/<chart>-<version>.tgz` served from a plain
+  `index.yaml`-based Helm repo — typically a GitHub Pages site — rather
+  than a GitHub release or an OCI registry, like `aws-lb-controller` and
+  `rbac-manager`): use a `helmchart` source with `url` set to the repo root
+  (not the `.tgz`) and `name` set to the chart name; it reads `index.yaml`
+  and picks the newest stable version automatically. Don't assume the
+  upstream project's GitHub releases track the chart version at all — e.g.
+  `aws/eks-charts` cuts one sequential `v0.0.N` release per repo change
+  covering every chart, and `FairwindsOps/rbac-manager` tags releases by
+  *app* version, not the (independently versioned) chart. Use a matching
+  `helmchart` condition (`version: '{{ source "..." }}'`) and target the
+  `url` field with the chart name and version templated back into the
+  flat `<repo>/<chart>-<version>.tgz` layout. Copy
+  `updatecli.d/aws-lb-controller.yaml` as a starting point.
 
 Keep the `scms` and `actions` blocks identical to the existing manifests
 (they just reference `values.yaml`) so every package behaves consistently.
