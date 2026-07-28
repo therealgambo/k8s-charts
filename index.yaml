@@ -64,6 +64,34 @@ entries:
           description: Added podSecurityContext and container securityContext to the autoscaler templates.
     apiVersion: v2
     appVersion: 1.13.1
+    created: "2026-07-28T12:16:40.833206+10:00"
+    description: CoreDNS is a DNS server that chains plugins and provides Kubernetes
+      DNS Services
+    digest: 58fbeeb54b8e7823f222b0ba3c84787311e0baf757a0da06818f96f60dc2431d
+    home: https://coredns.io
+    icon: https://coredns.io/images/CoreDNS_Colour_Horizontal.png
+    keywords:
+    - coredns
+    - dns
+    - kubedns
+    maintainers:
+    - name: mrueg
+    - name: haad
+    - name: hagaibarel
+    - name: shubham-cmyk
+    name: coredns
+    sources:
+    - https://github.com/coredns/coredns
+    type: application
+    urls:
+    - assets/coredns/coredns-1.46.202+up1.46.2.tgz
+    version: 1.46.202+up1.46.2
+  - annotations:
+      artifacthub.io/changes: |
+        - kind: added
+          description: Added podSecurityContext and container securityContext to the autoscaler templates.
+    apiVersion: v2
+    appVersion: 1.13.1
     created: "2026-07-28T00:30:14.558839+10:00"
     description: CoreDNS is a DNS server that chains plugins and provides Kubernetes
       DNS Services

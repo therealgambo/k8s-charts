@@ -1,0 +1,11 @@
+--- charts-original/values.yaml
++++ charts/values.yaml
+@@ -15,7 +15,7 @@
+   # pullSecrets:
+   #   - name: myRegistryKeySecretName
+ 
+-replicaCount: 1
++replicaCount: 3
+ 
+ resources:
+   limits:
