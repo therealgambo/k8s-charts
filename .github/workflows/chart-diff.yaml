@@ -138,9 +138,9 @@ jobs:
             else
               diff="$(pr/bin/dyff between --color off --omit-header -o github base-manifest.yaml pr-manifest.yaml || true)"
               if [[ -z "${diff}" ]]; then
-                echo "<summary><strong>${{ matrix.package }}</strong> — no changes to the rendered manifest</summary>"
+                echo "<summary>:package: <strong>${{ matrix.package }}</strong> — no changes to the rendered manifest</summary>"
               else
-                echo "<summary><strong>${{ matrix.package }}</strong> — rendered manifest changed</summary>"
+                echo "<summary>:package: <strong>${{ matrix.package }}</strong> — rendered manifest changed</summary>"
                 echo
                 echo '```diff'
                 echo "${diff}"
