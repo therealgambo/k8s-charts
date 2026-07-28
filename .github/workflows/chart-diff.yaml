@@ -1,0 +1,232 @@
+name: Dyff
+
+# Renders every package a PR touches from both the base branch and the PR
+# branch, diffs the two manifests with dyff, and publishes the result as a
+# single sticky comment on the PR (updated in place on subsequent pushes).
+#
+# Note: for PRs opened from a fork, the default GITHUB_TOKEN is read-only
+# regardless of the `permissions` block below, so the comment step is
+# expected to fail there unless the repo allows write tokens for fork PRs.
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "packages/**"
+      - "scripts/changed-packages.sh"
+      - "scripts/pull-dyff.sh"
+      - "scripts/version"
+      - "Makefile"
+      - ".github/workflows/chart-diff.yaml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Scopes rendering to only the packages this PR actually touches, same as
+  # validate-charts.yaml.
+  detect-packages:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.detect.outputs.packages }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed packages
+        id: detect
+        run: |
+          list="$(./scripts/changed-packages.sh "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")"
+          packages="$(jq -R -s -c 'split("\n") | map(select(length > 0))' <<< "${list}")"
+          echo "packages=${packages}" >> "$GITHUB_OUTPUT"
+          echo "Packages to diff: ${packages}"
+
+  # Renders each changed package from both branches and uploads a markdown
+  # fragment with the dyff result. Matrix jobs can't feed a single comment
+  # directly, so the fragments are stitched together by the comment job.
+  render-diff:
+    name: render (${{ matrix.package }})
+    needs: detect-packages
+    if: needs.detect-packages.outputs.packages != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.detect-packages.outputs.packages) }}
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
+
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: main
+
+      - name: Resolve pinned helm version
+        run: |
+          source pr/scripts/version
+          echo "HELM_VERSION=${HELM_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Install helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Install dyff
+        run: pr/scripts/pull-dyff.sh
+
+      # Both sides render with the same helm/dyff versions (pinned by the PR
+      # branch) so any diff reflects the chart change, not the tooling.
+      - name: Render PR-branch manifest
+        id: render_pr
+        run: |
+          if make -C pr prepare PACKAGE="${{ matrix.package }}" \
+              && helm template "pr/packages/${{ matrix.package }}/charts" \
+                  > pr-manifest.yaml 2> pr-render.log; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # A package that doesn't exist on the base branch yet (newly added in
+      # this PR) diffs against an empty manifest, so dyff reports the whole
+      # rendered chart as additions instead of the job failing outright.
+      - name: Render base-branch manifest
+        id: render_base
+        run: |
+          if [[ ! -f "main/packages/${{ matrix.package }}/package.yaml" ]]; then
+            echo "Package does not exist on the base branch yet — diffing against an empty manifest."
+            : > base-manifest.yaml
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if make -C main prepare PACKAGE="${{ matrix.package }}" \
+              && helm template "main/packages/${{ matrix.package }}/charts" \
+                  > base-manifest.yaml 2> base-render.log; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Note: a chart that uses Helm's `required` on a value with no default
+      # (e.g. karpenter's settings.clusterName) fails `helm template` on
+      # both sides with no values supplied — same known gap noted in
+      # validate-charts.yaml. Reported as a render failure below rather than
+      # failing the whole workflow.
+      - name: Diff with dyff
+        run: |
+          mkdir -p diff-output
+          out="diff-output/${{ matrix.package }}.md"
+          {
+            echo "<details>"
+            if [[ "${{ steps.render_base.outputs.ok }}" != "true" || "${{ steps.render_pr.outputs.ok }}" != "true" ]]; then
+              echo "<summary>⚠️ <strong>${{ matrix.package }}</strong> — could not render one or both manifests</summary>"
+              echo
+              echo '```'
+              [[ -s base-render.log ]] && { echo "-- base branch --"; cat base-render.log; }
+              [[ -s pr-render.log ]] && { echo "-- PR branch --"; cat pr-render.log; }
+              echo '```'
+            else
+              diff="$(pr/bin/dyff between --color off --omit-header -o github base-manifest.yaml pr-manifest.yaml || true)"
+              if [[ -z "${diff}" ]]; then
+                echo "<summary><strong>${{ matrix.package }}</strong> — no changes to the rendered manifest</summary>"
+              else
+                echo "<summary><strong>${{ matrix.package }}</strong> — rendered manifest changed</summary>"
+                echo
+                echo '```diff'
+                echo "${diff}"
+                echo '```'
+              fi
+            fi
+            echo
+            echo "</details>"
+          } > "${out}"
+
+      - name: Upload diff fragment
+        uses: actions/upload-artifact@v4
+        with:
+          name: chart-diff-${{ matrix.package }}
+          path: diff-output/${{ matrix.package }}.md
+          retention-days: 1
+
+  comment:
+    name: Publish PR comment
+    needs: [detect-packages, render-diff]
+    if: always() && needs.detect-packages.outputs.packages != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Download diff fragments
+        uses: actions/download-artifact@v4
+        with:
+          pattern: chart-diff-*
+          path: diff-output
+          merge-multiple: true
+
+      - name: Build comment body
+        run: |
+          {
+            echo "<!-- chart-diff-comment -->"
+            echo "### Chart diff"
+            echo
+            echo "Rendered manifest diff (\`helm template\` + [dyff](https://github.com/homeport/dyff)) between this PR and \`main\` for each changed package."
+            echo
+            for f in $(printf '%s\n' diff-output/*.md | sort); do
+              cat "${f}"
+              echo
+            done
+          } > comment-body.md
+
+          # Stay under GitHub's ~65536 character comment limit.
+          max_bytes=60000
+          if [[ "$(wc -c < comment-body.md)" -gt "${max_bytes}" ]]; then
+            {
+              head -c "${max_bytes}" comment-body.md
+              echo
+              echo '```'
+              echo
+              echo "**⚠️ Diff truncated — output exceeded the size limit for a single PR comment. See this workflow run's logs/artifacts for the full diff.**"
+            } > comment-body.truncated.md
+            mv comment-body.truncated.md comment-body.md
+          fi
+
+      - name: Create or update comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('comment-body.md', 'utf8');
+            const marker = '<!-- chart-diff-comment -->';
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

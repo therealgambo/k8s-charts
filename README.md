@@ -13,10 +13,11 @@ instead of a manual re-vendor.
 - `charts/` — unarchived, patched chart working trees (output of `make prepare`/`make charts`)
 - `assets/` — versioned `.tgz` chart archives + `index.yaml` (the actual Helm repo output)
 - `config/configuration.yaml` — options for the build scripts (validation source, Helm repo CNAME)
-- `scripts/version` — pins the `charts-build-scripts`/`helm`/`kubeconform` releases used by `make` and CI
+- `scripts/version` — pins the `charts-build-scripts`/`helm`/`kubeconform`/`dyff` releases used by `make` and CI
 - `bin/` — downloaded tool binaries (gitignored, fetched on demand)
 - `updatecli/` — automated upstream version checks that open PRs for each package (see [updatecli/README.md](updatecli/README.md))
 - `.github/workflows/validate-charts.yaml` — runs `helm lint` and `kubeconform` against every package a PR touches (see below)
+- `.github/workflows/chart-diff.yaml` — comments the rendered manifest diff for every package a PR touches (see below)
 
 ## Usage
 
@@ -58,3 +59,23 @@ Note: charts that use Helm's `required` function on a value with no default
 (e.g. karpenter's `settings.clusterName`) fail `helm template` — and so
 `kubeconform` — with no values supplied. That's a known gap, not specific to
 this workflow.
+
+## Chart diff
+
+Every PR that touches `packages/**` also runs
+[`chart-diff`](.github/workflows/chart-diff.yaml), which renders each
+modified package with `helm template` from both `main` and the PR branch,
+compares the two with [dyff](https://github.com/homeport/dyff), and posts
+the result as a single comment on the PR (updated in place on subsequent
+pushes). A package that doesn't exist on `main` yet is diffed against an
+empty manifest, so the comment shows the whole rendered chart as additions.
+
+Reproduce locally after `make prepare PACKAGE=<name>` on both branches:
+
+```
+dyff between --color off -o github base-manifest.yaml pr-manifest.yaml
+```
+
+Note: PRs opened from a fork get a read-only `GITHUB_TOKEN`, so the comment
+step is expected to fail there unless the repo allows write tokens for fork
+PRs — the render/diff steps still run either way.
