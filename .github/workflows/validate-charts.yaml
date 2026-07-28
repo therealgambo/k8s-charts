@@ -124,3 +124,39 @@ jobs:
                 -ignore-missing-schemas \
                 -schema-location default \
                 -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+
+  # Single stable job to set as a required status check — the matrix jobs
+  # above have per-package names (e.g. "helm lint (external-dns)") that
+  # change with whatever a PR happens to touch, which branch protection
+  # can't target directly. `if: always()` so this still runs (and fails)
+  # when an upstream job fails or is cancelled, not just on success.
+  summary:
+    name: Summary
+    if: always()
+    needs: [detect-packages, helm-lint, kubeconform]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check matrix results
+        run: |
+          echo "detect-packages: ${{ needs.detect-packages.result }}"
+          echo "helm-lint:       ${{ needs.helm-lint.result }}"
+          echo "kubeconform:     ${{ needs.kubeconform.result }}"
+
+          failed=0
+
+          if [[ "${{ needs.detect-packages.result }}" != "success" ]]; then
+            echo "::error::detect-packages did not succeed"
+            failed=1
+          fi
+
+          for result in "${{ needs.helm-lint.result }}" "${{ needs.kubeconform.result }}"; do
+            if [[ "${result}" != "success" && "${result}" != "skipped" ]]; then
+              echo "::error::a validation job did not succeed (result: ${result})"
+              failed=1
+            fi
+          done
+
+          if [[ "${failed}" -eq 1 ]]; then
+            exit 1
+          fi
+          echo "All checks passed (helm-lint/kubeconform skipped is fine — it means no packages changed)."
