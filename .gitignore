@@ -1,3 +1,12 @@
 /bin/
 /.charts-build-scripts-cache/
 /packages/**/charts/
+
+# Generated chart output. Built on merge to main by
+# .github/workflows/release-charts.yaml and pushed to the long-lived
+# "charts" branch + GHCR (OCI) instead of being committed here.
+/assets/*
+!/assets/.gitkeep
+/charts/*
+!/charts/.gitkeep
+/index.yaml
