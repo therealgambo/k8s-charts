@@ -13,9 +13,10 @@ instead of a manual re-vendor.
 - `charts/` — unarchived, patched chart working trees (output of `make prepare`/`make charts`)
 - `assets/` — versioned `.tgz` chart archives + `index.yaml` (the actual Helm repo output)
 - `config/configuration.yaml` — options for the build scripts (validation source, Helm repo CNAME)
-- `scripts/version` — pins the `charts-build-scripts` release used by `make`
-- `bin/` — downloaded `charts-build-scripts` binary (gitignored, fetched on demand)
+- `scripts/version` — pins the `charts-build-scripts`/`helm`/`kubeconform` releases used by `make` and CI
+- `bin/` — downloaded tool binaries (gitignored, fetched on demand)
 - `updatecli/` — automated upstream version checks that open PRs for each package (see [updatecli/README.md](updatecli/README.md))
+- `.github/workflows/validate-charts.yaml` — runs `helm lint` and `kubeconform` against every package a PR touches (see below)
 
 ## Usage
 
@@ -34,3 +35,26 @@ Package version bumps are normally opened automatically by
 [updatecli](updatecli/README.md), which runs this same `make` pipeline — the
 targets above are what you'd run by hand to reproduce or debug one of those
 PRs, or to add a brand-new package.
+
+## Validation
+
+Every PR that touches `packages/**` runs
+[`validate-charts`](.github/workflows/validate-charts.yaml), which for each
+modified package runs `make prepare PACKAGE=<name>` and then:
+
+- **helm lint** — catches broken YAML/Go-template syntax in the patched chart
+- **kubeconform** — renders the chart with `helm template` and validates
+  every resource against upstream Kubernetes schemas (plus the
+  [CRDs-catalog](https://github.com/datreeio/CRDs-catalog) for common CRDs)
+
+Reproduce either locally after `make prepare PACKAGE=<name>`:
+
+```
+helm lint packages/<name>/charts
+helm template packages/<name>/charts | kubeconform -strict -summary -ignore-missing-schemas
+```
+
+Note: charts that use Helm's `required` function on a value with no default
+(e.g. karpenter's `settings.clusterName`) fail `helm template` — and so
+`kubeconform` — with no values supplied. That's a known gap, not specific to
+this workflow.

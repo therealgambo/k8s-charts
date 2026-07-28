@@ -1,0 +1,126 @@
+name: validate-charts
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "packages/**"
+      - "scripts/changed-packages.sh"
+      - "scripts/pull-kubeconform.sh"
+      - "scripts/version"
+      - "Makefile"
+      - ".github/workflows/validate-charts.yaml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Scopes the two validation jobs below to only the packages a PR actually
+  # touches. workflow_dispatch has no base ref to diff against, so it falls
+  # back to validating every tracked package.
+  detect-packages:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.detect.outputs.packages }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed packages
+        id: detect
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            list="$(./scripts/changed-packages.sh "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")"
+          else
+            list="$(./scripts/changed-packages.sh --all)"
+          fi
+          packages="$(jq -R -s -c 'split("\n") | map(select(length > 0))' <<< "${list}")"
+          echo "packages=${packages}" >> "$GITHUB_OUTPUT"
+          echo "Packages to validate: ${packages}"
+
+  # Structural validation: catches broken YAML/Go-template syntax in a
+  # patched chart. Deliberately not --strict — that also fails on cosmetic
+  # upstream nits (e.g. a non-SemVer Chart.yaml version) unrelated to
+  # whether the patch itself is legitimate.
+  helm-lint:
+    name: helm lint (${{ matrix.package }})
+    needs: detect-packages
+    if: needs.detect-packages.outputs.packages != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.detect-packages.outputs.packages) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve pinned helm version
+        run: |
+          source scripts/version
+          echo "HELM_VERSION=${HELM_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Install helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: make prepare
+        run: make prepare PACKAGE=${{ matrix.package }}
+
+      - name: helm lint
+        run: helm lint "packages/${{ matrix.package }}/charts"
+
+  # Renders the chart and validates every resource against upstream
+  # Kubernetes schemas (plus the CRDs-catalog for common CRDs, e.g.
+  # cert-manager/argo-cd resources) to catch manifests that are well-formed
+  # YAML but not valid Kubernetes objects.
+  #
+  # Note: charts that use `required` on a value with no default (e.g.
+  # karpenter's settings.clusterName) fail `helm template` with no values
+  # set. That's a known gap, not a bug in this workflow.
+  kubeconform:
+    name: kubeconform (${{ matrix.package }})
+    needs: detect-packages
+    if: needs.detect-packages.outputs.packages != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.detect-packages.outputs.packages) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve pinned helm version
+        run: |
+          source scripts/version
+          echo "HELM_VERSION=${HELM_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Install helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: make prepare
+        run: make prepare PACKAGE=${{ matrix.package }}
+
+      - name: Install kubeconform
+        run: ./scripts/pull-kubeconform.sh
+
+      - name: helm template | kubeconform
+        run: |
+          helm template "packages/${{ matrix.package }}/charts" \
+            | bin/kubeconform \
+                -strict \
+                -summary \
+                -ignore-missing-schemas \
+                -schema-location default \
+                -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'

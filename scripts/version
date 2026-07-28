@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
-# Pinned release of https://github.com/rancher/charts-build-scripts
-# Bump CHARTS_BUILD_SCRIPT_VERSION to pick up a newer build of the tool itself.
+# Pinned releases of tools used to build and validate charts in this repo.
+# Bump the relevant *_VERSION to pick up a newer build of that tool.
+#
+# CI (.github/workflows/validate-charts.yaml) sources this file too, so
+# HELM_VERSION stays the single source of truth for the version installed
+# both here and there.
 
+# https://github.com/rancher/charts-build-scripts
 CHARTS_BUILD_SCRIPTS_REPO="https://github.com/rancher/charts-build-scripts"
 CHARTS_BUILD_SCRIPT_VERSION="${CHARTS_BUILD_SCRIPT_VERSION:-v1.9.27}"
+
+# https://github.com/yannh/kubeconform
+KUBECONFORM_REPO="https://github.com/yannh/kubeconform"
+KUBECONFORM_VERSION="${KUBECONFORM_VERSION:-v0.8.0}"
+
+# https://github.com/helm/helm
+HELM_VERSION="${HELM_VERSION:-v4.2.3}"
