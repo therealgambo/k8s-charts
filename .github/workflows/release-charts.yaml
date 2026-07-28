@@ -1,14 +1,8 @@
 name: Release charts
 
 # Builds every package changed by a push to main (make prepare + make
-# charts). For each chart archive that build produces:
-#   1. pushes it to GHCR as an OCI artifact
-#   2. commits the archive + unpacked chart + updated index.yaml to the
-#      long-lived "charts" branch
-#
-# assets/, charts/ and index.yaml are gitignored on main (see .gitignore) —
-# the "charts" branch is their only home, since PRs only ever carry the
-# packages/** patch set.
+# charts) and pushes each resulting chart archive to GHCR as an OCI
+# artifact: oci://ghcr.io/<owner>/<repo>/<chart-name>:<version>.
 on:
   push:
     branches: ["main"]
@@ -17,13 +11,11 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: write
+  contents: read
   packages: write
 
-# Every run reads and pushes the same shared "charts" branch, so runs are
-# serialized (one group, not per-ref) rather than left to race each other.
 concurrency:
-  group: release-charts
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -54,12 +46,16 @@ jobs:
           echo "Packages to release: ${packages}"
 
   release:
-    name: Release
+    name: release (${{ matrix.package }})
     needs: detect-packages
     if: needs.detect-packages.outputs.packages != '[]'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.detect-packages.outputs.packages) }}
     steps:
-      - name: Checkout main
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Resolve pinned helm version
@@ -77,92 +73,24 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" \
             | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
 
-      # The "charts" branch is where assets/, charts/ and index.yaml
-      # actually live long-term. Check it out into a sibling worktree so
-      # charts-build-scripts can merge each new version in alongside
-      # everything already published there, instead of starting fresh. The
-      # branch may not exist yet (first-ever run), in which case it's
-      # created as an orphan with no shared history with main.
-      - name: Set up charts-branch worktree
-        run: |
-          git fetch origin charts 2>/dev/null || true
-          if git show-ref --verify --quiet refs/remotes/origin/charts; then
-            git worktree add -B charts ../charts-branch origin/charts
-          else
-            git worktree add --detach ../charts-branch HEAD
-            git -C ../charts-branch checkout --orphan charts
-            git -C ../charts-branch rm -rf . -q
-          fi
-          git -C ../charts-branch config user.name "github-actions[bot]"
-          git -C ../charts-branch config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: make prepare
+        run: make prepare PACKAGE=${{ matrix.package }}
 
-      - name: Seed working tree with published chart history
-        run: |
-          rm -rf assets charts index.yaml
-          mkdir -p assets charts
-          [[ -d ../charts-branch/assets ]] && cp -a ../charts-branch/assets/. assets/
-          [[ -d ../charts-branch/charts ]] && cp -a ../charts-branch/charts/. charts/
-          [[ -f ../charts-branch/index.yaml ]] && cp ../charts-branch/index.yaml index.yaml
+      - name: make charts
+        run: make charts PACKAGE=${{ matrix.package }}
 
-      # Each package is built and released independently (fail-fast: false,
-      # matching the matrix jobs in validate-charts.yaml/chart-diff.yaml) —
-      # a broken patch in one package shouldn't block releasing the others
-      # in the same push. Failures are collected and the step fails at the
-      # end so the run still shows red.
-      - name: Build, publish and commit each changed package
-        env:
-          PACKAGES: ${{ needs.detect-packages.outputs.packages }}
+      - name: Push to GHCR
         run: |
           repo_lower="$(tr '[:upper:]' '[:lower:]' <<< '${{ github.repository }}')"
-          overall_failed=0
+          shopt -s nullglob
+          archives=(assets/${{ matrix.package }}/*.tgz)
 
-          for pkg in $(jq -r '.[]' <<< "${PACKAGES}"); do
-            echo "::group::${pkg}"
-            if ! (
-              set -e
-              before="$(find "assets/${pkg}" -maxdepth 1 -type f -printf '%f\n' 2>/dev/null | sort || true)"
-
-              make prepare PACKAGE="${pkg}"
-              make charts PACKAGE="${pkg}"
-
-              after="$(find "assets/${pkg}" -maxdepth 1 -type f -printf '%f\n' 2>/dev/null | sort || true)"
-              new_files="$(comm -13 <(echo "${before}") <(echo "${after}"))"
-
-              if [[ -z "${new_files}" ]]; then
-                echo "no new archive produced for ${pkg} (already up to date) — skipping publish"
-                exit 0
-              fi
-
-              while IFS= read -r file; do
-                [[ -z "${file}" ]] && continue
-                archive="assets/${pkg}/${file}"
-                version="${file#"${pkg}"-}"
-                version="${version%.tgz}"
-
-                echo "pushing ${archive} to oci://ghcr.io/${repo_lower}"
-                helm push "${archive}" "oci://ghcr.io/${repo_lower}"
-
-                rm -rf "../charts-branch/assets/${pkg}" "../charts-branch/charts/${pkg}"
-                mkdir -p "../charts-branch/assets/${pkg}" "../charts-branch/charts/${pkg}"
-                cp -a "assets/${pkg}/." "../charts-branch/assets/${pkg}/"
-                cp -a "charts/${pkg}/." "../charts-branch/charts/${pkg}/"
-                cp index.yaml ../charts-branch/index.yaml
-
-                git -C ../charts-branch add "assets/${pkg}" "charts/${pkg}" index.yaml
-                if git -C ../charts-branch diff --cached --quiet; then
-                  echo "nothing to commit for ${pkg}"
-                else
-                  git -C ../charts-branch commit -q -m "${pkg}: publish ${version}"
-                  git -C ../charts-branch push origin HEAD:charts
-                fi
-              done <<< "${new_files}"
-            ); then
-              echo "::error::release failed for package ${pkg}"
-              overall_failed=1
-            fi
-            echo "::endgroup::"
-          done
-
-          if [[ "${overall_failed}" -eq 1 ]]; then
+          if [[ "${#archives[@]}" -eq 0 ]]; then
+            echo "::error::no archive produced for ${{ matrix.package }}"
             exit 1
           fi
+
+          for archive in "${archives[@]}"; do
+            echo "pushing ${archive} to oci://ghcr.io/${repo_lower}"
+            helm push "${archive}" "oci://ghcr.io/${repo_lower}"
+          done
