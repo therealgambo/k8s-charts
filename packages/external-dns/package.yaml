@@ -1,2 +1,2 @@
 url: https://github.com/kubernetes-sigs/external-dns/releases/download/external-dns-helm-chart-1.21.1/external-dns-1.21.1.tgz
-packageVersion: 01
+packageVersion: 02

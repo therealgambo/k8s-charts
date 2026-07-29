@@ -1,0 +1,321 @@
+suite: deployment
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: should render one Deployment by default
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Deployment
+
+  - it: should have two containers
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: pyrra-kubernetes
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: pyrra
+
+  - it: should automount the service account token in the pod by default
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: true
+
+  - it: should not automount the service account token in the pod when disabled
+    set:
+      automountServiceAccountToken: false
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: should not include --generic-rules arg by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --generic-rules
+
+  - it: should include --generic-rules arg when genericRules is enabled
+    set:
+      genericRules.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --generic-rules
+
+  - it: should include --route-prefix arg when routePrefix is set
+    set:
+      routePrefix: /slo
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[1].args
+          content: --route-prefix=/slo
+
+  - it: should include --prometheus-external-url arg when prometheusExternalUrl is set
+    set:
+      prometheusExternalUrl: https://prometheus.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[1].args
+          content: --prometheus-external-url=https://prometheus.example.com
+
+  - it: should not include --external-url arg by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --external-url
+
+  - it: should include --external-url arg when externalUrl is set
+    set:
+      externalUrl: https://pyrra.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --external-url=https://pyrra.example.com
+
+  - it: should not include Prometheus auth or Grafana args by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[1].args
+          content: --prometheus-basic-auth-username=
+      - notContains:
+          path: spec.template.spec.containers[1].args
+          content: --prometheus-bearer-token-path=
+      - notContains:
+          path: spec.template.spec.containers[1].args
+          content: --mimir-org-id=
+      - notContains:
+          path: spec.template.spec.containers[1].args
+          content: --grafana-external-url=
+
+  - it: should include Prometheus auth args when set
+    set:
+      prometheusBasicAuthUsername: pyrra
+      prometheusBearerTokenPath: /var/run/secrets/token
+      mimirOrgId: tenant-a
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[1].args
+          content: --prometheus-basic-auth-username=pyrra
+      - contains:
+          path: spec.template.spec.containers[1].args
+          content: --prometheus-bearer-token-path=/var/run/secrets/token
+      - contains:
+          path: spec.template.spec.containers[1].args
+          content: --mimir-org-id=tenant-a
+
+  - it: should mount a Prometheus bearer token from a secret alongside the flag
+    set:
+      prometheusBearerTokenPath: /etc/pyrra/prometheus/token
+      extraApiVolumes:
+        - name: prometheus-token
+          secret:
+            secretName: prometheus-token
+      extraApiVolumeMounts:
+        - name: prometheus-token
+          mountPath: /etc/pyrra/prometheus
+          readOnly: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[1].args
+          content: --prometheus-bearer-token-path=/etc/pyrra/prometheus/token
+      - contains:
+          path: spec.template.spec.containers[1].volumeMounts
+          content:
+            name: prometheus-token
+            mountPath: /etc/pyrra/prometheus
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: prometheus-token
+            secret:
+              secretName: prometheus-token
+
+  - it: should include Grafana args when set
+    set:
+      grafanaExternalUrl: https://grafana.example.com
+      grafanaExternalOrgId: "2"
+      grafanaExternalDatasourceId: prom-ds
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[1].args
+          content: --grafana-external-url=https://grafana.example.com
+      - contains:
+          path: spec.template.spec.containers[1].args
+          content: --grafana-external-org-id=2
+      - contains:
+          path: spec.template.spec.containers[1].args
+          content: --grafana-external-datasource-id=prom-ds
+
+  - it: should fail when both prometheusExternalUrl and grafanaExternalUrl are set
+    set:
+      prometheusExternalUrl: https://prometheus.example.com
+      grafanaExternalUrl: https://grafana.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: "pyrra: set only one of prometheusExternalUrl or grafanaExternalUrl, not both"
+
+  - it: should fail when grafanaExternalUrl is set without grafanaExternalDatasourceId
+    set:
+      grafanaExternalUrl: https://grafana.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: "pyrra: grafanaExternalDatasourceId is required when grafanaExternalUrl is set"
+
+  - it: should fail when grafanaExternalDatasourceId is set without grafanaExternalUrl
+    set:
+      grafanaExternalDatasourceId: prom-ds
+    asserts:
+      - failedTemplate:
+          errorMessage: "pyrra: grafanaExternalDatasourceId requires grafanaExternalUrl to be set"
+
+  - it: should add extra api volumes
+    set:
+      extraApiVolumes:
+        - name: test-volume
+          emptyDir: {}
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: test-volume
+            emptyDir: {}
+
+  - it: should add extra api volume mounts
+    set:
+      extraApiVolumeMounts:
+        - name: test-volume
+          mountPath: /test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[1].volumeMounts
+          content:
+            name: test-volume
+            mountPath: /test
+
+  - it: should include --enable-leader-election arg by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --enable-leader-election
+
+  - it: should include --leader-election-namespace arg with release namespace by default
+    release:
+      namespace: observability
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --leader-election-namespace=observability
+
+  - it: should not include --enable-leader-election arg when leaderElection is disabled
+    set:
+      operator.leaderElection.enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --enable-leader-election
+
+  - it: should use custom namespace for leader election when set
+    set:
+      operator.leaderElection.namespace: monitoring
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --leader-election-namespace=monitoring
+
+  - it: should not render resizePolicy by default
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].resizePolicy
+      - notExists:
+          path: spec.template.spec.containers[1].resizePolicy
+
+  - it: should render resizePolicy for server container when set
+    set:
+      resizePolicy:
+        - resourceName: cpu
+          restartPolicy: NotRequired
+        - resourceName: memory
+          restartPolicy: RestartContainer
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].resizePolicy
+          value:
+            - resourceName: cpu
+              restartPolicy: NotRequired
+            - resourceName: memory
+              restartPolicy: RestartContainer
+      - notExists:
+          path: spec.template.spec.containers[0].resizePolicy
+
+  - it: should render resizePolicy for operator container when set
+    set:
+      operator.resizePolicy:
+        - resourceName: cpu
+          restartPolicy: NotRequired
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resizePolicy
+          value:
+            - resourceName: cpu
+              restartPolicy: NotRequired
+      - notExists:
+          path: spec.template.spec.containers[1].resizePolicy
+
+  - it: should render no podLabels on the pod template by default
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels
+          value:
+            app.kubernetes.io/name: pyrra
+            app.kubernetes.io/instance: RELEASE-NAME
+
+  - it: should add podLabels to the pod template when set
+    set:
+      podLabels:
+        team: sre
+        environment: prod
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.team
+          value: sre
+      - equal:
+          path: spec.template.metadata.labels.environment
+          value: prod
+
+  - it: should keep selector free of podLabels
+    set:
+      podLabels:
+        team: sre
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels
+          value:
+            app.kubernetes.io/name: pyrra
+            app.kubernetes.io/instance: RELEASE-NAME
+      - notExists:
+          path: spec.selector.matchLabels.team
+
+  - it: should keep podLabels off the Deployment metadata
+    set:
+      podLabels:
+        team: sre
+    asserts:
+      - notExists:
+          path: metadata.labels.team
+
+  - it: should preserve selector labels on the pod template when podLabels is set
+    set:
+      podLabels:
+        team: sre
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/name"]
+          value: pyrra
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME

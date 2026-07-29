@@ -1,2 +1,2 @@
 url: oci://ghcr.io/grafana/helm-charts/mimir-distributed:6.1.0
-packageVersion: 01
+packageVersion: 02
