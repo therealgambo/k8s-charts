@@ -177,6 +177,22 @@ does not need "Read and write" — the default token is only used for
   true` and `sourceid` can't be set together on the same condition/target
   (updatecli errors on load) — use one or the other, not both, on every
   block that sets an explicit `value:`.
+- The `yaml` target's default engine (`goccy`) unconditionally quotes any
+  scalar value it writes, including bare integers — so the
+  `packageBuildVersion` target (which resets `packageVersion`, an `int`
+  field in charts-build-scripts) needs `engine: "yamlpath"` explicitly,
+  otherwise it writes `packageVersion: "1"` and `charts-build-scripts`
+  fails strict unmarshalling with `cannot unmarshal !!str "1" into int`
+  (this broke a real updatecli PR — #8 — before the fix). Every manifest's
+  `packageBuildVersion` target already pins this; keep doing so in any new
+  one, and copy an existing target rather than writing it from scratch.
+- That same target resets the value to `"01"`, not `"1"`, to match this
+  repo's zero-padded convention for a fresh build of a new upstream
+  version (every hand-written `package.yaml` starts at `01`). This is
+  cosmetic, not functional: `gopkg.in/yaml.v2` (what charts-build-scripts
+  actually unmarshals with) parses a bare `01`...`09` as a plain decimal
+  int same as `1`...`9`, not octal — verified directly against that
+  library, not assumed.
 
 ## Running locally
 

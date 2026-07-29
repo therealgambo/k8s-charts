@@ -76,17 +76,15 @@ targets:
       value: 'oci://ghcr.io/kyverno/charts/kyverno:{{ source "lastRelease" }}'
 
   packageBuildVersion:
-    name: "Reset packageVersion to 1 for the new upstream release"
+    name: "Reset packageVersion to 01 for the new upstream release"
     kind: yaml
     sourceid: "lastRelease"
     scmid: "default"
     spec:
       file: "packages/kyverno/package.yaml"
       key: "$.packageVersion"
-      # packageVersion is an int field in charts-build-scripts; a leading
-      # zero (e.g. "01") gets written back quoted as a string by the yaml
-      # target and fails strict unmarshalling. Use "1", not "01".
-      value: "1"
+      engine: "yamlpath"
+      value: "01"
 
   buildChart:
     name: "Regenerate the chart via charts-build-scripts"
