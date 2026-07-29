@@ -1,0 +1,4 @@
+workingDir: ""
+url: https://github.com/grafana/helm-charts/releases/download/rollout-operator-0.50.1/rollout-operator-0.50.1.tgz
+ignoreDependencies: []
+replacePaths: []

@@ -1,0 +1,4 @@
+workingDir: ""
+url: https://github.com/grafana/helm-charts/releases/download/alloy-1.5.2/alloy-1.5.2.tgz
+ignoreDependencies: []
+replacePaths: []

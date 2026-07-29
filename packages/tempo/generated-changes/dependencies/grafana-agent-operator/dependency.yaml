@@ -1,0 +1,4 @@
+workingDir: ""
+url: https://github.com/grafana/helm-charts/releases/download/grafana-agent-operator-0.5.2/grafana-agent-operator-0.5.2.tgz
+ignoreDependencies: []
+replacePaths: []

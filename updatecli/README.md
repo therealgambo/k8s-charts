@@ -100,6 +100,24 @@ package pulls upstream:
   `url` field with the chart name and version templated back into the
   flat `<repo>/<chart>-<version>.tgz` layout. Copy
   `updatecli.d/aws-lb-controller.yaml` as a starting point.
+- **Chart mirror with an unrelated app repo** (the chart asset is hosted
+  somewhere that doesn't tag or release independently — a raw file in a
+  git repo, or a classic Helm repo like `helm.cilium.io` or
+  `helm.releases.hashicorp.com` — while the actual versioning happens in
+  the separate upstream application repo, like `cilium`, `tetragon`,
+  `consul` and `vault`): use a `githubrelease` source against the
+  *application* repo (not the chart-hosting one) with a `versionfilter`
+  regex scoped to its stable `vX.Y.Z` tags, same as the GitHub release
+  asset shape, but keep the `curl`-based condition and the `yaml` target's
+  `url` value pointed at the chart host's own URL scheme (e.g.
+  `https://helm.cilium.io/<chart>-{{ source "..." }}.tgz` or
+  `https://github.com/cilium/charts/raw/refs/heads/master/<chart>-{{
+  source "..." }}.tgz`) rather than a `releases/download/...` path — the
+  version comes from one repo, the asset from another. Verify the two
+  actually move in lockstep before relying on this (check a few historical
+  tags against the chart host) since nothing enforces it structurally.
+  Copy `updatecli.d/cilium.yaml` or `updatecli.d/consul.yaml` as a
+  starting point.
 
 Keep the `scms` and `actions` blocks identical to the existing manifests
 (they just reference `values.yaml`) so every package behaves consistently.

@@ -1,0 +1,4 @@
+workingDir: ""
+url: https://charts.min.io/helm-releases/minio-4.1.0.tgz
+ignoreDependencies: []
+replacePaths: []

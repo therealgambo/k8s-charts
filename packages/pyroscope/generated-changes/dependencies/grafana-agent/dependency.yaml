@@ -1,0 +1,4 @@
+workingDir: ""
+url: https://github.com/grafana/helm-charts/releases/download/grafana-agent-0.44.2/grafana-agent-0.44.2.tgz
+ignoreDependencies: []
+replacePaths: []
