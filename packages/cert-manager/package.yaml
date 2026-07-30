@@ -1,2 +1,2 @@
-url: oci://quay.io/jetstack/charts/cert-manager:v1.21.0
+url: oci://quay.io/jetstack/charts/cert-manager:v1.21.1
 packageVersion: 02
