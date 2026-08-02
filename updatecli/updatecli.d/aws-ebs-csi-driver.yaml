@@ -1,118 +1,20 @@
+{{ $pkg := dict "name" "aws-ebs-csi-driver" "owner" "kubernetes-sigs" "repo" "aws-ebs-csi-driver" "versionPattern" "^helm-chart-aws-ebs-csi-driver-\\d+\\.\\d+\\.\\d+$" "capturePattern" "^helm-chart-aws-ebs-csi-driver-(\\d+\\.\\d+\\.\\d+)$" "urlParts" (list "https://github.com/kubernetes-sigs/aws-ebs-csi-driver/releases/download/helm-chart-aws-ebs-csi-driver-" "/aws-ebs-csi-driver-" ".tgz") "github" .github }}
 name: "Bump aws-ebs-csi-driver chart to the latest upstream release"
 
 scms:
-  default:
-    kind: github
-    spec:
-      owner: '{{ .github.owner }}'
-      repository: '{{ .github.repository }}'
-      branch: '{{ .github.branch }}'
-      # Matches whoever GITHUB_TOKEN actually authenticates as (the
-      # updatecli GitHub App in CI, or a human token for local runs) rather
-      # than a hardcoded identity.
-      user: '{{ requiredEnv "GITHUB_ACTOR" }}'
-      email: '{{ requiredEnv "GITHUB_ACTOR" }}@users.noreply.github.com'
-      username: "x-access-token"
-      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
-      commitmessage:
-        type: "chore"
-        scope: "aws-ebs-csi-driver"
+  default:{{ template "common.scm" $pkg }}
 
-# aws-ebs-csi-driver publishes its Helm chart as a release asset tagged
-# "helm-chart-aws-ebs-csi-driver-<version>", separately from the driver's own
-# "vX.Y.Z" release tags. Filter to just the chart releases and pull out the
-# bare version.
 sources:
-  lastRelease:
-    name: "Get the latest aws-ebs-csi-driver helm chart release"
-    kind: githubrelease
-    spec:
-      owner: "kubernetes-sigs"
-      repository: "aws-ebs-csi-driver"
-      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
-      versionfilter:
-        kind: "regex"
-        pattern: '^helm-chart-aws-ebs-csi-driver-\d+\.\d+\.\d+$'
-    transformers:
-      - findsubmatch:
-          pattern: '^helm-chart-aws-ebs-csi-driver-(\d+\.\d+\.\d+)$'
-          captureindex: 1
+  lastRelease:{{ template "githubrelease.source" $pkg }}
 
 conditions:
-  chartAssetPublished:
-    name: "Check the release tgz asset is published"
-    kind: shell
-    disablesourceinput: true
-    spec:
-      command: >-
-        curl --fail --silent --show-error --location --output /dev/null
-        "https://github.com/kubernetes-sigs/aws-ebs-csi-driver/releases/download/helm-chart-aws-ebs-csi-driver-{{ source "lastRelease" }}/aws-ebs-csi-driver-{{ source "lastRelease" }}.tgz"
-
-  # buildChart below always "succeeds with output" (make's own logging is
-  # never empty), so updatecli can't tell from the shell target alone
-  # whether a rebuild was actually necessary - it would run make on every
-  # scheduled check and then error out with "no changed file to commit"
-  # once nothing was left to stage. Gate the whole pipeline here instead:
-  # skip cleanly, before any target runs, unless this release isn't already
-  # applied. failwhen inverts the normal yaml-condition pass criteria
-  # (equal = pass) into "equal = stop the pipeline here, cleanly".
-  upstreamVersionChanged:
-    name: "Only continue if this release isn't already applied"
-    kind: yaml
-    scmid: "default"
-    disablesourceinput: true
-    failwhen: true
-    spec:
-      file: "packages/aws-ebs-csi-driver/package.yaml"
-      key: "$.url"
-      value: 'https://github.com/kubernetes-sigs/aws-ebs-csi-driver/releases/download/helm-chart-aws-ebs-csi-driver-{{ source "lastRelease" }}/aws-ebs-csi-driver-{{ source "lastRelease" }}.tgz'
+  chartAssetPublished:{{ template "githubrelease.condition" $pkg }}
+  upstreamVersionChanged:{{ template "githubrelease.upstreamVersionChanged" $pkg }}
 
 targets:
-  packageURL:
-    name: "Point packages/aws-ebs-csi-driver/package.yaml at the new release asset"
-    kind: yaml
-    sourceid: "lastRelease"
-    scmid: "default"
-    spec:
-      file: "packages/aws-ebs-csi-driver/package.yaml"
-      key: "$.url"
-      value: 'https://github.com/kubernetes-sigs/aws-ebs-csi-driver/releases/download/helm-chart-aws-ebs-csi-driver-{{ source "lastRelease" }}/aws-ebs-csi-driver-{{ source "lastRelease" }}.tgz'
-
-  packageBuildVersion:
-    name: "Reset packageVersion to 01 for the new upstream release"
-    kind: yaml
-    sourceid: "lastRelease"
-    scmid: "default"
-    spec:
-      file: "packages/aws-ebs-csi-driver/package.yaml"
-      key: "$.packageVersion"
-      engine: "yamlpath"
-      value: "01"
-
-  buildChart:
-    name: "Regenerate the chart via charts-build-scripts"
-    kind: shell
-    scmid: "default"
-    disablesourceinput: true
-    dependson:
-      - "packageURL"
-      - "packageBuildVersion"
-    spec:
-      command: "make prepare PACKAGE=aws-ebs-csi-driver && make patch PACKAGE=aws-ebs-csi-driver && make charts PACKAGE=aws-ebs-csi-driver && make clean PACKAGE=aws-ebs-csi-driver"
+  packageURL:{{ template "githubrelease.packageURL" $pkg }}
+  packageBuildVersion:{{ template "common.packageBuildVersion" $pkg }}
+  buildChart:{{ template "common.buildChart" $pkg }}
 
 actions:
-  default:
-    kind: "github/pullrequest"
-    scmid: "default"
-    spec:
-      title: 'chore(aws-ebs-csi-driver): bump chart to {{ source "lastRelease" }}'
-      description: |
-        Automated upstream sync via [updatecli](https://www.updatecli.io/).
-
-        Pulls in `aws-ebs-csi-driver` `{{ source "lastRelease" }}` and
-        regenerates the chart via `make prepare`, `make patch` and `make
-        charts`. Review the diff under `packages/aws-ebs-csi-driver/` as you
-        would any other chart bump before merging.
-      labels:
-        - "dependencies"
-        - "aws-ebs-csi-driver"
+  default:{{ template "common.action" $pkg }}

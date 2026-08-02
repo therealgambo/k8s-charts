@@ -1,115 +1,20 @@
+{{ $pkg := dict "name" "kyverno" "image" "ghcr.io/kyverno/charts/kyverno" "tagfilter" "^v?\\d+\\.\\d+\\.\\d+$" "github" .github }}
 name: "Bump kyverno chart to the latest upstream release"
 
 scms:
-  default:
-    kind: github
-    spec:
-      owner: '{{ .github.owner }}'
-      repository: '{{ .github.repository }}'
-      branch: '{{ .github.branch }}'
-      # Matches whoever GITHUB_TOKEN actually authenticates as (the
-      # updatecli GitHub App in CI, or a human token for local runs) rather
-      # than a hardcoded identity.
-      user: '{{ requiredEnv "GITHUB_ACTOR" }}'
-      email: '{{ requiredEnv "GITHUB_ACTOR" }}@users.noreply.github.com'
-      username: "x-access-token"
-      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
-      commitmessage:
-        type: "chore"
-        scope: "kyverno"
+  default:{{ template "common.scm" $pkg }}
 
-# kyverno's chart isn't a GitHub release asset - it's published as an OCI
-# artifact to ghcr.io/kyverno/charts/kyverno, tagged with the bare chart
-# version (no "v" prefix, aside from a couple of stray legacy pre-release
-# tags). The tagfilter keeps the source restricted to plain "X.Y.Z" tags.
-# semver constraint matching only considers pre-release tags (-rc.1 etc.)
-# when the constraint itself has a pre-release component, so ">=0.0.0"
-# naturally selects the newest stable tag.
 sources:
-  lastRelease:
-    name: "Get the latest kyverno helm chart release"
-    kind: dockerimage
-    spec:
-      image: "ghcr.io/kyverno/charts/kyverno"
-      tagfilter: '^v?\d+\.\d+\.\d+$'
-      versionfilter:
-        kind: "semver"
-        pattern: ">=0.0.0"
+  lastRelease:{{ template "dockerimage.source" $pkg }}
 
 conditions:
-  chartTagPublished:
-    name: "Check the release OCI tag is published"
-    kind: dockerimage
-    disablesourceinput: true
-    spec:
-      image: "ghcr.io/kyverno/charts/kyverno"
-      tag: '{{ source "lastRelease" }}'
-
-  # buildChart below always "succeeds with output" (make's own logging is
-  # never empty), so updatecli can't tell from the shell target alone
-  # whether a rebuild was actually necessary - it would run make on every
-  # scheduled check and then error out with "no changed file to commit"
-  # once nothing was left to stage. Gate the whole pipeline here instead:
-  # skip cleanly, before any target runs, unless this release isn't already
-  # applied. failwhen inverts the normal yaml-condition pass criteria
-  # (equal = pass) into "equal = stop the pipeline here, cleanly".
-  upstreamVersionChanged:
-    name: "Only continue if this release isn't already applied"
-    kind: yaml
-    scmid: "default"
-    disablesourceinput: true
-    failwhen: true
-    spec:
-      file: "packages/kyverno/package.yaml"
-      key: "$.url"
-      value: 'oci://ghcr.io/kyverno/charts/kyverno:{{ source "lastRelease" }}'
+  chartTagPublished:{{ template "dockerimage.condition" $pkg }}
+  upstreamVersionChanged:{{ template "dockerimage.upstreamVersionChanged" $pkg }}
 
 targets:
-  packageURL:
-    name: "Point packages/kyverno/package.yaml at the new release tag"
-    kind: yaml
-    sourceid: "lastRelease"
-    scmid: "default"
-    spec:
-      file: "packages/kyverno/package.yaml"
-      key: "$.url"
-      value: 'oci://ghcr.io/kyverno/charts/kyverno:{{ source "lastRelease" }}'
-
-  packageBuildVersion:
-    name: "Reset packageVersion to 01 for the new upstream release"
-    kind: yaml
-    sourceid: "lastRelease"
-    scmid: "default"
-    spec:
-      file: "packages/kyverno/package.yaml"
-      key: "$.packageVersion"
-      engine: "yamlpath"
-      value: "01"
-
-  buildChart:
-    name: "Regenerate the chart via charts-build-scripts"
-    kind: shell
-    scmid: "default"
-    disablesourceinput: true
-    dependson:
-      - "packageURL"
-      - "packageBuildVersion"
-    spec:
-      command: "make prepare PACKAGE=kyverno && make patch PACKAGE=kyverno && make charts PACKAGE=kyverno && make clean PACKAGE=kyverno"
+  packageURL:{{ template "dockerimage.packageURL" $pkg }}
+  packageBuildVersion:{{ template "common.packageBuildVersion" $pkg }}
+  buildChart:{{ template "common.buildChart" $pkg }}
 
 actions:
-  default:
-    kind: "github/pullrequest"
-    scmid: "default"
-    spec:
-      title: 'chore(kyverno): bump chart to {{ source "lastRelease" }}'
-      description: |
-        Automated upstream sync via [updatecli](https://www.updatecli.io/).
-
-        Pulls in `kyverno` `{{ source "lastRelease" }}` and regenerates
-        the chart via `make prepare`, `make patch` and `make charts`. Review
-        the diff under `packages/kyverno/` as
-        you would any other chart bump before merging.
-      labels:
-        - "dependencies"
-        - "kyverno"
+  default:{{ template "common.action" $pkg }}

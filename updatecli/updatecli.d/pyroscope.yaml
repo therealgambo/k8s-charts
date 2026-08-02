@@ -1,116 +1,20 @@
+{{ $pkg := dict "name" "pyroscope" "owner" "grafana" "repo" "helm-charts" "versionPattern" "^pyroscope-\\d+\\.\\d+\\.\\d+$" "capturePattern" "^pyroscope-(\\d+\\.\\d+\\.\\d+)$" "urlParts" (list "https://github.com/grafana/helm-charts/releases/download/pyroscope-" "/pyroscope-" ".tgz") "github" .github }}
 name: "Bump pyroscope chart to the latest upstream release"
 
 scms:
-  default:
-    kind: github
-    spec:
-      owner: '{{ .github.owner }}'
-      repository: '{{ .github.repository }}'
-      branch: '{{ .github.branch }}'
-      # Matches whoever GITHUB_TOKEN actually authenticates as (the
-      # updatecli GitHub App in CI, or a human token for local runs) rather
-      # than a hardcoded identity.
-      user: '{{ requiredEnv "GITHUB_ACTOR" }}'
-      email: '{{ requiredEnv "GITHUB_ACTOR" }}@users.noreply.github.com'
-      username: "x-access-token"
-      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
-      commitmessage:
-        type: "chore"
-        scope: "pyroscope"
+  default:{{ template "common.scm" $pkg }}
 
-# grafana/helm-charts tags each chart release "pyroscope-<version>" (that
-# monorepo hosts many charts). Filter to those and pull out the bare version.
 sources:
-  lastRelease:
-    name: "Get the latest pyroscope helm chart release"
-    kind: githubrelease
-    spec:
-      owner: "grafana"
-      repository: "helm-charts"
-      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
-      versionfilter:
-        kind: "regex"
-        pattern: '^pyroscope-\d+\.\d+\.\d+$'
-    transformers:
-      - findsubmatch:
-          pattern: '^pyroscope-(\d+\.\d+\.\d+)$'
-          captureindex: 1
+  lastRelease:{{ template "githubrelease.source" $pkg }}
 
 conditions:
-  chartAssetPublished:
-    name: "Check the release tgz asset is published"
-    kind: shell
-    disablesourceinput: true
-    spec:
-      command: >-
-        curl --fail --silent --show-error --location --output /dev/null
-        "https://github.com/grafana/helm-charts/releases/download/pyroscope-{{ source "lastRelease" }}/pyroscope-{{ source "lastRelease" }}.tgz"
-
-  # buildChart below always "succeeds with output" (make's own logging is
-  # never empty), so updatecli can't tell from the shell target alone
-  # whether a rebuild was actually necessary - it would run make on every
-  # scheduled check and then error out with "no changed file to commit"
-  # once nothing was left to stage. Gate the whole pipeline here instead:
-  # skip cleanly, before any target runs, unless this release isn't already
-  # applied. failwhen inverts the normal yaml-condition pass criteria
-  # (equal = pass) into "equal = stop the pipeline here, cleanly".
-  upstreamVersionChanged:
-    name: "Only continue if this release isn't already applied"
-    kind: yaml
-    scmid: "default"
-    disablesourceinput: true
-    failwhen: true
-    spec:
-      file: "packages/pyroscope/package.yaml"
-      key: "$.url"
-      value: 'https://github.com/grafana/helm-charts/releases/download/pyroscope-{{ source "lastRelease" }}/pyroscope-{{ source "lastRelease" }}.tgz'
+  chartAssetPublished:{{ template "githubrelease.condition" $pkg }}
+  upstreamVersionChanged:{{ template "githubrelease.upstreamVersionChanged" $pkg }}
 
 targets:
-  packageURL:
-    name: "Point packages/pyroscope/package.yaml at the new release asset"
-    kind: yaml
-    sourceid: "lastRelease"
-    scmid: "default"
-    spec:
-      file: "packages/pyroscope/package.yaml"
-      key: "$.url"
-      value: 'https://github.com/grafana/helm-charts/releases/download/pyroscope-{{ source "lastRelease" }}/pyroscope-{{ source "lastRelease" }}.tgz'
-
-  packageBuildVersion:
-    name: "Reset packageVersion to 01 for the new upstream release"
-    kind: yaml
-    sourceid: "lastRelease"
-    scmid: "default"
-    spec:
-      file: "packages/pyroscope/package.yaml"
-      key: "$.packageVersion"
-      engine: "yamlpath"
-      value: "01"
-
-  buildChart:
-    name: "Regenerate the chart via charts-build-scripts"
-    kind: shell
-    scmid: "default"
-    disablesourceinput: true
-    dependson:
-      - "packageURL"
-      - "packageBuildVersion"
-    spec:
-      command: "make prepare PACKAGE=pyroscope && make patch PACKAGE=pyroscope && make charts PACKAGE=pyroscope && make clean PACKAGE=pyroscope"
+  packageURL:{{ template "githubrelease.packageURL" $pkg }}
+  packageBuildVersion:{{ template "common.packageBuildVersion" $pkg }}
+  buildChart:{{ template "common.buildChart" $pkg }}
 
 actions:
-  default:
-    kind: "github/pullrequest"
-    scmid: "default"
-    spec:
-      title: 'chore(pyroscope): bump chart to {{ source "lastRelease" }}'
-      description: |
-        Automated upstream sync via [updatecli](https://www.updatecli.io/).
-
-        Pulls in `pyroscope` `{{ source "lastRelease" }}` and regenerates
-        the chart via `make prepare`, `make patch` and `make charts`. Review
-        the diff under `packages/pyroscope/` as
-        you would any other chart bump before merging.
-      labels:
-        - "dependencies"
-        - "pyroscope"
+  default:{{ template "common.action" $pkg }}

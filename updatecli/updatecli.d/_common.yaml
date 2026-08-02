@@ -1,0 +1,84 @@
+{{/*
+Shared building blocks for every package's updatecli pipeline. See
+updatecli/README.md for the recipe for adding a new package.
+
+Invoked from a per-package manifest as `{{ template "common.X" $pkg }}`,
+where $pkg is a small dict describing that package. A `{{ template }}` call
+does NOT inherit the caller's variables -- inside a define, both "." and
+"$" are rebound to whatever was passed at the call site, not the root
+values.yaml data. So $pkg must carry its own "github" key (copied from the
+real root at the top of each package file, where "." still IS the root) for
+common.scm to reach it as plain ".github".
+
+Each define's body is hand-indented 4 spaces to match where it's always
+invoked (right after a `<id>:` line nested one level under a top-level
+key), since a `template` action's output can't be piped through `nindent`
+the way Helm's `include` can -- `template` always writes directly to the
+output at its call site.
+
+upstreamVersionChanged/packageURL both need a family-specific "url" value,
+and Go's `{{ template "name" }}` action requires "name" to be a static
+string literal -- it can't be a computed/dynamic value. So those two
+blocks are defined once per family in each _<family>.yaml partial (which
+calls that family's own "<family>.url" define by its literal name) instead
+of once here generically.
+*/}}
+
+{{ define "common.scm" }}
+    kind: github
+    spec:
+      owner: '{{ .github.owner }}'
+      repository: '{{ .github.repository }}'
+      branch: '{{ .github.branch }}'
+      # Matches whoever GITHUB_TOKEN actually authenticates as (the
+      # updatecli GitHub App in CI, or a human token for local runs) rather
+      # than a hardcoded identity.
+      user: '{{ requiredEnv "GITHUB_ACTOR" }}'
+      email: '{{ requiredEnv "GITHUB_ACTOR" }}@users.noreply.github.com'
+      username: "x-access-token"
+      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
+      commitmessage:
+        type: "chore"
+        scope: "{{ .name }}"
+{{ end }}
+
+{{ define "common.packageBuildVersion" }}
+    name: "Reset packageVersion to 01 for the new upstream release"
+    kind: yaml
+    sourceid: "lastRelease"
+    scmid: "default"
+    spec:
+      file: "packages/{{ .name }}/package.yaml"
+      key: "$.packageVersion"
+      engine: "yamlpath"
+      value: "01"
+{{ end }}
+
+{{ define "common.buildChart" }}
+    name: "Regenerate the chart via charts-build-scripts"
+    kind: shell
+    scmid: "default"
+    disablesourceinput: true
+    dependson:
+      - "packageURL"
+      - "packageBuildVersion"
+    spec:
+      command: "make prepare PACKAGE={{ .name }} && make patch PACKAGE={{ .name }} && make charts PACKAGE={{ .name }} && make clean PACKAGE={{ .name }}"
+{{ end }}
+
+{{ define "common.action" }}
+    kind: "github/pullrequest"
+    scmid: "default"
+    spec:
+      title: 'chore({{ .name }}): bump chart to {{ source "lastRelease" }}'
+      description: |
+        Automated upstream sync via [updatecli](https://www.updatecli.io/).
+
+        Pulls in `{{ if .displayName }}{{ .displayName }}{{ else }}{{ .name }}{{ end }}` `{{ source "lastRelease" }}` and regenerates
+        the chart via `make prepare`, `make patch` and `make charts`. Review
+        the diff under `packages/{{ .name }}/` as
+        you would any other chart bump before merging.
+      labels:
+        - "dependencies"
+        - "{{ .name }}"
+{{ end }}

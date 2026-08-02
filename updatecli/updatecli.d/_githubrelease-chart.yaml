@@ -1,0 +1,68 @@
+{{/*
+Shape: chart tracked via a GitHub release (either the chart's own release,
+or -- for a chart mirror with no independent versioning -- the separate
+application repo's release). See updatecli/README.md's "GitHub release
+asset" and "chart mirror with an unrelated app repo" recipes.
+
+$pkg needs: name, owner, repo, versionPattern, capturePattern, urlParts
+(list of literal string segments -- consecutive segments are joined by the
+resolved version, so a 2-element list produces one substitution and a
+3-element list produces two; e.g. argo-cd/external-dns embed the version
+twice in their asset path), sourceLabel (optional override for "Get the
+latest X ..." when the tracked repo isn't named after the package, e.g.
+consul -> consul-k8s), releaseNoun (optional override for the trailing
+"... release" wording; defaults to "helm chart release", set to "release"
+for the chart-mirror shape where the source is the *application*'s own
+release, not a chart release).
+*/}}
+
+{{ define "githubrelease.source" }}
+    name: "Get the latest {{ if .sourceLabel }}{{ .sourceLabel }}{{ else }}{{ .name }}{{ end }} {{ if .releaseNoun }}{{ .releaseNoun }}{{ else }}helm chart release{{ end }}"
+    kind: githubrelease
+    spec:
+      owner: "{{ .owner }}"
+      repository: "{{ .repo }}"
+      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
+      versionfilter:
+        kind: "regex"
+        pattern: '{{ .versionPattern }}'
+    transformers:
+      - findsubmatch:
+          pattern: '{{ .capturePattern }}'
+          captureindex: 1
+{{ end }}
+
+{{ define "githubrelease.url" }}{{ range $i, $part := .urlParts }}{{ if $i }}{{ source "lastRelease" }}{{ end }}{{ $part }}{{ end }}{{ end }}
+
+{{ define "githubrelease.condition" }}
+    name: "Check the release tgz asset is published"
+    kind: shell
+    disablesourceinput: true
+    spec:
+      command: >-
+        curl --fail --silent --show-error --location --output /dev/null
+        "{{ template "githubrelease.url" . }}"
+{{ end }}
+
+{{ define "githubrelease.upstreamVersionChanged" }}
+    name: "Only continue if this release isn't already applied"
+    kind: yaml
+    scmid: "default"
+    disablesourceinput: true
+    failwhen: true
+    spec:
+      file: "packages/{{ .name }}/package.yaml"
+      key: "$.url"
+      value: '{{ template "githubrelease.url" . }}'
+{{ end }}
+
+{{ define "githubrelease.packageURL" }}
+    name: "Point packages/{{ .name }}/package.yaml at the new release asset"
+    kind: yaml
+    sourceid: "lastRelease"
+    scmid: "default"
+    spec:
+      file: "packages/{{ .name }}/package.yaml"
+      key: "$.url"
+      value: '{{ template "githubrelease.url" . }}'
+{{ end }}

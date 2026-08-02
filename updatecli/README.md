@@ -9,7 +9,25 @@ exists, bumps `packages/<name>/package.yaml`, regenerates the chart with
 ## Layout
 
 - `updatecli.d/<name>.yaml` — one manifest per package, named to match its
-  `packages/<name>/` directory
+  `packages/<name>/` directory. Each one is short: a `$pkg` dict of facts
+  about that package, followed by `{{ template "..." $pkg }}` calls into
+  the shared partials below. See "Adding a package" for the recipe.
+- `updatecli.d/_common.yaml` — Go template `define` blocks shared by every
+  package regardless of shape: the `scms` block, the `packageBuildVersion`
+  and `buildChart` targets, and the `github/pullrequest` action.
+- `updatecli.d/_dockerimage-chart.yaml`, `_githubrelease-chart.yaml`,
+  `_helmchart.yaml` — one partial per upstream shape (see "Adding a
+  package"), each defining that shape's `source`/`condition` pair plus its
+  own `upstreamVersionChanged`/`packageURL` targets (these can't live in
+  `_common.yaml` because they need the shape's own URL-construction logic,
+  and Go's `{{ template "name" }}` action requires "name" to be a static
+  string literal — it can't dynamically dispatch to "whichever shape this
+  package is").
+- Files prefixed with `_` are **partials**: updatecli concatenates every
+  `_*.yaml` in this directory into each of the *other* manifests before
+  rendering (a native feature since updatecli v0.103.0), so their `define`
+  blocks are callable from any `<name>.yaml` in the same directory. They're
+  never loaded as standalone pipelines themselves.
 - `values.yaml` — repo identity shared by every manifest (`.github.*`); commit
   author/email are derived at runtime from `GITHUB_ACTOR` instead, so they
   automatically match whichever credential is authenticating (see below)
@@ -17,6 +35,21 @@ exists, bumps `packages/<name>/package.yaml`, regenerates the chart with
   runs `updatecli pipeline diff` on PRs that touch this directory (catches
   broken manifests before merge) and `updatecli pipeline apply` on a daily
   schedule / manual dispatch (does the actual bump + PR)
+
+## How the partials fit together
+
+A `{{ template "name" $pkg }}` call does **not** inherit the caller's
+variables — inside a `define`, both `.` and `$` are rebound to whatever was
+passed at the call site, not the root `values.yaml` data. That's why every
+`$pkg` dict includes a `"github" .github` entry (copied from the real root,
+at the top of each package file, before any `template` call rebinds `.`) —
+`common.scm` reaches it back out as plain `.github.owner`.
+
+Each `define`'s body is hand-indented 4 spaces to match where it's always
+invoked (right after a `<id>:` line nested one level under a top-level key),
+since a `template` action's output can't be piped through `nindent` the way
+Helm's `include` can — `template` always writes directly to the output at
+its call site, so the indentation has to already be correct in the source.
 
 ## What a manifest does
 
@@ -49,82 +82,131 @@ Nothing is auto-merged: PRs land for review like any other change.
 
 When you add a new `packages/<name>/package.yaml` (see
 [packages/README.md](../packages/README.md)), add a matching
-`updatecli.d/<name>.yaml`. The `source`/`condition` shape depends on how the
-package pulls upstream:
+`updatecli.d/<name>.yaml`. In the common case this is the entire file (see
+`updatecli.d/cert-manager.yaml` for a real one this short):
 
-- **GitHub release asset** (a direct `.tgz` URL under
-  `releases/download/...`, like `external-dns`): use a `githubrelease` source
-  with a `versionfilter` regex scoped to that project's chart-release tags,
-  and a `yaml` target that rewrites the `url` field with the new version
-  templated in. Copy `updatecli.d/external-dns.yaml` as a starting point.
-- **Git-tracked chart** (a `url`/`subdirectory`/`chartRepoBranch` pointing at
-  a chart living inside a git repo, with a separate `version` field): use a
-  `githubtag` or `githubrelease` source instead, and target the `version` key
-  directly rather than `url`.
+```gotemplate
+{{ $pkg := dict "name" "<name>" "image" "<registry>/<path>" "tagfilter" "^v?\\d+\\.\\d+\\.\\d+$" "github" .github }}
+name: "Bump <name> chart to the latest upstream release"
+
+scms:
+  default:{{ template "common.scm" $pkg }}
+
+sources:
+  lastRelease:{{ template "dockerimage.source" $pkg }}
+
+conditions:
+  chartTagPublished:{{ template "dockerimage.condition" $pkg }}
+  upstreamVersionChanged:{{ template "dockerimage.upstreamVersionChanged" $pkg }}
+
+targets:
+  packageURL:{{ template "dockerimage.packageURL" $pkg }}
+  packageBuildVersion:{{ template "common.packageBuildVersion" $pkg }}
+  buildChart:{{ template "common.buildChart" $pkg }}
+
+actions:
+  default:{{ template "common.action" $pkg }}
+```
+
+Always include `"github" .github` in `$pkg` (see "How the partials fit
+together" above for why), and always pass `$pkg` — not `.` — to every
+`template` call. The four stages/block *names* (`common.scm`, `<shape>.source`,
+etc.) never change; only which shape's partial you call, and what fields you
+put in `$pkg`, do. Pick the shape based on how the package pulls upstream:
+
 - **OCI registry chart** (a `url` like `oci://ghcr.io/<org>/<chart>:<version>`,
   like `kargo`, `cert-manager`, `grafana`, `karpenter`, `kyverno`,
-  `node-local-dns`, `node-problem-detector`): use a `dockerimage` source
-  pointed at the OCI image (registry host included, e.g.
-  `ghcr.io/akuity/kargo-charts/kargo` — any standard OCI registry works,
-  not just `ghcr.io`; `quay.io` and `public.ecr.aws` are also in use here)
-  with a `semver` `versionfilter` — pattern `>=0.0.0` picks the newest
-  stable tag, since semver constraint matching only considers pre-release
-  tags (`-rc.1` etc.) when the constraint itself has a pre-release
-  component. **Always pair this with a `tagfilter: '^v?\d+\.\d+\.\d+$'`.**
+  `node-local-dns`, `node-problem-detector`): use the `dockerimage.*`
+  templates from `_dockerimage-chart.yaml` (as in the example above). `$pkg`
+  needs `image` (registry host included, e.g. `ghcr.io/akuity/kargo-charts/kargo`
+  — any standard OCI registry works, not just `ghcr.io`; `quay.io` and
+  `public.ecr.aws` are also in use here) and, almost always, `tagfilter`.
+  **Always set `tagfilter: "^v?\\d+\\.\\d+\\.\\d+$"`** (note the doubled
+  backslashes — this is a Go template string literal, not raw YAML).
   Real-world OCI chart registries are noisy — cosign `sha256-....sig`
   signatures, `artifacthub.io` verification tags, nightly builds, bare
   date-stamped tags — and `dockerimage` returns raw tag strings, so a bare
   integer tag (e.g. a date like `20221219`) parses as a technically-valid
   but enormous semver major and wins over any real release under
   `>=0.0.0` if it isn't filtered out first (this bit `karpenter` for real
-  during testing). Some registries (`cert-manager` on `quay.io`) also
-  double-tag every release as both `X.Y.Z` and `vX.Y.Z`; check what's
+  during testing; `kargo` is the one existing package that omits `tagfilter`
+  entirely, and only because `ghcr.io/akuity/kargo-charts/kargo` happens not
+  to carry any noise tags). Some registries (`cert-manager` on `quay.io`)
+  also double-tag every release as both `X.Y.Z` and `vX.Y.Z`; check what's
   already pinned in `package.yaml` and narrow the `tagfilter` to just that
-  convention (`^v\d+...` vs `^v?\d+...`) so the source can't flip-flop
-  between the two. Use a matching `dockerimage` condition
-  (`tag: '{{ source "..." }}'`) in place of the `curl`-based asset check,
-  and target the `url` field with the tag interpolated back in. Copy
-  `updatecli.d/kargo.yaml` as a starting point.
+  convention (`^v\\d+...` vs `^v?\\d+...`) so the source can't flip-flop
+  between the two.
 - **Classic Helm repository chart** (a `url` like
   `https://<host>/<path>/<chart>-<version>.tgz` served from a plain
   `index.yaml`-based Helm repo — typically a GitHub Pages site — rather
   than a GitHub release or an OCI registry, like `aws-lb-controller` and
-  `rbac-manager`): use a `helmchart` source with `url` set to the repo root
-  (not the `.tgz`) and `name` set to the chart name; it reads `index.yaml`
-  and picks the newest stable version automatically. Don't assume the
+  `rbac-manager`): use the `helmchart.*` templates from `_helmchart.yaml`.
+  `$pkg` needs `repoURL` (the repo root, not the `.tgz`) and `chartName`;
+  add `displayName` too if the chart's own name differs from the package
+  folder name (see `aws-lb-controller.yaml`, where the folder is shortened
+  but the PR description should say the real chart name). Don't assume the
   upstream project's GitHub releases track the chart version at all — e.g.
   `aws/eks-charts` cuts one sequential `v0.0.N` release per repo change
   covering every chart, and `FairwindsOps/rbac-manager` tags releases by
-  *app* version, not the (independently versioned) chart. Use a matching
-  `helmchart` condition (`version: '{{ source "..." }}'`) and target the
-  `url` field with the chart name and version templated back into the
-  flat `<repo>/<chart>-<version>.tgz` layout. Copy
-  `updatecli.d/aws-lb-controller.yaml` as a starting point.
-- **Chart mirror with an unrelated app repo** (the chart asset is hosted
-  somewhere that doesn't tag or release independently — a raw file in a
-  git repo, or a classic Helm repo like `helm.cilium.io` or
-  `helm.releases.hashicorp.com` — while the actual versioning happens in
-  the separate upstream application repo, like `cilium`, `tetragon`,
-  `consul` and `vault`): use a `githubrelease` source against the
-  *application* repo (not the chart-hosting one) with a `versionfilter`
-  regex scoped to its stable `vX.Y.Z` tags, same as the GitHub release
-  asset shape, but keep the `curl`-based condition and the `yaml` target's
-  `url` value pointed at the chart host's own URL scheme (e.g.
-  `https://helm.cilium.io/<chart>-{{ source "..." }}.tgz` or
-  `https://github.com/cilium/charts/raw/refs/heads/master/<chart>-{{
-  source "..." }}.tgz`) rather than a `releases/download/...` path — the
-  version comes from one repo, the asset from another. Verify the two
-  actually move in lockstep before relying on this (check a few historical
-  tags against the chart host) since nothing enforces it structurally.
-  Copy `updatecli.d/cilium.yaml` or `updatecli.d/consul.yaml` as a
-  starting point.
+  *app* version, not the (independently versioned) chart.
+- **GitHub release** (either a direct chart release asset under
+  `releases/download/...`, like `external-dns`; or — for a chart mirror
+  with no independent versioning of its own, like `cilium`, `tetragon`,
+  `consul` and `vault` — the separate *application* repo's release, with
+  the chart's own host, e.g. `helm.cilium.io` or
+  `helm.releases.hashicorp.com`, providing the actual asset): use the
+  `githubrelease.*` templates from `_githubrelease-chart.yaml`. `$pkg`
+  needs `owner`, `repo`, `versionPattern` (the `versionfilter` regex
+  scoped to this project's release tag convention) and `capturePattern`
+  (the same tag with the bare version captured in group 1), plus
+  `urlParts` — a list of literal string segments that get joined by the
+  resolved version, so a 2-element list produces one substitution
+  (`["https://helm.cilium.io/cilium-", ".tgz"]`) and a 3-element list
+  produces two (`argo-cd`/`external-dns`/`coredns`/etc. embed the version
+  twice: once in the release-tag path segment, once in the asset
+  filename). If the tracked repo isn't named after the package (`consul`
+  tracks `hashicorp/consul-k8s`, `vault` tracks `hashicorp/vault-helm`,
+  `online-boutique` tracks `GoogleCloudPlatform/microservices-demo`), add
+  `sourceLabel` so the `sources.lastRelease.name` wording says the repo
+  being tracked, not the package folder name. For the chart-mirror shape
+  specifically, also set `releaseNoun` to `"release"` (it defaults to
+  `"helm chart release"`, which is wrong when what's actually being
+  tracked is the app's own release, not a release of the chart). Verify
+  the chart-mirror host and the app repo's tags actually move in lockstep
+  before relying on this (check a few historical tags against the chart
+  host) since nothing enforces it structurally.
+- **Hybrid shapes**: nothing requires using one shape's *entire* set of
+  templates — mix and match per block if a package's version tracking and
+  asset hosting genuinely differ. `online-boutique.yaml` is the existing
+  example: its OCI-published chart doesn't tag independently, so it uses
+  `githubrelease.source` (tracking the app repo's own releases) together
+  with `dockerimage.condition`/`dockerimage.upstreamVersionChanged`/
+  `dockerimage.packageURL` (checking/targeting the OCI artifact the
+  resolved version actually publishes to) — see that file's leading
+  comment for the full reasoning before copying the pattern elsewhere.
 
-Keep the `scms` and `actions` blocks identical to the existing manifests
-(they just reference `values.yaml`) so every package behaves consistently.
+If a package's shape doesn't fit any of the three `_*.yaml` partials at all
+(rare — nothing here so far has needed it), write the `sources`/`conditions`/
+`targets` blocks out by hand in that one manifest instead of forcing a new
+shared partial into existence for a single package; still reuse
+`common.scm`/`common.packageBuildVersion`/`common.buildChart`/`common.action`
+for the boilerplate that's genuinely universal.
 
 Targets act on whatever is pushed to `main` on GitHub, not your local working
 tree — a new package only becomes bumpable once its `package.yaml` (and, once
 generated, `generated-changes/`) is merged.
+
+Before merging, render the pipeline locally to confirm it parses and looks
+right — this doesn't touch GitHub, it just resolves the templates:
+
+```
+GITHUB_TOKEN=<any placeholder> GITHUB_ACTOR=<any placeholder> \
+  updatecli manifest show --config ./updatecli/updatecli.d --values ./updatecli/values.yaml
+```
+
+(The `SCM repository retrieved` clone attempt will fail with a placeholder
+token — that's fine and expected; the rendered pipeline spec printed below it
+is what you're checking.)
 
 ## Authentication: the `updatecli` GitHub App
 
@@ -197,7 +279,7 @@ does not need "Read and write" — the default token is only used for
 ## Running locally
 
 ```
-brew install updatecli/tap/updatecli  # or see https://www.updatecli.io/docs/prologue/installation/
+brew install updatecli/updatecli/updatecli  # or see https://www.updatecli.io/docs/prologue/installation/
 GITHUB_TOKEN=<a token with repo read/write access> GITHUB_ACTOR=<your github username> \
   updatecli pipeline diff --config ./updatecli/updatecli.d --values ./updatecli/values.yaml
 ```

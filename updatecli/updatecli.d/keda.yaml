@@ -1,117 +1,20 @@
+{{ $pkg := dict "name" "keda" "owner" "kedacore" "repo" "charts" "versionPattern" "^v\\d+\\.\\d+\\.\\d+$" "capturePattern" "^v(\\d+\\.\\d+\\.\\d+)$" "urlParts" (list "https://kedacore.github.io/charts/keda-" ".tgz") "github" .github }}
 name: "Bump keda chart to the latest upstream release"
 
 scms:
-  default:
-    kind: github
-    spec:
-      owner: '{{ .github.owner }}'
-      repository: '{{ .github.repository }}'
-      branch: '{{ .github.branch }}'
-      # Matches whoever GITHUB_TOKEN actually authenticates as (the
-      # updatecli GitHub App in CI, or a human token for local runs) rather
-      # than a hardcoded identity.
-      user: '{{ requiredEnv "GITHUB_ACTOR" }}'
-      email: '{{ requiredEnv "GITHUB_ACTOR" }}@users.noreply.github.com'
-      username: "x-access-token"
-      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
-      commitmessage:
-        type: "chore"
-        scope: "keda"
+  default:{{ template "common.scm" $pkg }}
 
-# kedacore/charts also tags its separate keda-add-ons-http chart in the same
-# repo (e.g. "keda-add-ons-http-v0.12.2"), so the pattern is anchored to just
-# bare "vX.Y.Z" tags to stay on the core keda chart.
 sources:
-  lastRelease:
-    name: "Get the latest keda helm chart release"
-    kind: githubrelease
-    spec:
-      owner: "kedacore"
-      repository: "charts"
-      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
-      versionfilter:
-        kind: "regex"
-        pattern: '^v\d+\.\d+\.\d+$'
-    transformers:
-      - findsubmatch:
-          pattern: '^v(\d+\.\d+\.\d+)$'
-          captureindex: 1
+  lastRelease:{{ template "githubrelease.source" $pkg }}
 
 conditions:
-  chartAssetPublished:
-    name: "Check the release tgz asset is published"
-    kind: shell
-    disablesourceinput: true
-    spec:
-      command: >-
-        curl --fail --silent --show-error --location --output /dev/null
-        "https://kedacore.github.io/charts/keda-{{ source "lastRelease" }}.tgz"
-
-  # buildChart below always "succeeds with output" (make's own logging is
-  # never empty), so updatecli can't tell from the shell target alone
-  # whether a rebuild was actually necessary - it would run make on every
-  # scheduled check and then error out with "no changed file to commit"
-  # once nothing was left to stage. Gate the whole pipeline here instead:
-  # skip cleanly, before any target runs, unless this release isn't already
-  # applied. failwhen inverts the normal yaml-condition pass criteria
-  # (equal = pass) into "equal = stop the pipeline here, cleanly".
-  upstreamVersionChanged:
-    name: "Only continue if this release isn't already applied"
-    kind: yaml
-    scmid: "default"
-    disablesourceinput: true
-    failwhen: true
-    spec:
-      file: "packages/keda/package.yaml"
-      key: "$.url"
-      value: 'https://kedacore.github.io/charts/keda-{{ source "lastRelease" }}.tgz'
+  chartAssetPublished:{{ template "githubrelease.condition" $pkg }}
+  upstreamVersionChanged:{{ template "githubrelease.upstreamVersionChanged" $pkg }}
 
 targets:
-  packageURL:
-    name: "Point packages/keda/package.yaml at the new release asset"
-    kind: yaml
-    sourceid: "lastRelease"
-    scmid: "default"
-    spec:
-      file: "packages/keda/package.yaml"
-      key: "$.url"
-      value: 'https://kedacore.github.io/charts/keda-{{ source "lastRelease" }}.tgz'
-
-  packageBuildVersion:
-    name: "Reset packageVersion to 01 for the new upstream release"
-    kind: yaml
-    sourceid: "lastRelease"
-    scmid: "default"
-    spec:
-      file: "packages/keda/package.yaml"
-      key: "$.packageVersion"
-      engine: "yamlpath"
-      value: "01"
-
-  buildChart:
-    name: "Regenerate the chart via charts-build-scripts"
-    kind: shell
-    scmid: "default"
-    disablesourceinput: true
-    dependson:
-      - "packageURL"
-      - "packageBuildVersion"
-    spec:
-      command: "make prepare PACKAGE=keda && make patch PACKAGE=keda && make charts PACKAGE=keda && make clean PACKAGE=keda"
+  packageURL:{{ template "githubrelease.packageURL" $pkg }}
+  packageBuildVersion:{{ template "common.packageBuildVersion" $pkg }}
+  buildChart:{{ template "common.buildChart" $pkg }}
 
 actions:
-  default:
-    kind: "github/pullrequest"
-    scmid: "default"
-    spec:
-      title: 'chore(keda): bump chart to {{ source "lastRelease" }}'
-      description: |
-        Automated upstream sync via [updatecli](https://www.updatecli.io/).
-
-        Pulls in `keda` `{{ source "lastRelease" }}` and regenerates
-        the chart via `make prepare`, `make patch` and `make charts`. Review
-        the diff under `packages/keda/` as
-        you would any other chart bump before merging.
-      labels:
-        - "dependencies"
-        - "keda"
+  default:{{ template "common.action" $pkg }}

@@ -1,0 +1,50 @@
+{{/*
+Shape: chart served from a classic Helm repository (index.yaml), read
+directly via the helmchart resource. See updatecli/README.md's "Classic
+Helm repository chart" recipe.
+
+$pkg needs: name, repoURL, chartName.
+*/}}
+
+{{ define "helmchart.source" }}
+    name: "Get the latest {{ .chartName }} helm chart release"
+    kind: helmchart
+    spec:
+      url: "{{ .repoURL }}"
+      name: "{{ .chartName }}"
+{{ end }}
+
+{{ define "helmchart.condition" }}
+    name: "Check the release chart version is published"
+    kind: helmchart
+    disablesourceinput: true
+    spec:
+      url: "{{ .repoURL }}"
+      name: "{{ .chartName }}"
+      version: '{{ source "lastRelease" }}'
+{{ end }}
+
+{{ define "helmchart.url" }}{{ .repoURL }}/{{ .chartName }}-{{ source "lastRelease" }}.tgz{{ end }}
+
+{{ define "helmchart.upstreamVersionChanged" }}
+    name: "Only continue if this release isn't already applied"
+    kind: yaml
+    scmid: "default"
+    disablesourceinput: true
+    failwhen: true
+    spec:
+      file: "packages/{{ .name }}/package.yaml"
+      key: "$.url"
+      value: '{{ template "helmchart.url" . }}'
+{{ end }}
+
+{{ define "helmchart.packageURL" }}
+    name: "Point packages/{{ .name }}/package.yaml at the new release asset"
+    kind: yaml
+    sourceid: "lastRelease"
+    scmid: "default"
+    spec:
+      file: "packages/{{ .name }}/package.yaml"
+      key: "$.url"
+      value: '{{ template "helmchart.url" . }}'
+{{ end }}

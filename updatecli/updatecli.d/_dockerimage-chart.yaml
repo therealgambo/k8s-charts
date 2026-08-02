@@ -1,0 +1,54 @@
+{{/*
+Shape: chart published as an OCI artifact (dockerimage source/condition).
+See updatecli/README.md's "OCI registry chart" recipe.
+
+$pkg needs: name, image, tagfilter (optional -- omit for registries that
+don't need one, like kargo's).
+*/}}
+
+{{ define "dockerimage.source" }}
+    name: "Get the latest {{ .name }} helm chart release"
+    kind: dockerimage
+    spec:
+      image: "{{ .image }}"
+      {{- if .tagfilter }}
+      tagfilter: '{{ .tagfilter }}'
+      {{- end }}
+      versionfilter:
+        kind: "semver"
+        pattern: ">=0.0.0"
+{{ end }}
+
+{{ define "dockerimage.condition" }}
+    name: "Check the release OCI tag is published"
+    kind: dockerimage
+    disablesourceinput: true
+    spec:
+      image: "{{ .image }}"
+      tag: '{{ source "lastRelease" }}'
+{{ end }}
+
+{{ define "dockerimage.url" }}oci://{{ .image }}:{{ source "lastRelease" }}{{ end }}
+
+{{ define "dockerimage.upstreamVersionChanged" }}
+    name: "Only continue if this release isn't already applied"
+    kind: yaml
+    scmid: "default"
+    disablesourceinput: true
+    failwhen: true
+    spec:
+      file: "packages/{{ .name }}/package.yaml"
+      key: "$.url"
+      value: '{{ template "dockerimage.url" . }}'
+{{ end }}
+
+{{ define "dockerimage.packageURL" }}
+    name: "Point packages/{{ .name }}/package.yaml at the new release tag"
+    kind: yaml
+    sourceid: "lastRelease"
+    scmid: "default"
+    spec:
+      file: "packages/{{ .name }}/package.yaml"
+      key: "$.url"
+      value: '{{ template "dockerimage.url" . }}'
+{{ end }}
