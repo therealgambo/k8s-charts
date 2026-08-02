@@ -117,6 +117,7 @@ jobs:
 
       - name: helm template | kubeconform
         run: |
+          set -o pipefail
           make template PACKAGE=${{ matrix.package }} \
             | bin/kubeconform \
                 -strict \
