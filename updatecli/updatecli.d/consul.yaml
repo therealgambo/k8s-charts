@@ -111,7 +111,7 @@ actions:
 
         Pulls in `consul` `{{ source "lastRelease" }}` and regenerates
         the chart via `make prepare`, `make patch` and `make charts`. Review
-        the diff under `charts/`, `assets/` and `packages/consul/` as
+        the diff under `packages/consul/` as
         you would any other chart bump before merging.
       labels:
         - "dependencies"

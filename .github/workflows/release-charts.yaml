@@ -36,6 +36,7 @@ jobs:
       - name: Detect changed packages
         id: detect
         run: |
+          set -euo pipefail
           if [[ "${{ github.event_name }}" == "push" && "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]]; then
             list="$(./scripts/changed-packages.sh "${{ github.event.before }}" "${{ github.sha }}")"
           else
@@ -81,6 +82,7 @@ jobs:
 
       - name: Push to GHCR
         run: |
+          set -euo pipefail
           repo_lower="$(tr '[:upper:]' '[:lower:]' <<< '${{ github.repository }}')"
           shopt -s nullglob
           archives=(assets/${{ matrix.package }}/*.tgz)

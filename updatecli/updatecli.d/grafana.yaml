@@ -110,7 +110,7 @@ actions:
 
         Pulls in `grafana` `{{ source "lastRelease" }}` and regenerates
         the chart via `make prepare`, `make patch` and `make charts`. Review
-        the diff under `charts/`, `assets/` and `packages/grafana/` as
+        the diff under `packages/grafana/` as
         you would any other chart bump before merging.
       labels:
         - "dependencies"

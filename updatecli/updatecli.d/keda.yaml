@@ -110,7 +110,7 @@ actions:
 
         Pulls in `keda` `{{ source "lastRelease" }}` and regenerates
         the chart via `make prepare`, `make patch` and `make charts`. Review
-        the diff under `charts/`, `assets/` and `packages/keda/` as
+        the diff under `packages/keda/` as
         you would any other chart bump before merging.
       labels:
         - "dependencies"

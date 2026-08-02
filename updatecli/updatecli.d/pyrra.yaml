@@ -110,7 +110,7 @@ actions:
 
         Pulls in `pyrra` `{{ source "lastRelease" }}` and regenerates
         the chart via `make prepare`, `make patch` and `make charts`. Review
-        the diff under `charts/`, `assets/` and `packages/pyrra/` as
+        the diff under `packages/pyrra/` as
         you would any other chart bump before merging.
       labels:
         - "dependencies"

@@ -36,6 +36,7 @@ jobs:
       - name: Detect changed packages
         id: detect
         run: |
+          set -euo pipefail
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             list="$(./scripts/changed-packages.sh "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")"
           else

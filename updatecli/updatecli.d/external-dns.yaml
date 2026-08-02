@@ -111,7 +111,7 @@ actions:
 
         Pulls in `external-dns` `{{ source "lastRelease" }}` and regenerates
         the chart via `make prepare`, `make patch` and `make charts`. Review
-        the diff under `charts/`, `assets/` and `packages/external-dns/` as
+        the diff under `packages/external-dns/` as
         you would any other chart bump before merging.
       labels:
         - "dependencies"

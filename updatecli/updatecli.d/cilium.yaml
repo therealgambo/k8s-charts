@@ -111,7 +111,7 @@ actions:
 
         Pulls in `cilium` `{{ source "lastRelease" }}` and regenerates
         the chart via `make prepare`, `make patch` and `make charts`. Review
-        the diff under `charts/`, `assets/` and `packages/cilium/` as
+        the diff under `packages/cilium/` as
         you would any other chart bump before merging.
       labels:
         - "dependencies"

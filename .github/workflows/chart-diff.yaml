@@ -41,6 +41,7 @@ jobs:
       - name: Detect changed packages
         id: detect
         run: |
+          set -euo pipefail
           list="$(./scripts/changed-packages.sh "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")"
           packages="$(jq -R -s -c 'split("\n") | map(select(length > 0))' <<< "${list}")"
           echo "packages=${packages}" >> "$GITHUB_OUTPUT"
@@ -120,12 +121,20 @@ jobs:
       # Note: a chart that uses Helm's `required` on a value with no default
       # (e.g. karpenter's settings.clusterName) fails `helm template` on
       # both sides with no values supplied — same known gap noted in
-      # validate-charts.yaml. Reported as a render failure below rather than
-      # failing the whole workflow.
+      # validate-charts.yaml. The step below still builds a comment fragment
+      # describing the render failure, but then fails the job (this workflow
+      # isn't a required check, so it's visible without blocking merges —
+      # kubeconform in validate-charts.yaml is the enforced gate for this).
       - name: Diff with dyff
         run: |
           mkdir -p diff-output
           out="diff-output/${{ matrix.package }}.md"
+          render_failed=0
+          if [[ "${{ steps.render_base.outputs.ok }}" != "true" || "${{ steps.render_pr.outputs.ok }}" != "true" ]]; then
+            echo "::error::${{ matrix.package }} failed to render — see the chart diff PR comment for details. This job fails but isn't a required check, so it doesn't block merging by itself; kubeconform in the Validate workflow is the enforced gate."
+            render_failed=1
+          fi
+
           {
             echo "<details>"
             if [[ "${{ steps.render_base.outputs.ok }}" != "true" || "${{ steps.render_pr.outputs.ok }}" != "true" ]]; then
@@ -151,7 +160,15 @@ jobs:
             echo "</details>"
           } > "${out}"
 
+          if [[ "${render_failed}" -eq 1 ]]; then
+            exit 1
+          fi
+
+      # if: always() so the fragment still gets uploaded (and the PR
+      # comment still shows the render error) even though the step above
+      # now exits 1 on a render failure.
       - name: Upload diff fragment
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: chart-diff-${{ matrix.package }}

@@ -107,7 +107,7 @@ actions:
 
         Pulls in `kargo` `{{ source "lastRelease" }}` and regenerates
         the chart via `make prepare`, `make patch` and `make charts`. Review
-        the diff under `charts/`, `assets/` and `packages/kargo/` as
+        the diff under `packages/kargo/` as
         you would any other chart bump before merging.
       labels:
         - "dependencies"

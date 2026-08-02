@@ -111,7 +111,7 @@ actions:
 
         Pulls in `loki` `{{ source "lastRelease" }}` and regenerates
         the chart via `make prepare`, `make patch` and `make charts`. Review
-        the diff under `charts/`, `assets/` and `packages/loki/` as
+        the diff under `packages/loki/` as
         you would any other chart bump before merging.
       labels:
         - "dependencies"

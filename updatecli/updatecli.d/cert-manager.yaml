@@ -109,7 +109,7 @@ actions:
 
         Pulls in `cert-manager` `{{ source "lastRelease" }}` and regenerates
         the chart via `make prepare`, `make patch` and `make charts`. Review
-        the diff under `charts/`, `assets/` and `packages/cert-manager/` as
+        the diff under `packages/cert-manager/` as
         you would any other chart bump before merging.
       labels:
         - "dependencies"

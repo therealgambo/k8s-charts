@@ -112,7 +112,7 @@ actions:
 
         Pulls in `tetragon` `{{ source "lastRelease" }}` and regenerates
         the chart via `make prepare`, `make patch` and `make charts`. Review
-        the diff under `charts/`, `assets/` and `packages/tetragon/` as
+        the diff under `packages/tetragon/` as
         you would any other chart bump before merging.
       labels:
         - "dependencies"
