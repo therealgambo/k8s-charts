@@ -1,0 +1,20 @@
+{{ $pkg := dict "name" "prometheus-node-exporter" "owner" "prometheus-community" "repo" "helm-charts" "versionPattern" "^prometheus-node-exporter-\\d+\\.\\d+\\.\\d+$" "capturePattern" "^prometheus-node-exporter-(\\d+\\.\\d+\\.\\d+)$" "urlParts" (list "https://github.com/prometheus-community/helm-charts/releases/download/prometheus-node-exporter-" "/prometheus-node-exporter-" ".tgz") "sourceLabel" "prometheus-node-exporter" "displayName" "prometheus-node-exporter" "github" .github }}
+name: "Bump prometheus-node-exporter chart to the latest upstream release"
+
+scms:
+  default:{{ template "common.scm" $pkg }}
+
+sources:
+  lastRelease:{{ template "githubrelease.source" $pkg }}
+
+conditions:
+  chartAssetPublished:{{ template "githubrelease.condition" $pkg }}
+  upstreamVersionChanged:{{ template "githubrelease.upstreamVersionChanged" $pkg }}
+
+targets:
+  packageURL:{{ template "githubrelease.packageURL" $pkg }}
+  packageBuildVersion:{{ template "common.packageBuildVersion" $pkg }}
+  buildChart:{{ template "common.buildChart" $pkg }}
+
+actions:
+  default:{{ template "common.action" $pkg }}

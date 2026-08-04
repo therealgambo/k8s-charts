@@ -6,8 +6,8 @@ other OCI chart -- so this mixes githubrelease.source with the
 dockerimage.* condition/target templates instead of introducing a new
 family for what's otherwise a one-off.
 */}}
-{{ $pkg := dict "name" "online-boutique" "owner" "GoogleCloudPlatform" "repo" "microservices-demo" "versionPattern" "^v\\d+\\.\\d+\\.\\d+$" "capturePattern" "^v(\\d+\\.\\d+\\.\\d+)$" "sourceLabel" "microservices-demo" "releaseNoun" "release" "image" "us-docker.pkg.dev/online-boutique-ci/charts/onlineboutique" "github" .github }}
-name: "Bump online-boutique chart to the latest upstream release"
+{{ $pkg := dict "name" "onlineboutique" "owner" "GoogleCloudPlatform" "repo" "microservices-demo" "versionPattern" "^v\\d+\\.\\d+\\.\\d+$" "capturePattern" "^v(\\d+\\.\\d+\\.\\d+)$" "sourceLabel" "microservices-demo" "releaseNoun" "release" "image" "us-docker.pkg.dev/online-boutique-ci/charts/onlineboutique" "github" .github }}
+name: "Bump onlineboutique chart to the latest upstream release"
 
 scms:
   default:{{ template "common.scm" $pkg }}

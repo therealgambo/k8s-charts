@@ -1,5 +1,5 @@
-{{ $pkg := dict "name" "mimir" "image" "ghcr.io/grafana/helm-charts/mimir-distributed" "tagfilter" "^v?\\d+\\.\\d+\\.\\d+$" "github" .github }}
-name: "Bump mimir chart to the latest upstream release"
+{{ $pkg := dict "name" "mimir-distributed" "image" "ghcr.io/grafana/helm-charts/mimir-distributed" "tagfilter" "^v?\\d+\\.\\d+\\.\\d+$" "github" .github }}
+name: "Bump mimir-distributed chart to the latest upstream release"
 
 scms:
   default:{{ template "common.scm" $pkg }}
