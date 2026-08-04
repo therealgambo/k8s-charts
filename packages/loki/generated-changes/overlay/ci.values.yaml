@@ -1,0 +1,6 @@
+loki:
+  useTestSchema: true
+  storage:
+    bucketNames:
+      chunks: ci-chunks
+      ruler: ci-ruler
