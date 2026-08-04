@@ -1,6 +1,6 @@
 {{ $pkg := dict "name" "aws-ebs-csi-driver" "owner" "kubernetes-sigs" "repo" "aws-ebs-csi-driver" "versionPattern" "^helm-chart-aws-ebs-csi-driver-\\d+\\.\\d+\\.\\d+$" "capturePattern" "^helm-chart-aws-ebs-csi-driver-(\\d+\\.\\d+\\.\\d+)$" "urlParts" (list "https://github.com/kubernetes-sigs/aws-ebs-csi-driver/releases/download/helm-chart-aws-ebs-csi-driver-" "/aws-ebs-csi-driver-" ".tgz") "github" .github }}
 name: "Bump aws-ebs-csi-driver chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 

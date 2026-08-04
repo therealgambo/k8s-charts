@@ -1,6 +1,6 @@
 {{ $pkg := dict "name" "tetragon" "owner" "cilium" "repo" "tetragon" "versionPattern" "^v\\d+\\.\\d+\\.\\d+$" "capturePattern" "^v(\\d+\\.\\d+\\.\\d+)$" "urlParts" (list "https://helm.cilium.io/tetragon-" ".tgz") "releaseNoun" "release" "github" .github }}
 name: "Bump tetragon chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 

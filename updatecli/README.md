@@ -11,7 +11,13 @@ exists, bumps `packages/<name>/package.yaml`, regenerates the chart with
 - `updatecli.d/<name>.yaml` — one manifest per package, named to match its
   `packages/<name>/` directory. Each one is short: a `$pkg` dict of facts
   about that package, followed by `{{ template "..." $pkg }}` calls into
-  the shared partials below. See "Adding a package" for the recipe.
+  the shared partials below. See "Adding a package" for the recipe. Each one
+  also sets `pipelineid: "{{ $pkg.name }}"` right after its `name:` line —
+  without it, updatecli auto-generates an opaque hash from the `name:` title
+  instead (that's where old `updatecli_main_<hash>` branches came from). A
+  stable, predictable pipelineid gives readable `updatecli_main_<name>`
+  branches and lets the workflow target one package at a time via
+  `--pipeline-ids <name>` (see the workflow bullet below).
 - `updatecli.d/_common.yaml` — Go template `define` blocks shared by every
   package regardless of shape: the `scms` block, the `packageBuildVersion`
   and `buildChart` targets, and the `github/pullrequest` action.
@@ -33,8 +39,11 @@ exists, bumps `packages/<name>/package.yaml`, regenerates the chart with
   automatically match whichever credential is authenticating (see below)
 - [`.github/workflows/updatecli.yaml`](../.github/workflows/updatecli.yaml) —
   runs `updatecli pipeline diff` on PRs that touch this directory (catches
-  broken manifests before merge) and `updatecli pipeline apply` on a daily
-  schedule / manual dispatch (does the actual bump + PR)
+  broken manifests before merge) and, on a daily schedule / manual dispatch,
+  a `discover` job that lists the package manifests followed by an `apply`
+  job matrixed one-per-package (`--pipeline-ids <name>`, `fail-fast: false`)
+  so the run's wall-clock time doesn't grow linearly as packages are added,
+  and one package's build failure can't cancel the rest
 
 ## How the partials fit together
 
@@ -88,6 +97,7 @@ When you add a new `packages/<name>/package.yaml` (see
 ```gotemplate
 {{ $pkg := dict "name" "<name>" "image" "<registry>/<path>" "tagfilter" "^v?\\d+\\.\\d+\\.\\d+$" "github" .github }}
 name: "Bump <name> chart to the latest upstream release"
+pipelineid: "{{ $pkg.name }}"
 
 scms:
   default:{{ template "common.scm" $pkg }}

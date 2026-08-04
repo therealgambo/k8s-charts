@@ -1,6 +1,6 @@
 {{ $pkg := dict "name" "kyverno" "image" "ghcr.io/kyverno/charts/kyverno" "tagfilter" "^v?\\d+\\.\\d+\\.\\d+$" "github" .github }}
 name: "Bump kyverno chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 

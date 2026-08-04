@@ -1,6 +1,6 @@
 {{ $pkg := dict "name" "cert-manager" "image" "quay.io/jetstack/charts/cert-manager" "tagfilter" "^v\\d+\\.\\d+\\.\\d+$" "github" .github }}
 name: "Bump cert-manager chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 

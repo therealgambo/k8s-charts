@@ -1,6 +1,6 @@
 {{ $pkg := dict "name" "node-local-dns" "image" "ghcr.io/deliveryhero/helm-charts/node-local-dns" "tagfilter" "^v?\\d+\\.\\d+\\.\\d+$" "github" .github }}
 name: "Bump node-local-dns chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 

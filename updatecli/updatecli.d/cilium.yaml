@@ -1,6 +1,6 @@
 {{ $pkg := dict "name" "cilium" "owner" "cilium" "repo" "cilium" "versionPattern" "^v\\d+\\.\\d+\\.\\d+$" "capturePattern" "^v(\\d+\\.\\d+\\.\\d+)$" "urlParts" (list "https://github.com/cilium/charts/raw/refs/heads/master/cilium-" ".tgz") "releaseNoun" "release" "github" .github }}
 name: "Bump cilium chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 

@@ -1,6 +1,6 @@
 {{ $pkg := dict "name" "node-problem-detector" "image" "ghcr.io/deliveryhero/helm-charts/node-problem-detector" "tagfilter" "^v?\\d+\\.\\d+\\.\\d+$" "github" .github }}
 name: "Bump node-problem-detector chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 

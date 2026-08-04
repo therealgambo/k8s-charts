@@ -1,6 +1,6 @@
 {{ $pkg := dict "name" "aws-load-balancer-controller" "repoURL" "https://aws.github.io/eks-charts" "chartName" "aws-load-balancer-controller" "displayName" "aws-load-balancer-controller" "github" .github }}
 name: "Bump aws-load-balancer-controller chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 

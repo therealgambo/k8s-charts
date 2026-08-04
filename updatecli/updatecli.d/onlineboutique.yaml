@@ -8,7 +8,7 @@ family for what's otherwise a one-off.
 */}}
 {{ $pkg := dict "name" "onlineboutique" "owner" "GoogleCloudPlatform" "repo" "microservices-demo" "versionPattern" "^v\\d+\\.\\d+\\.\\d+$" "capturePattern" "^v(\\d+\\.\\d+\\.\\d+)$" "sourceLabel" "microservices-demo" "releaseNoun" "release" "image" "us-docker.pkg.dev/online-boutique-ci/charts/onlineboutique" "github" .github }}
 name: "Bump onlineboutique chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 

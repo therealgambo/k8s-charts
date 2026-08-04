@@ -1,6 +1,6 @@
 {{ $pkg := dict "name" "vault" "owner" "hashicorp" "repo" "vault-helm" "versionPattern" "^v\\d+\\.\\d+\\.\\d+$" "capturePattern" "^v(\\d+\\.\\d+\\.\\d+)$" "urlParts" (list "https://helm.releases.hashicorp.com/vault-" ".tgz") "sourceLabel" "vault-helm" "releaseNoun" "release" "github" .github }}
 name: "Bump vault chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 

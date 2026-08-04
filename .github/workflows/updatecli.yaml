@@ -47,9 +47,42 @@ jobs:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           GITHUB_ACTOR: ${{ steps.app-token.outputs.app-slug }}[bot]
 
-  apply:
+  # One manifest per package under updatecli.d/ (any "_"-prefixed file is a
+  # shared partial, not a package -- see updatecli/README.md). Each package
+  # sets its own `pipelineid` matching its filename stem, so this list feeds
+  # `apply`'s matrix below via `--pipeline-ids`.
+  discover:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.list.outputs.packages }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: List packages
+        id: list
+        run: |
+          packages=$(basename -s .yaml -a updatecli/updatecli.d/*.yaml | grep -v '^_' | jq -R -s -c 'split("\n")[:-1]')
+          echo "packages=$packages" >> "$GITHUB_OUTPUT"
+
+  # One job per package so a growing chart count doesn't lengthen the run --
+  # `--pipeline-ids` scopes each job to a single manifest, and updatecli
+  # skips every other manifest before doing any of the expensive work
+  # (upstream lookups, git clone, the `make` build), not just at the PR/push
+  # step, so the shards genuinely run in parallel rather than duplicating
+  # work 27x. fail-fast is off because one package's patch conflict (see
+  # "Known limitations" in the README) shouldn't cancel everyone else's
+  # otherwise-clean bump.
+  apply:
+    if: github.event_name != 'pull_request'
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        package: ${{ fromJson(needs.discover.outputs.packages) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -65,7 +98,7 @@ jobs:
         uses: updatecli/updatecli-action@v2
 
       - name: updatecli pipeline apply
-        run: updatecli pipeline apply --config ./updatecli/updatecli.d --values ./updatecli/values.yaml
+        run: updatecli pipeline apply --config ./updatecli/updatecli.d --values ./updatecli/values.yaml --pipeline-ids "${{ matrix.package }}"
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           GITHUB_ACTOR: ${{ steps.app-token.outputs.app-slug }}[bot]

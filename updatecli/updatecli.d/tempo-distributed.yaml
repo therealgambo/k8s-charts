@@ -1,6 +1,6 @@
 {{ $pkg := dict "name" "tempo-distributed" "image" "ghcr.io/grafana-community/helm-charts/tempo-distributed" "tagfilter" "^v?\\d+\\.\\d+\\.\\d+$" "github" .github }}
 name: "Bump tempo-distributed chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 

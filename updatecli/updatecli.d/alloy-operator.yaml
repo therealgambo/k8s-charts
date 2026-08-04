@@ -1,6 +1,6 @@
 {{ $pkg := dict "name" "alloy-operator" "owner" "grafana" "repo" "helm-charts" "versionPattern" "^alloy-operator-\\d+\\.\\d+\\.\\d+$" "capturePattern" "^alloy-operator-(\\d+\\.\\d+\\.\\d+)$" "urlParts" (list "https://github.com/grafana/helm-charts/releases/download/alloy-operator-" "/alloy-operator-" ".tgz") "github" .github }}
 name: "Bump alloy-operator chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 

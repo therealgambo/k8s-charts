@@ -1,6 +1,6 @@
 {{ $pkg := dict "name" "karpenter" "image" "public.ecr.aws/karpenter/karpenter" "tagfilter" "^v?\\d+\\.\\d+\\.\\d+$" "github" .github }}
 name: "Bump karpenter chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 

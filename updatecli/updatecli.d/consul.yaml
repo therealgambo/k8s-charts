@@ -1,6 +1,6 @@
 {{ $pkg := dict "name" "consul" "owner" "hashicorp" "repo" "consul-k8s" "versionPattern" "^v\\d+\\.\\d+\\.\\d+$" "capturePattern" "^v(\\d+\\.\\d+\\.\\d+)$" "urlParts" (list "https://helm.releases.hashicorp.com/consul-" ".tgz") "sourceLabel" "consul-k8s" "releaseNoun" "release" "github" .github }}
 name: "Bump consul chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 

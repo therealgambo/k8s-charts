@@ -1,6 +1,6 @@
 {{ $pkg := dict "name" "pyroscope" "owner" "grafana" "repo" "helm-charts" "versionPattern" "^pyroscope-\\d+\\.\\d+\\.\\d+$" "capturePattern" "^pyroscope-(\\d+\\.\\d+\\.\\d+)$" "urlParts" (list "https://github.com/grafana/helm-charts/releases/download/pyroscope-" "/pyroscope-" ".tgz") "github" .github }}
 name: "Bump pyroscope chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 

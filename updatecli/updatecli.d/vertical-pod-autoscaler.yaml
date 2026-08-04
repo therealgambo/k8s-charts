@@ -1,6 +1,6 @@
 {{ $pkg := dict "name" "vertical-pod-autoscaler" "owner" "kubernetes" "repo" "autoscaler" "versionPattern" "^vertical-pod-autoscaler-chart-\\d+\\.\\d+\\.\\d+$" "capturePattern" "^vertical-pod-autoscaler-chart-(\\d+\\.\\d+\\.\\d+)$" "urlParts" (list "https://github.com/kubernetes/autoscaler/releases/download/vertical-pod-autoscaler-chart-" "/vertical-pod-autoscaler-" ".tgz") "github" .github }}
 name: "Bump vertical-pod-autoscaler chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 

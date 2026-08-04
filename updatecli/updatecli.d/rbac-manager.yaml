@@ -1,6 +1,6 @@
 {{ $pkg := dict "name" "rbac-manager" "repoURL" "https://charts.fairwinds.com/stable" "chartName" "rbac-manager" "github" .github }}
 name: "Bump rbac-manager chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 

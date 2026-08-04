@@ -1,6 +1,6 @@
 {{ $pkg := dict "name" "argo-cd" "owner" "argoproj" "repo" "argo-helm" "versionPattern" "^argo-cd-\\d+\\.\\d+\\.\\d+$" "capturePattern" "^argo-cd-(\\d+\\.\\d+\\.\\d+)$" "urlParts" (list "https://github.com/argoproj/argo-helm/releases/download/argo-cd-" "/argo-cd-" ".tgz") "github" .github }}
 name: "Bump argo-cd chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 

@@ -1,6 +1,6 @@
 {{ $pkg := dict "name" "keda" "owner" "kedacore" "repo" "charts" "versionPattern" "^v\\d+\\.\\d+\\.\\d+$" "capturePattern" "^v(\\d+\\.\\d+\\.\\d+)$" "urlParts" (list "https://kedacore.github.io/charts/keda-" ".tgz") "github" .github }}
 name: "Bump keda chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 

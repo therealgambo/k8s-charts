@@ -1,6 +1,6 @@
 {{ $pkg := dict "name" "mimir-distributed" "image" "ghcr.io/grafana/helm-charts/mimir-distributed" "tagfilter" "^v?\\d+\\.\\d+\\.\\d+$" "github" .github }}
 name: "Bump mimir-distributed chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 

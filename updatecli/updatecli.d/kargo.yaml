@@ -1,6 +1,6 @@
 {{ $pkg := dict "name" "kargo" "image" "ghcr.io/akuity/kargo-charts/kargo" "github" .github }}
 name: "Bump kargo chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 

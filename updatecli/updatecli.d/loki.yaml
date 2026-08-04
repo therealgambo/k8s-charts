@@ -1,6 +1,6 @@
 {{ $pkg := dict "name" "loki" "image" "ghcr.io/grafana-community/helm-charts/loki" "tagfilter" "^v?\\d+\\.\\d+\\.\\d+$" "github" .github }}
 name: "Bump loki chart to the latest upstream release"
-
+pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 
