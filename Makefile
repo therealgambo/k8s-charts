@@ -34,6 +34,7 @@ template: guard-package ## Render packages/<name>/charts with values.yaml -> bas
 	test -d "$$chart" || { echo "error: $$chart not found — run 'make prepare PACKAGE=$(PACKAGE)' first" >&2; exit 1; }; \
 	values=(); \
 	[[ -f "$$chart/base.values.yaml" ]] && values+=(-f "$$chart/base.values.yaml"); \
+	[[ -f "$$chart/ci.values.yaml" ]] && values+=(-f "$$chart/ci.values.yaml"); \
 	[[ -f "$$chart/$(ENV).values.yaml" ]] && values+=(-f "$$chart/$(ENV).values.yaml"); \
 	helm template "$$chart" "$${values[@]}"
 
