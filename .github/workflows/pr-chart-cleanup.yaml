@@ -1,0 +1,126 @@
+name: Clean up PR charts
+
+# Deletes the mutable 0.0.0-pr<N> chart version(s) pr-chart.yaml published
+# for this PR, once the PR closes (merged or not) — so untested PR builds
+# don't accumulate indefinitely in the k8s-charts-pr GHCR package tree.
+#
+# GHCR's package-version DELETE API does not accept GITHUB_TOKEN for
+# packages owned by a personal (non-org) account, which this repo is — so
+# this job authenticates with a separate PAT instead. See the "PR charts"
+# section of the README for one-time setup.
+#
+# Known limitation: this targets the GHCR package named exactly
+# "<repo>-pr/<package>", matching what pr-chart.yaml publishes for every
+# package today. A package whose additionalCharts publish under a chart
+# name that differs from the packages/<name> folder would need its extra
+# chart(s) cleaned up by hand.
+on:
+  pull_request:
+    branches: ["main"]
+    types: [closed]
+    paths:
+      - "packages/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-chart-cleanup-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # Reads the PR's changed files via the API rather than checking out and
+  # diffing git refs, since the head branch may already be gone by the time
+  # this runs (e.g. "automatically delete head branches" on merge).
+  detect-packages:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.detect.outputs.packages }}
+    steps:
+      - name: Detect packages this PR touched
+        id: detect
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          files="$(gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" --paginate --jq '.[].filename')"
+          list="$(awk -F/ '/^packages\// { print $2 }' <<< "${files}" | sort -u)"
+          packages="$(jq -R -s -c 'split("\n") | map(select(length > 0))' <<< "${list}")"
+          echo "packages=${packages}" >> "$GITHUB_OUTPUT"
+          echo "Packages to clean up: ${packages}"
+
+  cleanup:
+    name: cleanup (${{ matrix.package }})
+    needs: detect-packages
+    if: needs.detect-packages.outputs.packages != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.detect-packages.outputs.packages) }}
+    steps:
+      - name: Delete PR chart version from GHCR
+        env:
+          GH_TOKEN: ${{ secrets.PACKAGES_DELETE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "::error::PACKAGES_DELETE_TOKEN secret is not set — see the 'PR charts' section of the README for one-time setup. Its 0.0.0-pr${{ github.event.pull_request.number }} tag will need manual removal from k8s-charts-pr/${{ matrix.package }}."
+            exit 1
+          fi
+
+          owner="$(cut -d/ -f1 <<< '${{ github.repository }}')"
+          repo_name="$(cut -d/ -f2 <<< '${{ github.repository }}')"
+          pr_version="0.0.0-pr${{ github.event.pull_request.number }}"
+          package_name="${repo_name}-pr/${{ matrix.package }}"
+          encoded="$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${package_name}")"
+
+          if ! versions_json="$(gh api "users/${owner}/packages/container/${encoded}/versions?per_page=100" --paginate 2>&1)"; then
+            if grep -qi '404' <<< "${versions_json}"; then
+              echo "package ${package_name} not found — nothing to clean up"
+              exit 0
+            fi
+            echo "::error::failed to list versions for ${package_name}: ${versions_json}"
+            exit 1
+          fi
+
+          mapfile -t version_ids < <(jq -r --arg tag "${pr_version}" '.[] | select(.metadata.container.tags[]? == $tag) | .id' <<< "${versions_json}")
+
+          if [[ "${#version_ids[@]}" -eq 0 ]]; then
+            echo "no ${package_name}:${pr_version} version found — nothing to clean up"
+            exit 0
+          fi
+
+          for version_id in "${version_ids[@]}"; do
+            echo "deleting ${package_name}:${pr_version} (version id ${version_id})"
+            gh api --method DELETE "users/${owner}/packages/container/${encoded}/versions/${version_id}"
+          done
+
+  comment:
+    name: Update PR comment
+    needs: [detect-packages, cleanup]
+    if: always() && needs.detect-packages.outputs.packages != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Note cleanup on the PR chart comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- pr-chart-comment -->';
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (!existing) return;
+
+            const body = existing.body + '\n\n---\n🧹 PR closed — chart(s) removed from `k8s-charts-pr`.';
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existing.id,
+              body,
+            });
