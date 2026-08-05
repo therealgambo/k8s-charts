@@ -87,11 +87,21 @@ jobs:
 
       # Both sides render with the same helm/dyff versions (pinned by the PR
       # branch) so any diff reflects the chart change, not the tooling.
+      #
+      # --no-print-directory matters here: GNU Make prints "Entering/Leaving
+      # directory" notices to stdout whenever -C is used (from make 4.x on —
+      # notably including ubuntu-latest's runner image; macOS's ancient
+      # bundled make 3.81 does not, which makes this invisible when testing
+      # locally on a Mac). Without the flag, those notices land inside the
+      # redirected manifest file: a bogus leading YAML document with no
+      # apiVersion/kind, and stray text spliced onto the last resource. dyff
+      # then can't identify every resource on both sides and refuses to
+      # compare manifests with a different number of documents.
       - name: Render PR-branch manifest
         id: render_pr
         run: |
-          if make -C pr prepare PACKAGE="${{ matrix.package }}" \
-              && make -C pr template PACKAGE="${{ matrix.package }}" \
+          if make --no-print-directory -C pr prepare PACKAGE="${{ matrix.package }}" \
+              && make --no-print-directory -C pr template PACKAGE="${{ matrix.package }}" \
                   > pr-manifest.yaml 2> pr-render.log; then
             echo "ok=true" >> "$GITHUB_OUTPUT"
           else
@@ -110,8 +120,8 @@ jobs:
             echo "ok=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if make -C main prepare PACKAGE="${{ matrix.package }}" \
-              && make -C main template PACKAGE="${{ matrix.package }}" \
+          if make --no-print-directory -C main prepare PACKAGE="${{ matrix.package }}" \
+              && make --no-print-directory -C main template PACKAGE="${{ matrix.package }}" \
                   > base-manifest.yaml 2> base-render.log; then
             echo "ok=true" >> "$GITHUB_OUTPUT"
           else
