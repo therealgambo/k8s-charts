@@ -1,7 +1,7 @@
 priorityClassName: system-node-critical
 
 ingressController:
-  enabled: true
+  enabled: false
 
 gatewayAPI:
   enabled: true
@@ -17,3 +17,15 @@ kubeProxyReplacement: "true"
 operator:
   replicas: 1
   priorityClassName: system-cluster-critical
+
+image:
+  pullPolicy: IfNotPresent
+
+ipam:
+  mode: kubernetes
+
+hubble:
+  ui:
+    enabled: true
+    rollOutPods: true
+    
