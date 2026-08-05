@@ -145,7 +145,7 @@ jobs:
               [[ -s pr-render.log ]] && { echo "-- PR branch --"; cat pr-render.log; }
               echo '```'
             else
-              diff="$(pr/bin/dyff between --color off -o github base-manifest.yaml pr-manifest.yaml || true)"
+              diff="$(pr/bin/dyff between --color off base-manifest.yaml pr-manifest.yaml || true)"
               if [[ -z "${diff}" ]]; then
                 echo "<summary>:package: <strong>${{ matrix.package }}</strong> — no changes to the rendered manifest</summary>"
               else
