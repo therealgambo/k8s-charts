@@ -228,6 +228,9 @@ jobs:
           merge-multiple: true
 
       - name: Build comment body
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.event.pull_request.head.sha }}
         run: |
           {
             echo "<!-- chart-diff-comment -->"
@@ -253,6 +256,15 @@ jobs:
             } > comment-body.truncated.md
             mv comment-body.truncated.md comment-body.md
           fi
+
+          # Footer added after the truncation check so it's never cut off —
+          # it's how reviewers tell whether the comment reflects the latest
+          # push without having to scroll up and match SHAs themselves.
+          {
+            echo
+            echo "---"
+            echo "_Updated for commit [\`${HEAD_SHA:0:7}\`](${COMMIT_URL}) at $(date -u +'%Y-%m-%d %H:%M:%S UTC')._"
+          } >> comment-body.md
 
       - name: Create or update comment
         uses: actions/github-script@v7
