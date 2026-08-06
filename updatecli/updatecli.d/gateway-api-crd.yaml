@@ -1,0 +1,79 @@
+{{/*
+Hand-rolled shape: this package isn't a Helm chart release at all -- it's
+just the standard-channel Gateway API CRDs pulled straight out of
+config/crd/standard in kubernetes-sigs/gateway-api at a pinned commit
+(packages/gateway-api-crd/package.yaml has no `version:`, just `url` +
+`commit` + `subdirectory`). Gateway API does cut real GitHub releases
+(e.g. v1.6.1) even though the CRDs themselves aren't released
+independently, so this tracks the commit the latest stable release *tag*
+points to, via two `gittag` sources sharing the same versionfilter and
+`lsRemote: true` (reads tags straight off the remote via `git ls-remote
+--tags`, no clone needed) -- `lastRelease` returns the tag name
+(`key: name`, just for a readable PR title) and `lastReleaseCommit`
+resolves the commit hash that same tag points to (`key: hash`, the actual
+value written to `$.commit`) -- rather than any of the three _*.yaml
+shapes. `versionfilter: {kind: semver, pattern: ">=0.0.0"}` sorts by
+semver precedence and skips both non-semver tags (e.g. `monthly-2026.06`)
+and pre-releases (e.g. `v1.6.0-rc.2`) the same way the dockerimage shape
+does.
+
+The "packageURL" target id below is kept (rather than renamed to e.g.
+"packageCommit") only so common.buildChart's hardcoded
+`dependson: ["packageURL", "packageBuildVersion"]` still resolves --
+_common.yaml has no per-shape awareness of which key was actually bumped.
+*/}}
+{{ $pkg := dict "name" "gateway-api-crd" "owner" "kubernetes-sigs" "repo" "gateway-api" "github" .github }}
+name: "Bump gateway-api-crd to the latest upstream release"
+pipelineid: "{{ $pkg.name }}"
+scms:
+  default:{{ template "common.scm" $pkg }}
+
+sources:
+  lastRelease:
+    name: "Get the latest {{ $pkg.owner }}/{{ $pkg.repo }} release tag"
+    kind: gittag
+    spec:
+      url: "https://github.com/{{ $pkg.owner }}/{{ $pkg.repo }}.git"
+      lsremote: true
+      key: "name"
+      versionfilter:
+        kind: "semver"
+        pattern: ">=0.0.0"
+  lastReleaseCommit:
+    name: "Resolve the commit the latest {{ $pkg.owner }}/{{ $pkg.repo }} release tag points to"
+    kind: gittag
+    spec:
+      url: "https://github.com/{{ $pkg.owner }}/{{ $pkg.repo }}.git"
+      lsremote: true
+      key: "hash"
+      versionfilter:
+        kind: "semver"
+        pattern: ">=0.0.0"
+
+conditions:
+  upstreamVersionChanged:
+    name: "Only continue if this commit isn't already applied"
+    kind: yaml
+    scmid: "default"
+    disablesourceinput: true
+    failwhen: true
+    spec:
+      file: "packages/{{ $pkg.name }}/package.yaml"
+      key: "$.commit"
+      value: '{{ source "lastReleaseCommit" }}'
+
+targets:
+  packageURL:
+    name: "Point packages/{{ $pkg.name }}/package.yaml at the new release commit"
+    kind: yaml
+    sourceid: "lastReleaseCommit"
+    scmid: "default"
+    spec:
+      file: "packages/{{ $pkg.name }}/package.yaml"
+      key: "$.commit"
+      value: '{{ source "lastReleaseCommit" }}'
+  packageBuildVersion:{{ template "common.packageBuildVersion" $pkg }}
+  buildChart:{{ template "common.buildChart" $pkg }}
+
+actions:
+  default:{{ template "common.action" $pkg }}

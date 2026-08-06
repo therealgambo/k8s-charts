@@ -1,0 +1,4 @@
+url: https://github.com/kubernetes-sigs/gateway-api.git
+commit: 8bb74df00e56ec8f944d48c25e6c1c9c2f6848e3 # v1.6.1
+subdirectory: config/crd/standard
+packageVersion: 01

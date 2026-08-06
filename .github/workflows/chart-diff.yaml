@@ -87,11 +87,21 @@ jobs:
 
       # Both sides render with the same helm/dyff versions (pinned by the PR
       # branch) so any diff reflects the chart change, not the tooling.
+      #
+      # --no-print-directory matters here: GNU Make prints "Entering/Leaving
+      # directory" notices to stdout whenever -C is used (from make 4.x on —
+      # notably including ubuntu-latest's runner image; macOS's ancient
+      # bundled make 3.81 does not, which makes this invisible when testing
+      # locally on a Mac). Without the flag, those notices land inside the
+      # redirected manifest file: a bogus leading YAML document with no
+      # apiVersion/kind, and stray text spliced onto the last resource. dyff
+      # then can't identify every resource on both sides and refuses to
+      # compare manifests with a different number of documents.
       - name: Render PR-branch manifest
         id: render_pr
         run: |
-          if make -C pr prepare PACKAGE="${{ matrix.package }}" \
-              && make -C pr template PACKAGE="${{ matrix.package }}" \
+          if make --no-print-directory -C pr prepare PACKAGE="${{ matrix.package }}" \
+              && make --no-print-directory -C pr template PACKAGE="${{ matrix.package }}" \
                   > pr-manifest.yaml 2> pr-render.log; then
             echo "ok=true" >> "$GITHUB_OUTPUT"
           else
@@ -110,8 +120,8 @@ jobs:
             echo "ok=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if make -C main prepare PACKAGE="${{ matrix.package }}" \
-              && make -C main template PACKAGE="${{ matrix.package }}" \
+          if make --no-print-directory -C main prepare PACKAGE="${{ matrix.package }}" \
+              && make --no-print-directory -C main template PACKAGE="${{ matrix.package }}" \
                   > base-manifest.yaml 2> base-render.log; then
             echo "ok=true" >> "$GITHUB_OUTPUT"
           else
@@ -125,6 +135,18 @@ jobs:
       # describing the render failure, but then fails the job (this workflow
       # isn't a required check, so it's visible without blocking merges —
       # kubeconform in validate-charts.yaml is the enforced gate for this).
+      #
+      # Separately, dyff can fail to compare two manifests that both
+      # rendered fine. Its Kubernetes-aware mode (matching resources by
+      # apiVersion/kind/name instead of document position, so it can handle
+      # a different number of documents on each side) quietly disables
+      # itself if it can't identify every single resource on both sides —
+      # then it hard-errors on any document-count mismatch. A values change
+      # that adds/removes resources (e.g. enabling cilium's
+      # ingressController) can trigger exactly that. `-s`/--set-exit-code
+      # makes dyff report this distinctly (exit 255, vs. 0/1 for no-diff/
+      # diff-found), so it's handled below the same way as a render
+      # failure, instead of being swallowed and misreported as "no changes".
       - name: Diff with dyff
         run: |
           mkdir -p diff-output
@@ -133,6 +155,18 @@ jobs:
           if [[ "${{ steps.render_base.outputs.ok }}" != "true" || "${{ steps.render_pr.outputs.ok }}" != "true" ]]; then
             echo "::error::${{ matrix.package }} failed to render — see the chart diff PR comment for details. This job fails but isn't a required check, so it doesn't block merging by itself; kubeconform in the Validate workflow is the enforced gate."
             render_failed=1
+          fi
+
+          dyff_failed=0
+          if [[ "${render_failed}" -eq 0 ]]; then
+            set +e
+            diff="$(pr/bin/dyff between -s -i -b -c off base-manifest.yaml pr-manifest.yaml 2>dyff-error.log)"
+            dyff_exit=$?
+            set -e
+            if [[ "${dyff_exit}" -ne 0 && "${dyff_exit}" -ne 1 ]]; then
+              echo "::error::${{ matrix.package }} rendered on both branches, but dyff failed to compare the manifests — see the chart diff PR comment for details. This job fails but isn't a required check, so it doesn't block merging by itself; kubeconform in the Validate workflow is the enforced gate."
+              dyff_failed=1
+            fi
           fi
 
           {
@@ -144,23 +178,26 @@ jobs:
               [[ -s base-render.log ]] && { echo "-- base branch --"; cat base-render.log; }
               [[ -s pr-render.log ]] && { echo "-- PR branch --"; cat pr-render.log; }
               echo '```'
+            elif [[ "${dyff_failed}" -eq 1 ]]; then
+              echo "<summary>⚠️ <strong>${{ matrix.package }}</strong> — both manifests rendered, but dyff failed to compare them</summary>"
+              echo
+              echo '```'
+              [[ -s dyff-error.log ]] && cat dyff-error.log
+              echo '```'
+            elif [[ -z "${diff}" ]]; then
+              echo "<summary>:package: <strong>${{ matrix.package }}</strong> — no changes to the rendered manifest</summary>"
             else
-              diff="$(pr/bin/dyff between --color off -o github base-manifest.yaml pr-manifest.yaml || true)"
-              if [[ -z "${diff}" ]]; then
-                echo "<summary>:package: <strong>${{ matrix.package }}</strong> — no changes to the rendered manifest</summary>"
-              else
-                echo "<summary>:package: <strong>${{ matrix.package }}</strong> — rendered manifest changed</summary>"
-                echo
-                echo '```diff'
-                echo "${diff}"
-                echo '```'
-              fi
+              echo "<summary>:package: <strong>${{ matrix.package }}</strong> — rendered manifest changed</summary>"
+              echo
+              echo '```diff'
+              echo "${diff}"
+              echo '```'
             fi
             echo
             echo "</details>"
           } > "${out}"
 
-          if [[ "${render_failed}" -eq 1 ]]; then
+          if [[ "${render_failed}" -eq 1 || "${dyff_failed}" -eq 1 ]]; then
             exit 1
           fi
 

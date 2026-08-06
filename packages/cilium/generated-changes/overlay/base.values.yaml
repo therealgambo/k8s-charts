@@ -1,0 +1,34 @@
+priorityClassName: system-node-critical
+
+ingressController:
+  enabled: false
+
+gatewayAPI:
+  enabled: true
+
+k8sNetworkPolicy:
+  enabled: false
+
+k8sClusterNetworkPolicy:
+  enabled: false
+
+kubeProxyReplacement: "true"
+
+operator:
+  replicas: 1
+  priorityClassName: system-cluster-critical
+
+image:
+  pullPolicy: IfNotPresent
+
+ipam:
+  mode: kubernetes
+
+hubble:
+  relay:
+    enabled: true
+    rollOutPods: true
+  ui:
+    enabled: true
+    rollOutPods: true
+
