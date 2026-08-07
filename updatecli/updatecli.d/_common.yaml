@@ -72,13 +72,29 @@ of once here generically.
     spec:
       title: 'chore({{ .name }}): bump chart to {{ source "lastRelease" }}'
       description: |
-        Automated upstream sync via [updatecli](https://www.updatecli.io/).
+        This is an automated upstream sync via [updatecli](https://www.updatecli.io/).
 
-        Pulls in `{{ if .displayName }}{{ .displayName }}{{ else }}{{ .name }}{{ end }}` `{{ source "lastRelease" }}` and regenerates
-        the chart via `make prepare`, `make patch` and `make charts`. Review
-        the diff under `packages/{{ .name }}/` as
-        you would any other chart bump before merging.
+        Pulls in changes for `{{ if .displayName }}{{ .displayName }}{{ else }}{{ .name }}{{ end }}` due to new upstream release {{ template "common.releaseLink" . }} and regenerates the patched chart via `make prepare`, `make patch` and `make charts`.
+        Review the diff under `packages/{{ .name }}/` as you would any other chart bump before merging.
       labels:
         - "dependencies"
         - "{{ .name }}"
 {{ end }}
+
+{{/*
+The version string in the PR description, linked to its upstream GitHub
+release page when we can build that URL, plain text otherwise. Deliberately
+kept here rather than folded into each family partial's own url-building
+define (unlike packageURL/upstreamVersionChanged, which genuinely can't be
+generic -- see the file header) because this one degrades gracefully: it
+only needs $pkg to happen to carry "owner"/"repo" (true for every
+githubrelease-family package, plus the two hand-rolled ones that also set
+them), and falls back to today's plain, unlinked text for the
+dockerimage/helmchart families, which track no upstream GitHub repo at all.
+When "capturePattern" is also set (the githubrelease.* shape), the release
+tag needs that shape's own prefix-recovery logic, so this defers to
+githubrelease.releaseURL rather than duplicating it; the gittag-sourced
+shape (gateway-api-crd) has no such prefix -- `source "lastRelease"` is
+already the raw tag -- so it links straight to owner/repo's release tag.
+*/}}
+{{ define "common.releaseLink" }}{{ if and .owner .repo .capturePattern }}[`{{ source "lastRelease" }}`]({{ template "githubrelease.releaseURL" . }}){{ else if and .owner .repo }}[`{{ source "lastRelease" }}`](https://github.com/{{ .owner }}/{{ .repo }}/releases/tag/{{ source "lastRelease" }}){{ else }}`{{ source "lastRelease" }}`{{ end }}{{ end }}

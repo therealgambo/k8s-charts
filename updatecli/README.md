@@ -184,7 +184,13 @@ put in `$pkg`, do. Pick the shape based on how the package pulls upstream:
   tracked is the app's own release, not a release of the chart). Verify
   the chart-mirror host and the app repo's tags actually move in lockstep
   before relying on this (check a few historical tags against the chart
-  host) since nothing enforces it structurally.
+  host) since nothing enforces it structurally. `owner`/`repo`/
+  `capturePattern` also drive `common.releaseLink` (in `_common.yaml`),
+  which turns the version mentioned in the PR description into a link to
+  that release's actual GitHub release page — no extra `$pkg` fields
+  needed. It falls back to plain unlinked text for the `dockerimage.*`/
+  `helmchart.*` shapes below, which don't track an upstream GitHub repo at
+  all.
 - **Hybrid shapes**: nothing requires using one shape's *entire* set of
   templates — mix and match per block if a package's version tracking and
   asset hosting genuinely differ. `online-boutique.yaml` is the existing

@@ -45,8 +45,14 @@ The "packageURL" target id below is kept (rather than renamed to e.g.
 "packageCommit") only so common.buildChart's hardcoded
 `dependson: ["packageURL", "packageBuildVersion"]` still resolves --
 _common.yaml has no per-shape awareness of which key was actually bumped.
+
+"capturePattern" is set on $pkg below even though this shape hand-rolls its
+own sources (so nothing here calls the githubrelease.* templates) purely so
+common.releaseLink can recover the "spire-" tag prefix and link the PR
+description's version at the real release, the same way it does for every
+githubrelease-family package.
 */}}
-{{ $pkg := dict "name" "spire" "owner" "spiffe" "repo" "helm-charts-hardened" "github" .github }}
+{{ $pkg := dict "name" "spire" "owner" "spiffe" "repo" "helm-charts-hardened" "capturePattern" "^spire-(\\d+\\.\\d+\\.\\d+)$" "github" .github }}
 name: "Bump spire to the latest upstream release"
 pipelineid: "{{ $pkg.name }}"
 scms:

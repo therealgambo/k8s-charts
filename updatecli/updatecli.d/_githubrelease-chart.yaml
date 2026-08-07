@@ -34,6 +34,20 @@ release, not a chart release).
 
 {{ define "githubrelease.url" }}{{ range $i, $part := .urlParts }}{{ if $i }}{{ source "lastRelease" }}{{ end }}{{ $part }}{{ end }}{{ end }}
 
+{{/*
+Link to the actual GitHub release page (releases/tag/<tag>), for
+common.releaseLink to point the PR description at -- distinct from
+githubrelease.url above, which points at the release *asset*, not the
+release notes. capturePattern is always the literal tag prefix wrapped
+around a "(\d+\.\d+\.\d+)$" capture group (e.g. "^argo-cd-(...)$" ->
+prefix "argo-cd-", "^v(...)$" -> prefix "v"), so the prefix that
+findsubmatch stripped off `source "lastRelease"` is recovered by
+splitting capturePattern on its capture group's opening paren and
+trimming the leading "^" -- cheaper and less fragile than adding a
+redundant "tagPrefix" field to every package's $pkg.
+*/}}
+{{ define "githubrelease.releaseURL" }}https://github.com/{{ .owner }}/{{ .repo }}/releases/tag/{{ trimPrefix "^" (index (split "(" .capturePattern) "_0") }}{{ source "lastRelease" }}{{ end }}
+
 {{ define "githubrelease.condition" }}
     name: "Check the release tgz asset is published"
     kind: shell
