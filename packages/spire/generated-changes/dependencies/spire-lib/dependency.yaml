@@ -1,0 +1,6 @@
+workingDir: ""
+url: https://github.com/spiffe/helm-charts-hardened.git
+subdirectory: charts/spire-lib
+commit: spire-0.30.0
+ignoreDependencies: []
+replacePaths: []

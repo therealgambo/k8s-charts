@@ -1,0 +1,109 @@
+{{/*
+Hand-rolled shape, same idea as gateway-api-crd.yaml: this package isn't
+pulled from a chart release asset -- packages/spire/package.yaml points
+straight at the spiffe/helm-charts-hardened git repo (`url` + `commit` +
+`subdirectory: charts/spire`), so charts-build-scripts clones that repo and
+lifts `charts/spire` at the pinned commit rather than fetching a `.tgz`.
+
+spiffe/helm-charts-hardened is a monorepo of several charts (spire,
+spire-crds, spire-lib, spire-nested, spire-ha-agent,
+spire-identity-exchange, ...), each cutting its own real GitHub release
+tagged `<chart>-X.Y.Z` in the same repo -- verified `spire-0.30.0`'s release
+has `target_commitish` matching that tag's commit, so unlike gateway-api-crd
+(which has no independently-released asset to track and so falls back to
+`gittag`) this can track those releases directly via the `githubrelease`
+resource, the same shape used elsewhere for a chart's own GitHub release
+(see `_githubrelease-chart.yaml` / e.g. `external-dns.yaml`) -- except here
+we need the release's target commit (`key: "taghash"`) instead of a `.tgz`
+asset URL, since package.yaml wants `$.commit`, not `$.url`. Hence hand-
+rolling rather than reusing the `githubrelease.*` templates: their
+`packageURL`/`condition` blocks are all built around writing/checking an
+asset URL, which doesn't apply here.
+
+Both sources share `versionfilter: {kind: regex, pattern:
+"^spire-\d+\.\d+\.\d+$"}`, anchored so it only ever matches this chart's own
+tags -- not `spire-lib-`/`spire-nested-`/etc siblings in the same repo.
+`kind: semver` was tried first and rejected: it can't parse a `spire-`
+prefix at all here (semver parsing only strips a leading `v`, not an
+arbitrary prefix), so it fails outright with a mixed-prefix tag list like
+this repo's. `gittag` + `lsremote` was also tried and rejected: confirmed by
+direct testing that `git ls-remote --tags` returns tags in lexicographic
+ref-name order, and versionfilter's `regex` kind only filters -- it doesn't
+semver-sort, it just walks the input order and returns the last match (see
+https://github.com/updatecli/updatecli/issues/1892) -- so for tags like
+`spire-0.9.1` vs `spire-0.30.0`, lexicographic order picks `0.9.1` as
+"last" and gets it wrong. The `githubrelease` resource's own listing order
+does not have this problem (verified directly: resolves `spire-0.30.0`
+correctly), so that's used instead. `lastRelease` (default `tagname` key)
+gets a `findsubmatch` transformer stripping the `spire-` prefix so the PR
+title/description read `0.30.0` rather than the redundant `spire-0.30.0`,
+matching how `capturePattern` reads in the githubrelease shape elsewhere;
+`lastReleaseCommit` (`key: "taghash"`, undecorated) is the actual value
+written to `$.commit`.
+
+The "packageURL" target id below is kept (rather than renamed to e.g.
+"packageCommit") only so common.buildChart's hardcoded
+`dependson: ["packageURL", "packageBuildVersion"]` still resolves --
+_common.yaml has no per-shape awareness of which key was actually bumped.
+*/}}
+{{ $pkg := dict "name" "spire" "owner" "spiffe" "repo" "helm-charts-hardened" "github" .github }}
+name: "Bump spire to the latest upstream release"
+pipelineid: "{{ $pkg.name }}"
+scms:
+  default:{{ template "common.scm" $pkg }}
+
+sources:
+  lastRelease:
+    name: "Get the latest {{ $pkg.owner }}/{{ $pkg.repo }} spire chart release"
+    kind: githubrelease
+    spec:
+      owner: "{{ $pkg.owner }}"
+      repository: "{{ $pkg.repo }}"
+      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
+      key: "tagname"
+      versionfilter:
+        kind: "regex"
+        pattern: '^spire-\d+\.\d+\.\d+$'
+    transformers:
+      - findsubmatch:
+          pattern: '^spire-(\d+\.\d+\.\d+)$'
+          captureindex: 1
+  lastReleaseCommit:
+    name: "Resolve the commit the latest {{ $pkg.owner }}/{{ $pkg.repo }} spire chart release points to"
+    kind: githubrelease
+    spec:
+      owner: "{{ $pkg.owner }}"
+      repository: "{{ $pkg.repo }}"
+      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
+      key: "taghash"
+      versionfilter:
+        kind: "regex"
+        pattern: '^spire-\d+\.\d+\.\d+$'
+
+conditions:
+  upstreamVersionChanged:
+    name: "Only continue if this commit isn't already applied"
+    kind: yaml
+    scmid: "default"
+    disablesourceinput: true
+    failwhen: true
+    spec:
+      file: "packages/{{ $pkg.name }}/package.yaml"
+      key: "$.commit"
+      value: '{{ source "lastReleaseCommit" }}'
+
+targets:
+  packageURL:
+    name: "Point packages/{{ $pkg.name }}/package.yaml at the new release commit"
+    kind: yaml
+    sourceid: "lastReleaseCommit"
+    scmid: "default"
+    spec:
+      file: "packages/{{ $pkg.name }}/package.yaml"
+      key: "$.commit"
+      value: '{{ source "lastReleaseCommit" }}'
+  packageBuildVersion:{{ template "common.packageBuildVersion" $pkg }}
+  buildChart:{{ template "common.buildChart" $pkg }}
+
+actions:
+  default:{{ template "common.action" $pkg }}
