@@ -1,0 +1,4 @@
+global:
+  spire:
+    namespaces:
+      create: true
