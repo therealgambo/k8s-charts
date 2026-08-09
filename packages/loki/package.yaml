@@ -1,2 +1,2 @@
-url: oci://ghcr.io/grafana-community/helm-charts/loki:18.7.5
+url: oci://ghcr.io/grafana-community/helm-charts/loki:18.7.6
 packageVersion: 01
