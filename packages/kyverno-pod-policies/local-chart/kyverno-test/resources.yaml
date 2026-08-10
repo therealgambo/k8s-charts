@@ -1,0 +1,489 @@
+# Pass/fail Pod fixtures for kyverno-test.yaml, one pair per rule. All in the `workloads`
+# namespace deliberately -- see the comment at the top of kyverno-test.yaml for why it must not be
+# `default`/kube-node-lease/kube-public.
+
+###### disallow-privileged-containers / privileged-containers
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: privileged-containers-pass
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: privileged-containers-fail
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      securityContext:
+        privileged: true
+
+###### disallow-host-namespaces / host-namespaces
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-namespaces-pass
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-namespaces-fail
+  namespace: workloads
+spec:
+  hostNetwork: true
+  containers:
+    - name: app
+      image: dummyimagename
+
+###### disallow-host-path / host-path
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-path-pass
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      volumeMounts:
+        - name: data
+          mountPath: /data
+  volumes:
+    - name: data
+      emptyDir: {}
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-path-fail
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      volumeMounts:
+        - name: data
+          mountPath: /data
+  volumes:
+    - name: data
+      hostPath:
+        path: /etc
+
+###### disallow-host-ports / host-ports-none
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-ports-none-pass
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-ports-none-fail
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      ports:
+        - containerPort: 8080
+          hostPort: 8080
+
+###### disallow-capabilities / adding-capabilities
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: adding-capabilities-pass
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      securityContext:
+        capabilities:
+          add: ["CHOWN"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: adding-capabilities-fail
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      securityContext:
+        capabilities:
+          add: ["SYS_ADMIN"]
+
+###### disallow-host-process / host-process-containers
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-process-containers-pass
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-process-containers-fail
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      securityContext:
+        windowsOptions:
+          hostProcess: true
+
+###### disallow-proc-mount / check-proc-mount
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: check-proc-mount-pass
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      securityContext:
+        procMount: Default
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: check-proc-mount-fail
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      securityContext:
+        procMount: Unmasked
+
+###### disallow-selinux / selinux-type
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: selinux-type-pass
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      securityContext:
+        seLinuxOptions:
+          type: container_t
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: selinux-type-fail
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      securityContext:
+        seLinuxOptions:
+          type: spc_t
+
+###### disallow-selinux / selinux-user-role
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: selinux-user-role-pass
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: selinux-user-role-fail
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      securityContext:
+        seLinuxOptions:
+          user: user_u
+
+###### restrict-seccomp / check-seccomp
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: check-seccomp-pass
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: check-seccomp-fail
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      securityContext:
+        seccompProfile:
+          type: Unconfined
+
+###### restrict-sysctls / check-sysctls
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: check-sysctls-pass
+  namespace: workloads
+spec:
+  securityContext:
+    sysctls:
+      - name: net.ipv4.tcp_syncookies
+        value: "1"
+  containers:
+    - name: app
+      image: dummyimagename
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: check-sysctls-fail
+  namespace: workloads
+spec:
+  securityContext:
+    sysctls:
+      - name: kernel.msgmax
+        value: "65536"
+  containers:
+    - name: app
+      image: dummyimagename
+
+###### disallow-capabilities-strict / require-drop-all
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: require-drop-all-pass
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      securityContext:
+        capabilities:
+          drop: ["ALL"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: require-drop-all-fail
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+
+###### disallow-capabilities-strict / adding-capabilities-strict
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: adding-capabilities-strict-pass
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      securityContext:
+        capabilities:
+          add: ["NET_BIND_SERVICE"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: adding-capabilities-strict-fail
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      securityContext:
+        capabilities:
+          add: ["SYS_ADMIN"]
+
+###### disallow-privilege-escalation / privilege-escalation
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: privilege-escalation-pass
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      securityContext:
+        allowPrivilegeEscalation: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: privilege-escalation-fail
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      securityContext:
+        allowPrivilegeEscalation: true
+
+###### require-run-as-nonroot / run-as-non-root
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: run-as-non-root-pass
+  namespace: workloads
+spec:
+  securityContext:
+    runAsNonRoot: true
+  containers:
+    - name: app
+      image: dummyimagename
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: run-as-non-root-fail
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+
+###### require-run-as-non-root-user / run-as-non-root-user
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: run-as-non-root-user-pass
+  namespace: workloads
+spec:
+  securityContext:
+    runAsUser: 1000
+  containers:
+    - name: app
+      image: dummyimagename
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: run-as-non-root-user-fail
+  namespace: workloads
+spec:
+  securityContext:
+    runAsUser: 0
+  containers:
+    - name: app
+      image: dummyimagename
+
+###### restrict-seccomp-strict / check-seccomp-strict
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: check-seccomp-strict-pass
+  namespace: workloads
+spec:
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: app
+      image: dummyimagename
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: check-seccomp-strict-fail
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+
+###### restrict-volume-types / restricted-volumes
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: restricted-volumes-pass
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      volumeMounts:
+        - name: data
+          mountPath: /data
+  volumes:
+    - name: data
+      emptyDir: {}
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: restricted-volumes-fail
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      volumeMounts:
+        - name: data
+          mountPath: /data
+  volumes:
+    - name: data
+      nfs:
+        server: 10.0.0.1
+        path: /export

@@ -2,6 +2,10 @@
 /.charts-build-scripts-cache/
 /packages/**/charts/
 
+# `make kyverno-test` renders the chart fresh into this file each run (see kyverno-test.yaml's
+# `policies:` reference) -- never committed, so it can't drift from the live templates.
+/packages/**/kyverno-test/policies.rendered.yaml
+
 # Generated chart output. Built on merge to main by
 # .github/workflows/release-charts.yaml and pushed to the long-lived
 # "charts" branch + GHCR (OCI) instead of being committed here.

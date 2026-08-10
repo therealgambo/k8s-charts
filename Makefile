@@ -59,6 +59,21 @@ unittest: guard-package ## Run helm-unittest against a package's chart dir (requ
 		echo "no tests/ dir in $$chart, skipping"; \
 	fi
 
+# helm-unittest (above) only checks the templating layer -- that a flag turns a resource on/off,
+# that a value lands in the right field. It has no idea what a Kyverno CEL expression actually
+# does. kyverno-test renders the chart and feeds the result to the `kyverno test` CLI against
+# resource fixtures with known-good/known-bad results declared in kyverno-test.yaml, which
+# actually evaluates each rule's CEL/logic -- see https://kyverno.io/docs/guides/testing-policies/
+kyverno-test: guard-package ## Run `kyverno test` against a package's kyverno-test/ dir (renders the chart into it first; requires the kyverno CLI; no-op if the chart has no kyverno-test/ dir)
+	@chart="$$(./scripts/chart-dir.sh $(PACKAGE))"; \
+	test -d "$$chart" || { echo "error: $$chart not found — run 'make prepare PACKAGE=$(PACKAGE)' first" >&2; exit 1; }; \
+	if [[ -d "$$chart/kyverno-test" ]]; then \
+		$(MAKE) --no-print-directory template PACKAGE=$(PACKAGE) ENV=$(ENV) > "$$chart/kyverno-test/policies.rendered.yaml"; \
+		bin/kyverno test "$$chart/kyverno-test"; \
+	else \
+		echo "no kyverno-test/ dir in $$chart, skipping"; \
+	fi
+
 ##@ Tooling
 
 pull-scripts: ## Download the pinned charts-build-scripts release into bin/ (skips if already current)
@@ -72,4 +87,4 @@ guard-package:
 help: ## Display this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z0-9][a-zA-Z0-9 _-]*:.*?##/ { split($$1, targets, " "); for (i in targets) { printf "  \033[36m%-15s\033[0m %s\n", targets[i], $$2 } } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
-.PHONY: prepare template patch charts clean unittest pull-scripts guard-package help
+.PHONY: prepare template patch charts clean unittest kyverno-test pull-scripts guard-package help

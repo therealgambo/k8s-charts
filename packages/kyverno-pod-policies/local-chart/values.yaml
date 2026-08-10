@@ -1,0 +1,136 @@
+# kyverno-pod-policies
+#
+# Renders classic kyverno.io/v1 ClusterPolicy resources, one CEL-based `validate.cel` rule (or a
+# couple of closely-related rules) per Kubernetes Pod Security Standards control, plus
+# kyverno.io/v2 PolicyException resources for centrally-managed carve-outs. This is a SINGLETON
+# chart -- install it once, cluster-wide, do NOT add it as a dependency of another chart (contrast
+# packages/network-policies, which every workload chart depends on individually).
+#
+# Every ClusterPolicy matches `kind: Pod` only and relies on Kyverno's autogen feature (on by
+# default, do not hand-write per-controller rules) to also cover Deployment/StatefulSet/
+# DaemonSet/ReplicaSet/Job/CronJob pod templates. `spec.background: true` on every policy means
+# Kyverno continuously re-scans EXISTING resources too, surfacing already-misconfigured workloads
+# via PolicyReport -- not just blocking new ones.
+#
+# Controls are tiered to match the Kubernetes Pod Security Standards: baseline-equivalent controls
+# default to `validationFailureAction: Enforce` (block on admission), restricted-equivalent
+# hardening controls default to `Audit` (report only, PolicyReport, no block) -- see
+# https://kubernetes.io/docs/concepts/security/pod-security-standards/. Every policy's action is
+# overridable per-policy via `policies.<id>.validationFailureAction`, and there's a single global
+# `validationFailureAction` knob that -- when set -- forces EVERY policy to that action regardless
+# of tier or per-policy setting, for "audit everything during rollout" / "enforce everything once
+# clean" style fleet-wide flips.
+#
+# See README.md for the full policy list, field reference and worked examples.
+
+# -- Master switch. false renders nothing at all, including PolicyExceptions.
+enabled: true
+
+# -- GLOBAL override: forces every policy's validationFailureAction to this value regardless of
+# tier default or any policies.<id>.validationFailureAction. "" (default) applies no override.
+validationFailureAction: ""
+
+# -- spec.background on every ClusterPolicy: continuous re-scan of existing resources into
+# PolicyReport. No per-policy override -- a control worth enforcing on admission is worth
+# reporting on existing resources too.
+background: true
+
+# -- Namespaces excluded from EVERY policy's exclude.any[].resources.namespaces, on top of
+# policies.<id>.exclude.namespaces (below) and this release's own namespace (always excluded,
+# not listed here). Deliberately SHORT: kube-node-lease/kube-public never run arbitrary
+# workloads, so blanket-excluding them is safe. kube-system and the kyverno namespace are NOT
+# here even though both legitimately need carve-outs (node DaemonSets needing hostNetwork/
+# hostPath/privileged; Kyverno's own controller pods) -- see README "Scoping exclusions: selector,
+# not whole-namespace" for why, and use a selector-scoped `exceptions` entry for those instead.
+# Nothing else (cert-manager, longhorn-system, ...) is baked in either -- per-cluster infra
+# carve-outs belong in that cluster's own values override or a scoped `exceptions:` entry, not a
+# hardcoded weaker default for every consumer.
+excludeNamespaces:
+  - kube-node-lease
+  - kube-public
+
+commonLabels: {}
+commonAnnotations: {}
+
+# =============================================================================================
+# One key per policy id, matching both its templates/<id>.yaml file name and its ClusterPolicy's
+# metadata.name -- see README.md for the full table of ids, what each one blocks, and its default
+# tier/action.
+#
+#   policies:
+#     <id>:
+#       enabled: true                     # optional, default true
+#       validationFailureAction: ""       # optional per-policy override, "" = use this policy's
+#                                          # tier default (Enforce for baseline, Audit for
+#                                          # restricted) unless the global override above is set
+#       exclude:
+#         namespaces: []                  # ADDED to the chart-wide excludeNamespaces above
+#         kinds: []                       # rare: exclude one specific autogen'd controller kind
+#                                          # (e.g. CronJob) from just this policy
+#
+# Baseline ids (default Enforce): disallow-privileged-containers, disallow-host-namespaces,
+# disallow-host-path, disallow-host-ports, disallow-capabilities, disallow-host-process,
+# disallow-proc-mount, disallow-selinux, restrict-seccomp, restrict-sysctls
+#
+# Restricted ids (default Audit): disallow-capabilities-strict, disallow-privilege-escalation,
+# require-run-as-nonroot, require-run-as-non-root-user, restrict-seccomp-strict,
+# restrict-volume-types
+# =============================================================================================
+
+policies: {}
+# policies:
+#   restrict-seccomp-strict:
+#     validationFailureAction: Enforce   # promote one restricted-tier control to Enforce early
+#   disallow-host-ports:
+#     exclude:
+#       namespaces: [ingress-nginx]      # this policy only, not chart-wide
+
+# =============================================================================================
+# One key per exception, short/unique/DNS-label-safe -- renders one kyverno.io/v2 PolicyException
+# named after the key, in this release's namespace. Requires
+# features.policyExceptions.enabled: true on the companion packages/kyverno chart, with
+# .namespace pointed at wherever THIS chart is released -- see README.
+#
+#   exceptions:
+#     <name>:
+#       enabled: true
+#       policies: []          # required -- policy ids (from `policies` above) this exempts.
+#                              # Rule names (incl. autogen-/autogen-cronjob- variants) are resolved
+#                              # automatically -- see README, don't hand-write Kyverno rule names.
+#       match:
+#         kinds: []            # default [Pod, Deployment, StatefulSet, DaemonSet, Job, CronJob,
+#                               # ReplicaSet]
+#         namespaces: []
+#         names: []            # wildcards ('*', '?') allowed, per Kyverno
+#         selector:             # matchLabels/matchExpressions -- PREFER this over a namespace-wide
+#           matchLabels: {}     # excludeNamespaces entry to avoid exempting every workload in a
+#           matchExpressions: [] # shared/mixed namespace like kube-system. See README "Scoping
+#                                 # exclusions: selector, not whole-namespace".
+#       conditions: {}         # optional passthrough -> spec.conditions (JMESPath any/all)
+#       labels: {}
+#       annotations: {}
+# =============================================================================================
+
+exceptions: {}
+# exceptions:
+#   # Scoped to the node-agent DaemonSets in kube-system by label, NOT the whole namespace -- add
+#   # more k8s-app values here as needed rather than excluding kube-system wholesale.
+#   kube-system-node-agents:
+#     policies: [disallow-host-namespaces, disallow-host-path, disallow-privileged-containers, disallow-host-ports]
+#     match:
+#       namespaces: [kube-system]
+#       selector:
+#         matchExpressions:
+#           - key: k8s-app
+#             operator: In
+#             values: [kube-proxy]
+#
+#   # Kyverno's own controller pods, scoped by label rather than excluding the whole `kyverno`
+#   # namespace -- adjust the policies list to whatever the kyverno chart's pods actually need.
+#   kyverno-controller:
+#     policies: [disallow-host-path, restrict-seccomp]
+#     match:
+#       namespaces: [kyverno]
+#       selector:
+#         matchLabels:
+#           app.kubernetes.io/instance: kyverno

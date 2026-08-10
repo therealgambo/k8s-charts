@@ -1,0 +1,53 @@
+{{/*
+Baseline PSS control: only the default capability set may be added.
+https://kyverno.io/policies/pod-security-cel/baseline/disallow-capabilities/disallow-capabilities/
+*/}}
+{{- $id := "disallow-capabilities" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-pod-policies.policyEnabled" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-pod-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Disallow Capabilities
+    policies.kyverno.io/category: Pod Security Standards (Baseline)
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Adding capabilities beyond the default set must be disallowed.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: adding-capabilities
+      match:
+        any:
+          - resources: { kinds: [Pod], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-pod-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-pod-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
+        cel:
+          variables:
+            - name: allContainers
+              expression: >-
+                object.spec.containers + object.spec.?initContainers.orValue([]) +
+                object.spec.?ephemeralContainers.orValue([])
+            - name: allowedCapabilities
+              expression: >-
+                ['AUDIT_WRITE', 'CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'FSETID', 'KILL', 'MKNOD',
+                 'NET_BIND_SERVICE', 'SETFCAP', 'SETGID', 'SETPCAP', 'SETUID', 'SYS_CHROOT']
+          expressions:
+            - expression: >-
+                variables.allContainers.all(container,
+                  container.?securityContext.?capabilities.?add.orValue([]).all(capability,
+                    capability in variables.allowedCapabilities))
+              message: >-
+                Adding capabilities beyond the default set
+                (AUDIT_WRITE,CHOWN,DAC_OVERRIDE,FOWNER,FSETID,KILL,MKNOD,NET_BIND_SERVICE,
+                SETFCAP,SETGID,SETPCAP,SETUID,SYS_CHROOT) is disallowed.
+{{- end }}
+{{- end }}

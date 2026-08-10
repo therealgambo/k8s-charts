@@ -1,0 +1,24 @@
+apiVersion: v2
+appVersion: 1.11+
+description: Renders CEL-based Kyverno ClusterPolicy resources enforcing Kubernetes
+  Pod Security Standards (baseline enforced, restricted audited by default), plus
+  centrally-managed PolicyExceptions. Installed once, cluster-wide -- not a dependency
+  of other charts.
+home: https://github.com/therealgambo/k8s-charts
+keywords:
+- kyverno
+- pod-security
+- cel
+- policy
+- clusterpolicy
+- policyexception
+- security
+kubeVersion: '>= 1.24.0-0'
+maintainers:
+- name: therealgambo
+name: kyverno-pod-policies
+sources:
+- https://github.com/therealgambo/k8s-charts
+- https://github.com/kyverno/policies
+type: application
+version: 0.1.0

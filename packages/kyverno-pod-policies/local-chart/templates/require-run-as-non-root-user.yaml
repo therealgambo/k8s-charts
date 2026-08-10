@@ -1,0 +1,49 @@
+{{/*
+Restricted PSS control: runAsUser must not be 0 wherever it's set.
+https://kyverno.io/policies/pod-security-cel/restricted/require-run-as-non-root-user/require-run-as-non-root-user/
+*/}}
+{{- $id := "require-run-as-non-root-user" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-pod-policies.policyEnabled" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-pod-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Require Run As Non-Root User
+    policies.kyverno.io/category: Pod Security Standards (Restricted)
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Containers must be forbidden from explicitly running as the root user (UID 0), at pod level
+      or on any individual container. Complements require-run-as-nonroot, which only requires
+      *some* non-root enforcement mechanism be present -- this additionally catches an explicit
+      runAsUser: 0 that would otherwise satisfy neither runAsNonRoot check.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: run-as-non-root-user
+      match:
+        any:
+          - resources: { kinds: [Pod], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-pod-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-pod-policies.failureAction" (dict "id" $id "tierDefault" "Audit" "root" $) }}
+        cel:
+          variables:
+            - name: allContainers
+              expression: >-
+                object.spec.containers + object.spec.?initContainers.orValue([]) +
+                object.spec.?ephemeralContainers.orValue([])
+          expressions:
+            - expression: >-
+                object.spec.?securityContext.?runAsUser.orValue(1) != 0 &&
+                variables.allContainers.all(container,
+                  container.?securityContext.?runAsUser.orValue(1) != 0)
+              message: "Containers must not set runAsUser to 0 (root), at pod level or per-container."
+{{- end }}
+{{- end }}
