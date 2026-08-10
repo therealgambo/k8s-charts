@@ -1,0 +1,44 @@
+{{/*
+One CiliumNetworkPolicy per workload in .Values.rules that has egress restricted at all --
+triggers automatically, not via an explicit flag, on the theory that restricting a workload's
+egress without also allowing DNS just breaks it (nothing can resolve names any more). `egress.dns`
+itself is only needed to opt out (`false`) or to override the target for one workload; every other
+populated `egress.*` type counts as "egress is restricted" and triggers this on its own.
+
+This cluster runs node-local-dns (see ../../node-local-dns), which intercepts DNS traffic via a
+kubelet `--cluster-dns` pointed at a link-local virtual IP on each node (NOT the kube-dns Service
+ClusterIP) -- so that's what gets allowed here, not a `kube-dns` toEndpoints selector. A cluster
+using a CiliumLocalRedirectPolicy to achieve the same node-local routing instead would redirect
+traffic addressed to the kube-dns Service transparently, so point `dns.cidr` at that Service's
+ClusterIP (or override per-workload) if that's how a given environment is actually wired up.
+*/}}
+{{- if ne .Values.enabled false }}
+{{- $root := . }}
+{{- $fileBase := include "network-policies.fileBase" $root }}
+{{- $globalDNS := $root.Values.dns | default dict }}
+{{- range $key, $rule := .Values.rules }}
+{{- $rule := $rule | default dict }}
+{{- if ne $rule.enabled false }}
+{{- $egr := $rule.egress | default dict }}
+{{- $otherEgressActive := or $egr.entities $egr.cidr $egr.endpoints $egr.nodes $egr.groups $egr.services $egr.fqdns $egr.kubernetes $egr.imds }}
+{{- $render := $otherEgressActive }}
+{{- if hasKey $egr "dns" }}
+  {{- if kindIs "bool" $egr.dns }}{{- $render = $egr.dns -}}
+  {{- else }}{{- $render = true -}}
+  {{- end }}
+{{- end }}
+{{- if $render }}
+{{- $dnsCfg := $egr.dns }}
+{{- if kindIs "bool" $dnsCfg }}{{- $dnsCfg = dict }}{{- end }}
+{{- $dnsCfg = $dnsCfg | default dict }}
+{{- $cidr := $dnsCfg.cidr | default $globalDNS.cidr | default "169.254.20.25/32" }}
+{{- $port := $dnsCfg.port | default $globalDNS.port | default "53" | toString }}
+{{- $entry := dict "toCIDRSet" (list (dict "cidr" $cidr)) }}
+{{- $dnsPorts := list (dict "port" $port "protocol" "UDP") (dict "port" $port "protocol" "TCP") }}
+{{- $entry = set $entry "toPorts" (list (dict "ports" $dnsPorts "rules" (dict "dns" (list (dict "matchPattern" "*"))))) }}
+{{- $allowList := list $entry }}
+{{- include "network-policies.emitResource" (dict "root" $root "fileBase" $fileBase "key" $key "cfg" $rule "direction" "egress" "allowEntries" $allowList "denyEntries" (list)) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

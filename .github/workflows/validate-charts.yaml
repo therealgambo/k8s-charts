@@ -127,6 +127,56 @@ jobs:
                 -schema-location default \
                 -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 
+  # Runs each package's helm-unittest suite (packages/<name>/charts/tests/*_test.yaml), when it
+  # has one -- most packages are forked upstream charts with no tests/ dir, so the "helm unittest"
+  # step is skipped (not failed) for those. Complements kubeconform: kubeconform checks the
+  # *rendered* manifests are valid Kubernetes/CRD objects, helm-unittest checks the *templating
+  # logic itself* behaves as intended for a given input (e.g. that a flag actually turns a
+  # resource on/off, or that a value ends up in the field it's supposed to).
+  helm-unittest:
+    name: helm unittest (${{ matrix.package }})
+    needs: detect-packages
+    if: needs.detect-packages.outputs.packages != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.detect-packages.outputs.packages) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve pinned tool versions
+        run: |
+          source scripts/version
+          echo "HELM_VERSION=${HELM_VERSION}" >> "$GITHUB_ENV"
+          echo "HELM_UNITTEST_VERSION=${HELM_UNITTEST_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Install helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: make prepare
+        run: make prepare PACKAGE=${{ matrix.package }}
+
+      - name: Check for a tests/ dir
+        id: check
+        run: |
+          if [[ -d "packages/${{ matrix.package }}/charts/tests" ]]; then
+            echo "has_tests=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_tests=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install helm-unittest
+        if: steps.check.outputs.has_tests == 'true'
+        run: helm plugin install https://github.com/helm-unittest/helm-unittest --version "${HELM_UNITTEST_VERSION}" --verify=false
+
+      - name: make unittest
+        if: steps.check.outputs.has_tests == 'true'
+        run: make unittest PACKAGE=${{ matrix.package }}
+
   # Single stable job to set as a required status check — the matrix jobs
   # above have per-package names (e.g. "helm lint (external-dns)") that
   # change with whatever a PR happens to touch, which branch protection
@@ -135,7 +185,7 @@ jobs:
   summary:
     name: Summary
     if: always()
-    needs: [detect-packages, helm-lint, kubeconform]
+    needs: [detect-packages, helm-lint, kubeconform, helm-unittest]
     runs-on: ubuntu-latest
     steps:
       - name: Check matrix results
@@ -143,6 +193,7 @@ jobs:
           echo "detect-packages: ${{ needs.detect-packages.result }}"
           echo "helm-lint:       ${{ needs.helm-lint.result }}"
           echo "kubeconform:     ${{ needs.kubeconform.result }}"
+          echo "helm-unittest:   ${{ needs.helm-unittest.result }}"
 
           failed=0
 
@@ -151,7 +202,7 @@ jobs:
             failed=1
           fi
 
-          for result in "${{ needs.helm-lint.result }}" "${{ needs.kubeconform.result }}"; do
+          for result in "${{ needs.helm-lint.result }}" "${{ needs.kubeconform.result }}" "${{ needs.helm-unittest.result }}"; do
             if [[ "${result}" != "success" && "${result}" != "skipped" ]]; then
               echo "::error::a validation job did not succeed (result: ${result})"
               failed=1
@@ -161,4 +212,4 @@ jobs:
           if [[ "${failed}" -eq 1 ]]; then
             exit 1
           fi
-          echo "All checks passed (helm-lint/kubeconform skipped is fine — it means no packages changed)."
+          echo "All checks passed (a matrix job's per-package steps report success even when skipped internally, e.g. no packages changed or a package has no tests/ dir)."

@@ -1,0 +1,25 @@
+{{/*
+One CiliumNetworkPolicy per workload in .Values.rules that populates `egress.fqdns`, allowing
+egress to DNS names (Cilium resolves matchName/matchPattern to IPs behind the scenes and keeps the
+policy in sync as records change). Allow-only: Cilium's EgressDenyRule has no ToFQDNs field, so
+`deny: true` here fails the render rather than silently being dropped.
+*/}}
+{{- if ne .Values.enabled false }}
+{{- $root := . }}
+{{- $fileBase := include "network-policies.fileBase" $root }}
+{{- range $key, $rule := .Values.rules }}
+{{- $rule := $rule | default dict }}
+{{- if ne $rule.enabled false }}
+{{- $egr := $rule.egress | default dict }}
+{{- if $egr.fqdns }}
+{{- range $name, $f := $egr.fqdns }}
+  {{- if ($f | default dict).deny }}
+    {{- fail (printf "network-policies: rules.%s.egress.fqdns.%s -- toFQDNs has no deny variant in Cilium, remove `deny: true`" $key $name) }}
+  {{- end }}
+{{- end }}
+{{- $allowList := include "network-policies.fqdnEntries" (dict "entries" $egr.fqdns "mode" "allow") | fromYamlArray }}
+{{- include "network-policies.emitResource" (dict "root" $root "fileBase" $fileBase "key" $key "cfg" $rule "direction" "egress" "allowEntries" $allowList "denyEntries" (list)) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

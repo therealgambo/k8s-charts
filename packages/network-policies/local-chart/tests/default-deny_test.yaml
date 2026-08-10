@@ -1,0 +1,72 @@
+suite: default-deny
+templates:
+  - ingress-default-deny.yaml
+  - egress-default-deny.yaml
+tests:
+  - it: renders ingress-default-deny with an empty selector and empty ingress by default
+    template: ingress-default-deny.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: CiliumNetworkPolicy
+      - isAPIVersion:
+          of: cilium.io/v2
+      - equal:
+          path: metadata.name
+          value: ingress-default-deny
+      - equal:
+          path: spec.endpointSelector
+          value: {}
+      - equal:
+          path: spec.ingress
+          value: []
+      - notExists:
+          path: spec.egress
+
+  - it: renders egress-default-deny with an empty selector and empty egress by default
+    template: egress-default-deny.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: egress-default-deny
+      - equal:
+          path: spec.egress
+          value: []
+      - notExists:
+          path: spec.ingress
+
+  - it: skips ingress-default-deny when defaultDeny.ingress.enabled is false
+    template: ingress-default-deny.yaml
+    set:
+      defaultDeny.ingress.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: skips egress-default-deny when defaultDeny.egress.enabled is false
+    template: egress-default-deny.yaml
+    set:
+      defaultDeny.egress.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: master switch enabled=false skips both default-deny resources
+    set:
+      enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: stamps commonLabels onto the default-deny resources
+    template: ingress-default-deny.yaml
+    set:
+      commonLabels:
+        team: platform
+    asserts:
+      - equal:
+          path: metadata.labels.team
+          value: platform

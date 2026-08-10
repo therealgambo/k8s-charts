@@ -1,0 +1,184 @@
+# network-policies
+#
+# Renders CiliumNetworkPolicy resources (namespaced only -- this chart doesn't manage
+# cluster-scoped or host policies). Add as a Helm dependency of any chart that needs network
+# policies, then set `<dependency-alias>.rules...` in that chart's own values files.
+#
+# Everything for one workload lives under one key in `rules`: its subject (which pods), and every
+# ingress/egress peer type it needs, all in one place -- rather than having to cross-reference a
+# dozen different top-level maps to see "webapp"'s full network posture. Each *type* populated
+# under a rule still renders as its OWN small CiliumNetworkPolicy though (named
+# "<direction>-<type>-<key>", e.g. "egress-entity-webapp"), in a file named to match
+# (egress-entity.yaml renders every workload that populates `egress.entities`) -- so you still get
+# small, focused, independently-diffable resources per concern, just authored in one place.
+#
+# Design principle: everywhere Cilium's own CRD schema takes a *list* of objects, this chart
+# instead takes a MAP keyed by a short, stable, logical name. Helm's values merging replaces lists
+# wholesale but merges map keys individually, so a downstream base.values.yaml/<env>.values.yaml
+# layer can add, remove or override one named entry (or even one whole workload's rule) without
+# repeating every other one. Plain scalar lists (CIDR `except` ranges, FQDN/HTTP-header strings,
+# TLS `serverNames`, ...) are the exception, since there's no meaningful key to merge on and
+# restating the whole list is cheap. For the same reason there's no shared/reusable selector
+# registry either: every rule writes its own `labelSelector` (or relies on inference from its key,
+# see below) rather than pulling one from a lookup table elsewhere.
+#
+# See README.md for the full field reference and worked examples.
+
+# -- Master switch. Set to `false` to render nothing at all, including the default-deny policies
+# below -- e.g. to disable every policy from a subchart's values without deleting the config
+# underneath it.
+enabled: true
+
+# -- Merged into every rendered resource's metadata.labels/annotations (a workload's own `labels`/
+# `annotations` still layer on top of these).
+commonLabels: {}
+commonAnnotations: {}
+
+# -- Default target for the automatic DNS egress policy (see `rules.<key>.egress.dns` below and
+# egress-dns.yaml). This cluster routes DNS through node-local-dns (../../node-local-dns), which
+# pods reach directly on a link-local virtual IP on their own node -- not the kube-dns Service --
+# so that's the default here. Override this (or `egress.dns` per workload) if a given environment
+# instead uses a CiliumLocalRedirectPolicy to transparently redirect kube-dns Service traffic to
+# the same node-local proxy, in which case point `cidr` at that Service's ClusterIP instead.
+dns:
+  cidr: "169.254.20.25/32"
+  port: "53"
+
+# -- Blanket, namespace-wide policies that deny all ingress/egress not otherwise explicitly
+# allowed by the resources below. Enabled by default: installing this chart locks the namespace
+# down first, and every `rules.<workload>` entry is what opens up exactly what's needed.
+defaultDeny:
+  ingress:
+    enabled: true
+  egress:
+    enabled: true
+
+# =============================================================================================
+# One key per workload (or group of workloads sharing a subject), short/unique/DNS-label-safe --
+# used to name every resource this key renders: "<direction>-<type>-<key>".
+#
+#   rules:
+#     <key>:
+#       enabled: true                 # optional, default true; false skips this workload entirely
+#       description: ""               # optional, -> spec.description on every resource this key renders
+#       labels: {}
+#       annotations: {}
+#       labelSelector: {}              # flat matchLabels map -- which pods this workload's rules
+#                                      # apply to. OPTIONAL: if neither labelSelector nor
+#                                      # labelSelectorExpressions is set, the key itself is used as
+#                                      # `app.kubernetes.io/name` -- so a key matching the app's
+#                                      # name doesn't need to repeat it. Set either to opt out and
+#                                      # take full control.
+#       labelSelectorExpressions: []   # matchExpressions: [{key, operator, values}]
+#
+#       ingress:
+#         endpoints: {}         # -> ingress-endpoint.yaml
+#         entities: {}          # -> ingress-entity.yaml
+#         cidr: {}              # -> ingress-cidr.yaml
+#         nodes: {}             # -> ingress-node.yaml
+#         groups: {}            # -> ingress-group.yaml
+#
+#       egress:
+#         kubernetes: false     # -> egress-kubernetes.yaml (kube-apiserver entity only)
+#         imds: false           # -> egress-imds.yaml (cloud metadata endpoint)
+#         dns: {}               # -> egress-dns.yaml, see below -- usually left unset
+#         endpoints: {}         # -> egress-endpoint.yaml
+#         entities: {}          # -> egress-entity.yaml
+#         cidr: {}              # -> egress-cidr.yaml
+#         nodes: {}             # -> egress-node.yaml
+#         groups: {}            # -> egress-group.yaml
+#         services: {}          # -> egress-service.yaml
+#         fqdns: {}             # -> egress-fqdn.yaml (allow-only)
+#
+# There's deliberately no "just open a port" type: every toPorts entry has to be attached to a
+# peer -- endpoints/entities/cidr/nodes/groups (and, egress-only, services/fqdns) -- so a port is
+# never opened to literally anyone. Attach it to the narrowest peer that's actually correct (e.g.
+# `entities.world` if it really does need to be internet-facing).
+#
+# Every peer entry inside an ingress/egress type map additionally accepts `deny: true` to render
+# into that resource's spec.<direction>Deny instead of spec.<direction> (evaluated ahead of allow
+# rules, and limited to plain port/protocol matching -- no L7 rules, TLS, listener or
+# `authentication`, per Cilium's PortDenyRule). Not available on `fqdns` -- Cilium's
+# EgressDenyRule has no ToFQDNs field.
+#
+# `k8s:io.kubernetes.pod.namespace` is always stamped on `endpoints` peers (defaulting to this
+# release's namespace), even when `namespace` isn't set explicitly -- so a policy's namespace
+# scoping is always explicit in the rendered YAML rather than relying on Cilium's implicit
+# same-namespace default. `cluster` on an `endpoints`/`nodes` peer (Cluster Mesh) accepts either
+# one cluster name or a list of names (OR'd together); for anything fancier (exclude a cluster,
+# etc.) write a matchExpression against the reserved `k8s:io.cilium.k8s.policy.cluster` label
+# directly.
+#
+# A given type only renders a resource for a workload that actually populates it -- an empty or
+# absent type is simply skipped, no need to toggle anything off separately. `egress.dns` is the
+# one exception: it renders automatically whenever ANY other `egress.*` type is populated (on the
+# theory that restricting a workload's egress without also allowing DNS just breaks it), using the
+# top-level `dns.cidr`/`dns.port` default above. Set `egress.dns: false` on a workload to opt out,
+# or `egress.dns: {cidr, port}` to override the target for just that one workload.
+# =============================================================================================
+
+rules: {}
+# rules:
+#   webapp:
+#     description: "webapp: reachable from the edge, talks to postgres and github"
+#     ingress:
+#       endpoints:
+#         frontend:
+#           matchLabels: { app.kubernetes.io/name: frontend }
+#           namespace: edge
+#           toPorts:
+#             http:
+#               port: "8080"
+#               protocol: TCP
+#               rules:
+#                 http:
+#                   get-root: { method: GET, path: "^/$" }
+#           authentication:
+#             mode: required   # disabled | required | test-always-fail (mutual auth via SPIRE)
+#       entities:
+#         world:
+#           toPorts:
+#             https: { port: "443" }
+#     egress:
+#       kubernetes: true   # kube-apiserver only; DNS below is added automatically, no flag needed
+#       endpoints:
+#         postgres:
+#           matchLabels: { app.kubernetes.io/name: postgres }
+#           namespace: data
+#           toPorts:
+#             pg: { port: "5432" }
+#       fqdns:
+#         github-api:
+#           matchName: "api.github.com"
+#           toPorts:
+#             https: { port: "443" }   # SNI enforcement on by default, see README
+#         legacy-sftp-host:
+#           matchName: "sftp.example.internal"
+#           sni: false                  # not TLS -- disable SNI validation for this host
+#           toPorts:
+#             sftp: { port: "22" }
+#
+#   # A processor that only needs outbound cloud-metadata + Kubernetes API access -- no ingress,
+#   # no other egress. Both shortcuts are scoped to `processor`'s own selector, not the namespace,
+#   # and (since egress is being restricted at all) egress-dns-processor renders automatically too.
+#   processor:
+#     egress:
+#       kubernetes: true
+#       imds: true
+#
+#   # A batch job that talks to nothing but its own DNS resolver -- egress.dns doesn't need any
+#   # OTHER egress.* type populated to trigger; setting it explicitly is enough on its own.
+#   dns-only-job:
+#     egress:
+#       dns: true
+#
+#   # A database reachable only from a CIDR range, nothing else. No egress configured at all here,
+#   # so no egress-dns-database gets rendered -- it never makes outbound connections either.
+#   database:
+#     ingress:
+#       cidr:
+#         office-vpn:
+#           cidr: 10.0.0.0/8
+#           except: ["10.1.0.0/16"]
+#           toPorts:
+#             pg: { port: "5432" }

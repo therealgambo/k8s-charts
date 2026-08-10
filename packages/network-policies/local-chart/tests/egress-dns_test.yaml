@@ -1,0 +1,178 @@
+suite: egress-dns
+templates:
+  - egress-dns.yaml
+tests:
+  - it: renders nothing for a workload with no egress configured at all
+    set:
+      rules.database.ingress.cidr.office.cidr: "10.0.0.0/8"
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders nothing for a workload with only ingress configured
+    set:
+      rules.webapp.ingress.entities.world: {}
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: auto-triggers off egress.entities without any explicit dns flag
+    set:
+      rules.webapp.egress.entities.world: {}
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: egress-dns-webapp
+
+  - it: auto-triggers off egress.cidr
+    set:
+      rules.webapp.egress.cidr.external.cidr: "203.0.113.0/24"
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: auto-triggers off egress.endpoints
+    set:
+      rules.webapp.egress.endpoints.postgres.matchLabels:
+        app.kubernetes.io/name: postgres
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: auto-triggers off egress.nodes
+    set:
+      rules.webapp.egress.nodes.node-a.matchLabels:
+        kubernetes.io/hostname: node-a
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: auto-triggers off egress.groups
+    set:
+      rules.webapp.egress.groups.aws-sg.aws.securityGroupIds: ["sg-1"]
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: auto-triggers off egress.services
+    set:
+      rules.webapp.egress.services.postgres.serviceName: postgres
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: auto-triggers off egress.fqdns
+    set:
+      rules.webapp.egress.fqdns.github.matchName: "api.github.com"
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: auto-triggers off egress.kubernetes
+    set:
+      rules.webapp.egress.kubernetes: true
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: auto-triggers off egress.imds
+    set:
+      rules.webapp.egress.imds: true
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: egress.dns true alone triggers rendering with no other egress type needed
+    set:
+      rules.dns-only-job.egress.dns: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: egress-dns-dns-only-job
+
+  - it: uses the default node-local-dns target when nothing overrides it
+    set:
+      rules.webapp.egress.entities.world: {}
+    asserts:
+      - equal:
+          path: spec.egress[0].toCIDRSet[0].cidr
+          value: "169.254.20.25/32"
+      - equal:
+          path: spec.egress[0].toPorts[0].ports
+          value:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+      - equal:
+          path: spec.egress[0].toPorts[0].rules.dns
+          value:
+            - matchPattern: "*"
+
+  - it: a top-level dns override changes the default target for every auto-triggered workload
+    set:
+      dns:
+        cidr: "10.96.0.10/32"
+        port: "5353"
+      rules.webapp.egress.entities.world: {}
+    asserts:
+      - equal:
+          path: spec.egress[0].toCIDRSet[0].cidr
+          value: "10.96.0.10/32"
+      - equal:
+          path: spec.egress[0].toPorts[0].ports[0].port
+          value: "5353"
+
+  - it: egress.dns false opts a single workload out even though other egress is restricted
+    set:
+      rules.webapp.egress.entities.world: {}
+      rules.webapp.egress.dns: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: a dict on egress.dns overrides cidr/port for just that one workload
+    set:
+      rules.webapp.egress.entities.world: {}
+      rules.webapp.egress.dns:
+        cidr: "10.1.2.3/32"
+        port: "5353"
+    asserts:
+      - equal:
+          path: spec.egress[0].toCIDRSet[0].cidr
+          value: "10.1.2.3/32"
+      - equal:
+          path: spec.egress[0].toPorts[0].ports[0].port
+          value: "5353"
+
+  - it: a workload override wins over the top-level default
+    set:
+      dns:
+        cidr: "10.96.0.10/32"
+      rules.webapp.egress.entities.world: {}
+      rules.webapp.egress.dns:
+        cidr: "10.1.2.3/32"
+    asserts:
+      - equal:
+          path: spec.egress[0].toCIDRSet[0].cidr
+          value: "10.1.2.3/32"
+
+  - it: a disabled workload doesn't trigger DNS even with other egress configured
+    set:
+      rules.webapp.enabled: false
+      rules.webapp.egress.entities.world: {}
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: two workloads that both auto-trigger render as two separate resources
+    set:
+      rules.webapp.egress.entities.world: {}
+      rules.processor.egress.kubernetes: true
+    asserts:
+      - hasDocuments:
+          count: 2

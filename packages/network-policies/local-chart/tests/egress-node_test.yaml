@@ -1,0 +1,19 @@
+suite: egress-node
+templates:
+  - egress-node.yaml
+tests:
+  - it: renders nothing when egress.nodes is empty
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders a toNodes entry
+    set:
+      rules.webapp.egress.nodes.node-a.matchLabels:
+        kubernetes.io/hostname: node-a
+    asserts:
+      - equal:
+          path: spec.egress[0].toNodes[0]
+          value:
+            matchLabels:
+              kubernetes.io/hostname: node-a

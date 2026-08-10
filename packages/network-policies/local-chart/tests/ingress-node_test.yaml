@@ -1,0 +1,31 @@
+suite: ingress-node
+templates:
+  - ingress-node.yaml
+tests:
+  - it: renders nothing when ingress.nodes is empty
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders a fromNodes entry (node identity, not namespaced)
+    set:
+      rules.webapp.ingress.nodes.node-a.matchLabels:
+        kubernetes.io/hostname: node-a
+    asserts:
+      - equal:
+          path: spec.ingress[0].fromNodes[0]
+          value:
+            matchLabels:
+              kubernetes.io/hostname: node-a
+
+  - it: deny:true routes into ingressDeny
+    set:
+      rules.webapp.ingress.nodes.node-a:
+        matchLabels:
+          kubernetes.io/hostname: node-a
+        deny: true
+    asserts:
+      - notExists:
+          path: spec.ingress
+      - exists:
+          path: spec.ingressDeny

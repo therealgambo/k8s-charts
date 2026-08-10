@@ -1,0 +1,150 @@
+suite: egress-fqdn
+templates:
+  - egress-fqdn.yaml
+tests:
+  - it: renders nothing when egress.fqdns is empty
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: matchName auto-derives SNI serverNames on a TCP toPorts entry
+    set:
+      rules.webapp.egress.fqdns.github-api:
+        matchName: "api.github.com"
+        toPorts:
+          https:
+            port: "443"
+    asserts:
+      - equal:
+          path: spec.egress[0].toFQDNs[0]
+          value:
+            matchName: api.github.com
+      - notExists:
+          path: spec.egress[0].toPorts[0].rules
+      - equal:
+          path: spec.egress[0].toPorts[0].serverNames
+          value: ["api.github.com"]
+
+  - it: a leading-wildcard matchPattern auto-derives SNI serverNames too
+    set:
+      rules.webapp.egress.fqdns.wildcard-host:
+        matchPattern: "*.example.com"
+        toPorts:
+          https:
+            port: "443"
+    asserts:
+      - equal:
+          path: spec.egress[0].toPorts[0].serverNames
+          value: ["*.example.com"]
+
+  - it: a non-wildcard matchPattern does NOT auto-derive SNI (no unambiguous single hostname)
+    set:
+      rules.webapp.egress.fqdns.glob-host:
+        matchPattern: "*-api.example.com"
+        toPorts:
+          https:
+            port: "443"
+    asserts:
+      - notExists:
+          path: spec.egress[0].toPorts[0].serverNames
+
+  - it: sni -- false disables SNI enforcement for non-TLS hosts like SFTP
+    set:
+      rules.webapp.egress.fqdns.legacy-sftp:
+        matchName: "sftp.example.internal"
+        sni: false
+        toPorts:
+          sftp:
+            port: "22"
+    asserts:
+      - notExists:
+          path: spec.egress[0].toPorts[0].serverNames
+
+  - it: sniServerNames overrides the auto-derived value
+    set:
+      rules.webapp.egress.fqdns.custom-sni:
+        matchName: "internal.example.com"
+        sniServerNames: ["public.example.com"]
+        toPorts:
+          https:
+            port: "443"
+    asserts:
+      - equal:
+          path: spec.egress[0].toPorts[0].serverNames
+          value: ["public.example.com"]
+
+  - it: a non-TCP toPorts entry is left without serverNames even with SNI enabled
+    set:
+      rules.webapp.egress.fqdns.udp-host:
+        matchName: "udp.example.com"
+        toPorts:
+          dns:
+            port: "53"
+            protocol: UDP
+    asserts:
+      - notExists:
+          path: spec.egress[0].toPorts[0].serverNames
+
+  - it: an entry that already sets its own serverNames is left untouched
+    set:
+      rules.webapp.egress.fqdns.explicit-sni:
+        matchName: "internal.example.com"
+        toPorts:
+          https:
+            port: "443"
+            serverNames: ["already-set.example.com"]
+    asserts:
+      - equal:
+          path: spec.egress[0].toPorts[0].serverNames
+          value: ["already-set.example.com"]
+
+  - it: an entry with L7 http rules and no terminatingTLS is left without serverNames (Cilium rejects serverNames + L7 rules without TLS termination)
+    set:
+      rules.webapp.egress.fqdns.l7-host:
+        matchName: "api.example.com"
+        toPorts:
+          https:
+            port: "443"
+            rules:
+              http:
+                get-root:
+                  method: GET
+                  path: "/"
+    asserts:
+      - notExists:
+          path: spec.egress[0].toPorts[0].serverNames
+
+  - it: an entry with L7 http rules AND terminatingTLS still gets serverNames
+    set:
+      rules.webapp.egress.fqdns.l7-tls-host:
+        matchName: "api.example.com"
+        toPorts:
+          https:
+            port: "443"
+            rules:
+              http:
+                get-root:
+                  method: GET
+                  path: "/"
+            terminatingTLS:
+              secretName: my-tls-secret
+    asserts:
+      - equal:
+          path: spec.egress[0].toPorts[0].serverNames
+          value: ["api.example.com"]
+
+  - it: entries with no toPorts at all (allow the whole FQDN, any port) render just toFQDNs
+    set:
+      rules.webapp.egress.fqdns.any-port:
+        matchName: "example.com"
+    asserts:
+      - equal:
+          path: spec.egress[0].toFQDNs[0]
+          value:
+            matchName: example.com
+      - notExists:
+          path: spec.egress[0].toPorts
+
+  # fqdns has no deny variant in Cilium -- `deny: true` here is rejected by values.schema.json
+  # before the chart ever renders (see the template's own `fail` guard in egress-fqdn.yaml, kept
+  # as defense-in-depth for anyone rendering with --skip-schema-validation).

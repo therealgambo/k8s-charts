@@ -1,0 +1,13 @@
+{{/*
+Blanket, namespace-wide deny of all egress traffic not otherwise explicitly allowed. Enabled by
+default: installing this chart locks the namespace down, and the various egress-*.yaml resources
+above are what you use to open up exactly what's needed. Disable via `defaultDeny.egress.enabled:
+false` if this namespace shouldn't be locked down (e.g. it's managed by a different mechanism).
+*/}}
+{{- if ne .Values.enabled false }}
+{{- $dd := (.Values.defaultDeny | default dict).egress | default dict }}
+{{- if ne $dd.enabled false }}
+{{- $fileBase := include "network-policies.fileBase" $ }}
+{{- include "network-policies.emitDefaultDeny" (dict "root" $ "fileBase" $fileBase "direction" "egress") }}
+{{- end }}
+{{- end }}

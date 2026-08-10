@@ -1,0 +1,109 @@
+suite: subject selector, naming, labels/annotations (via egress-entity.yaml as a simple vehicle)
+templates:
+  - egress-entity.yaml
+tests:
+  - it: infers app.kubernetes.io/name from the rule key when no selector is given
+    set:
+      rules.webapp.egress.entities.world: {}
+    asserts:
+      - equal:
+          path: spec.endpointSelector
+          value:
+            matchLabels:
+              app.kubernetes.io/name: webapp
+
+  - it: resource name is <fileBase>-<key>, derived from the rendering template
+    set:
+      rules.webapp.egress.entities.world: {}
+    asserts:
+      - equal:
+          path: metadata.name
+          value: egress-entity-webapp
+
+  - it: explicit labelSelector opts out of key inference entirely
+    set:
+      rules.webapp.labelSelector:
+        custom: label
+      rules.webapp.egress.entities.world: {}
+    asserts:
+      - equal:
+          path: spec.endpointSelector
+          value:
+            matchLabels:
+              custom: label
+
+  - it: explicit labelSelectorExpressions alone also opts out of key inference
+    set:
+      rules.webapp.labelSelectorExpressions:
+        - key: foo
+          operator: Exists
+      rules.webapp.egress.entities.world: {}
+    asserts:
+      - equal:
+          path: spec.endpointSelector
+          value:
+            matchExpressions:
+              - key: foo
+                operator: Exists
+
+  - it: spec.description is populated from cfg.description
+    set:
+      rules.webapp.description: "webapp posture"
+      rules.webapp.egress.entities.world: {}
+    asserts:
+      - equal:
+          path: spec.description
+          value: "webapp posture"
+
+  - it: omits spec.description entirely when not set
+    set:
+      rules.webapp.egress.entities.world: {}
+    asserts:
+      - notExists:
+          path: spec.description
+
+  - it: chart labels, commonLabels and per-rule labels all merge, with per-rule labels winning ties
+    set:
+      commonLabels:
+        team: platform
+        owner: common
+      rules.webapp.labels:
+        owner: webapp-team
+      rules.webapp.egress.entities.world: {}
+    asserts:
+      - equal:
+          path: metadata.labels.team
+          value: platform
+      - equal:
+          path: metadata.labels.owner
+          value: webapp-team
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: network-policies
+
+  - it: commonAnnotations and per-rule annotations merge, with per-rule annotations winning ties
+    set:
+      commonAnnotations:
+        note: common
+      rules.webapp.annotations:
+        note: webapp-specific
+      rules.webapp.egress.entities.world: {}
+    asserts:
+      - equal:
+          path: metadata.annotations.note
+          value: webapp-specific
+
+  - it: omits metadata.annotations entirely when nothing sets one
+    set:
+      rules.webapp.egress.entities.world: {}
+    asserts:
+      - notExists:
+          path: metadata.annotations
+
+  - it: a workload with enabled=false renders nothing
+    set:
+      rules.webapp.enabled: false
+      rules.webapp.egress.entities.world: {}
+    asserts:
+      - hasDocuments:
+          count: 0

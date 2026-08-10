@@ -1,0 +1,990 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "network-policies",
+  "description": "Renders CiliumNetworkPolicy resources from workload-first rules. See README.md for the full field reference and worked examples.",
+  "type": "object",
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "description": "Master switch. false renders nothing at all, including the default-deny policies."
+    },
+    "commonLabels": {
+      "description": "Merged into every rendered resource's metadata.labels.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "commonAnnotations": {
+      "description": "Merged into every rendered resource's metadata.annotations.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "dns": {
+      "$ref": "#/definitions/dnsTarget",
+      "description": "Default target for the automatic egress-DNS policy (see rules.<key>.egress.dns)."
+    },
+    "defaultDeny": {
+      "description": "Blanket, namespace-wide deny of all ingress/egress not otherwise explicitly allowed. Enabled by default.",
+      "type": "object",
+      "properties": {
+        "ingress": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "egress": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "rules": {
+      "type": "object",
+      "description": "One key per workload (or group of workloads sharing a subject), short/unique/DNS-label-safe -- used to name every resource this key renders.",
+      "additionalProperties": {
+        "$ref": "#/definitions/rule"
+      }
+    },
+    "global": {
+      "type": "object",
+      "description": "Reserved for Helm's global values when this chart is used as a dependency."
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "matchExpression": {
+      "description": "A Kubernetes-style label selector requirement.",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "operator": {
+          "type": "string",
+          "enum": [
+            "In",
+            "NotIn",
+            "Exists",
+            "DoesNotExist"
+          ]
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "key",
+        "operator"
+      ],
+      "additionalProperties": false
+    },
+    "matchExpressions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/matchExpression"
+      }
+    },
+    "cluster": {
+      "description": "Cluster Mesh scoping: one remote cluster name, or a list of names OR'd together. Omit to match in any connected cluster.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "selectorDef": {
+      "description": "A generic EndpointSelector: matchLabels/matchExpressions plus the cluster/namespace conveniences.",
+      "type": "object",
+      "properties": {
+        "matchLabels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "matchExpressions": {
+          "$ref": "#/definitions/matchExpressions"
+        },
+        "cluster": {
+          "$ref": "#/definitions/cluster"
+        },
+        "namespace": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "port": {
+      "type": [
+        "string",
+        "integer"
+      ]
+    },
+    "portProtocol": {
+      "description": "One port/protocol pair inside a `ports` sub-map.",
+      "type": "object",
+      "properties": {
+        "port": {
+          "$ref": "#/definitions/port"
+        },
+        "protocol": {
+          "type": "string",
+          "enum": [
+            "TCP",
+            "UDP",
+            "SCTP",
+            "ANY"
+          ]
+        },
+        "endPort": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "httpHeaderMatch": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "mismatch": {
+          "type": "string"
+        },
+        "secretName": {
+          "type": "string"
+        },
+        "secretNamespace": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "httpRule": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "host": {
+          "type": "string"
+        },
+        "headers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "headerMatches": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/httpHeaderMatch"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "dnsRule": {
+      "description": "A DNS L7 rule. Needs `matchName` or `matchPattern`.",
+      "type": "object",
+      "properties": {
+        "matchName": {
+          "type": "string"
+        },
+        "matchPattern": {
+          "type": "string"
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "matchName"
+          ]
+        },
+        {
+          "required": [
+            "matchPattern"
+          ]
+        }
+      ],
+      "additionalProperties": false
+    },
+    "tlsContext": {
+      "description": "A TLS secret reference, used for terminatingTLS/originatingTLS.",
+      "type": "object",
+      "properties": {
+        "secretName": {
+          "type": "string"
+        },
+        "secretNamespace": {
+          "type": "string"
+        },
+        "trustedCA": {
+          "type": "string"
+        },
+        "certificate": {
+          "type": "string"
+        },
+        "privateKey": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "listener": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "integer"
+        },
+        "envoyConfigKind": {
+          "type": "string"
+        },
+        "envoyConfigName": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "toPortsEntry": {
+      "description": "One named toPorts/fromPorts entry: needs `port` (with optional `protocol`/`endPort`), or a `ports` sub-map of several. L7 rules, TLS, serverNames and listener only take effect on allow entries -- Cilium's deny rules are plain port/protocol only.",
+      "type": "object",
+      "properties": {
+        "port": {
+          "$ref": "#/definitions/port"
+        },
+        "protocol": {
+          "type": "string",
+          "enum": [
+            "TCP",
+            "UDP",
+            "SCTP",
+            "ANY"
+          ]
+        },
+        "endPort": {
+          "type": "integer"
+        },
+        "ports": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/portProtocol"
+          }
+        },
+        "rules": {
+          "type": "object",
+          "properties": {
+            "http": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/definitions/httpRule"
+              }
+            },
+            "dns": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/definitions/dnsRule"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "terminatingTLS": {
+          "$ref": "#/definitions/tlsContext"
+        },
+        "originatingTLS": {
+          "$ref": "#/definitions/tlsContext"
+        },
+        "serverNames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "listener": {
+          "$ref": "#/definitions/listener"
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "port"
+          ]
+        },
+        {
+          "required": [
+            "ports"
+          ]
+        }
+      ],
+      "additionalProperties": false
+    },
+    "toPorts": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/toPortsEntry"
+      }
+    },
+    "icmpEntry": {
+      "type": "object",
+      "properties": {
+        "family": {
+          "type": "string",
+          "enum": [
+            "IPv4",
+            "IPv6"
+          ]
+        },
+        "type": {
+          "type": [
+            "string",
+            "integer"
+          ]
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "icmps": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/icmpEntry"
+      }
+    },
+    "authentication": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "disabled",
+            "required",
+            "test-always-fail"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "endpointPeerEntry": {
+      "description": "A fromEndpoints/toEndpoints or fromNodes/toNodes peer. `namespace` is stamped as the reserved k8s:io.kubernetes.pod.namespace label (defaulted to the release namespace for endpoints; nodes aren't namespace-scoped by Cilium but the field is still accepted).",
+      "type": "object",
+      "properties": {
+        "matchLabels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "matchExpressions": {
+          "$ref": "#/definitions/matchExpressions"
+        },
+        "cluster": {
+          "$ref": "#/definitions/cluster"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "toPorts": {
+          "$ref": "#/definitions/toPorts"
+        },
+        "icmps": {
+          "$ref": "#/definitions/icmps"
+        },
+        "authentication": {
+          "$ref": "#/definitions/authentication"
+        },
+        "deny": {
+          "type": "boolean",
+          "description": "Render this entry into spec.<direction>Deny instead of spec.<direction>. Deny rules only support toPorts (plain port/protocol, no L7/TLS/listener/authentication)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "entityPeerEntry": {
+      "description": "A fromEntities/toEntities peer -- the map key itself is the Cilium entity name.",
+      "type": "object",
+      "properties": {
+        "toPorts": {
+          "$ref": "#/definitions/toPorts"
+        },
+        "icmps": {
+          "$ref": "#/definitions/icmps"
+        },
+        "authentication": {
+          "$ref": "#/definitions/authentication"
+        },
+        "deny": {
+          "type": "boolean",
+          "description": "Render this entry into spec.<direction>Deny instead of spec.<direction>. Deny rules only support toPorts (plain port/protocol, no L7/TLS/listener/authentication)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "entities": {
+      "description": "Special Cilium identities. The map key IS the entity name -- only these are valid.",
+      "type": "object",
+      "properties": {
+        "world": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/entityPeerEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cluster": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/entityPeerEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cluster-mesh": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/entityPeerEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "host": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/entityPeerEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "remote-node": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/entityPeerEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kube-apiserver": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/entityPeerEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ingress": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/entityPeerEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "init": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/entityPeerEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "health": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/entityPeerEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unmanaged": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/entityPeerEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "none": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/entityPeerEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "all": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/entityPeerEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "world-ipv4": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/entityPeerEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "world-ipv6": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/entityPeerEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "cidrEntry": {
+      "description": "One named CIDR block. Needs one of `cidr`, `cidrGroupRef` or `cidrGroupSelector`. `except` carves sub-ranges back out.",
+      "type": "object",
+      "properties": {
+        "cidr": {
+          "type": "string"
+        },
+        "cidrGroupRef": {
+          "type": "string"
+        },
+        "cidrGroupSelector": {
+          "$ref": "#/definitions/selectorDef"
+        },
+        "except": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "toPorts": {
+          "$ref": "#/definitions/toPorts"
+        },
+        "icmps": {
+          "$ref": "#/definitions/icmps"
+        },
+        "authentication": {
+          "$ref": "#/definitions/authentication"
+        },
+        "deny": {
+          "type": "boolean",
+          "description": "Render this entry into spec.<direction>Deny instead of spec.<direction>. Deny rules only support toPorts (plain port/protocol, no L7/TLS/listener/authentication)."
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "cidr"
+          ]
+        },
+        {
+          "required": [
+            "cidrGroupRef"
+          ]
+        },
+        {
+          "required": [
+            "cidrGroupSelector"
+          ]
+        }
+      ],
+      "additionalProperties": false
+    },
+    "cidrs": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/cidrEntry"
+      }
+    },
+    "endpointPeers": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/endpointPeerEntry"
+      }
+    },
+    "groupEntry": {
+      "description": "One named external-group peer (currently AWS security groups only, per upstream Cilium).",
+      "type": "object",
+      "properties": {
+        "aws": {
+          "type": "object",
+          "properties": {
+            "labels": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "securityGroupIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "securityGroupNames": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "anyOf": [
+            {
+              "required": [
+                "labels"
+              ]
+            },
+            {
+              "required": [
+                "securityGroupIds"
+              ]
+            },
+            {
+              "required": [
+                "securityGroupNames"
+              ]
+            }
+          ],
+          "additionalProperties": false
+        },
+        "toPorts": {
+          "$ref": "#/definitions/toPorts"
+        },
+        "icmps": {
+          "$ref": "#/definitions/icmps"
+        },
+        "authentication": {
+          "$ref": "#/definitions/authentication"
+        },
+        "deny": {
+          "type": "boolean",
+          "description": "Render this entry into spec.<direction>Deny instead of spec.<direction>. Deny rules only support toPorts (plain port/protocol, no L7/TLS/listener/authentication)."
+        }
+      },
+      "required": [
+        "aws"
+      ],
+      "additionalProperties": false
+    },
+    "groups": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/groupEntry"
+      }
+    },
+    "serviceEntry": {
+      "description": "One named egress-to-Service peer, selected either by name+namespace or by label selector. Needs `serviceName` or `matchLabels`.",
+      "type": "object",
+      "properties": {
+        "serviceName": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "matchLabels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "matchExpressions": {
+          "$ref": "#/definitions/matchExpressions"
+        },
+        "selectorNamespace": {
+          "type": "string"
+        },
+        "toPorts": {
+          "$ref": "#/definitions/toPorts"
+        },
+        "icmps": {
+          "$ref": "#/definitions/icmps"
+        },
+        "authentication": {
+          "$ref": "#/definitions/authentication"
+        },
+        "deny": {
+          "type": "boolean",
+          "description": "Render this entry into spec.<direction>Deny instead of spec.<direction>. Deny rules only support toPorts (plain port/protocol, no L7/TLS/listener/authentication)."
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "serviceName"
+          ]
+        },
+        {
+          "required": [
+            "matchLabels"
+          ]
+        }
+      ],
+      "additionalProperties": false
+    },
+    "services": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/serviceEntry"
+      }
+    },
+    "fqdnEntry": {
+      "description": "One named egress-to-FQDN peer. Needs `matchName` or `matchPattern`. Allow-only -- Cilium's EgressDenyRule has no ToFQDNs field, so `deny` isn't accepted here. SNI (`serverNames`) is enforced by default on TCP toPorts entries derived from `matchName` or a leading-wildcard `matchPattern`; set `sni: false` for non-TLS hosts (e.g. SSH/SFTP), or `sniServerNames` to override the derived value.",
+      "type": "object",
+      "properties": {
+        "matchName": {
+          "type": "string"
+        },
+        "matchPattern": {
+          "type": "string"
+        },
+        "sni": {
+          "type": "boolean"
+        },
+        "sniServerNames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "toPorts": {
+          "$ref": "#/definitions/toPorts"
+        },
+        "icmps": {
+          "$ref": "#/definitions/icmps"
+        },
+        "authentication": {
+          "$ref": "#/definitions/authentication"
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "matchName"
+          ]
+        },
+        {
+          "required": [
+            "matchPattern"
+          ]
+        }
+      ],
+      "additionalProperties": false
+    },
+    "fqdns": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/fqdnEntry"
+      }
+    },
+    "dnsTarget": {
+      "description": "Override the automatic egress-DNS target for one workload, or for the whole chart via the top-level `dns` key.",
+      "type": "object",
+      "properties": {
+        "cidr": {
+          "type": "string"
+        },
+        "port": {
+          "$ref": "#/definitions/port"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ingress": {
+      "description": "Ingress peer types this workload allows/denies from. An empty/absent type renders nothing for that type.",
+      "type": "object",
+      "properties": {
+        "endpoints": {
+          "$ref": "#/definitions/endpointPeers",
+          "description": "fromEndpoints -- specific pods. -> ingress-endpoint.yaml"
+        },
+        "entities": {
+          "$ref": "#/definitions/entities",
+          "description": "fromEntities -- special Cilium identities. -> ingress-entity.yaml"
+        },
+        "cidr": {
+          "$ref": "#/definitions/cidrs",
+          "description": "fromCIDRSet -- plain IP blocks. -> ingress-cidr.yaml"
+        },
+        "nodes": {
+          "$ref": "#/definitions/endpointPeers",
+          "description": "fromNodes -- node identity, not workload identity. -> ingress-node.yaml"
+        },
+        "groups": {
+          "$ref": "#/definitions/groups",
+          "description": "fromGroups -- external security-group integration. -> ingress-group.yaml"
+        }
+      },
+      "additionalProperties": false
+    },
+    "egress": {
+      "description": "Egress peer types this workload allows/denies to. An empty/absent type renders nothing for that type, except `dns` which auto-renders whenever any other egress type here is populated (see README).",
+      "type": "object",
+      "properties": {
+        "kubernetes": {
+          "type": "boolean",
+          "description": "Allow the kube-apiserver entity only (no DNS). -> egress-kubernetes.yaml"
+        },
+        "imds": {
+          "description": "Allow the cloud-provider metadata endpoint (169.254.169.254:80 by default). `true`, or a dict to override cidr/port. -> egress-imds.yaml",
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/definitions/dnsTarget"
+            }
+          ]
+        },
+        "dns": {
+          "description": "Automatic DNS-resolver egress. `true`/omitted renders with the default target (see top-level `dns`), `false` opts out, a dict overrides cidr/port for this workload alone. -> egress-dns.yaml",
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/definitions/dnsTarget"
+            }
+          ]
+        },
+        "endpoints": {
+          "$ref": "#/definitions/endpointPeers",
+          "description": "toEndpoints -- specific pods. -> egress-endpoint.yaml"
+        },
+        "entities": {
+          "$ref": "#/definitions/entities",
+          "description": "toEntities -- special Cilium identities. -> egress-entity.yaml"
+        },
+        "cidr": {
+          "$ref": "#/definitions/cidrs",
+          "description": "toCIDRSet -- plain IP blocks. -> egress-cidr.yaml"
+        },
+        "nodes": {
+          "$ref": "#/definitions/endpointPeers",
+          "description": "toNodes -- node identity, not workload identity. -> egress-node.yaml"
+        },
+        "groups": {
+          "$ref": "#/definitions/groups",
+          "description": "toGroups -- external security-group integration. -> egress-group.yaml"
+        },
+        "services": {
+          "$ref": "#/definitions/services",
+          "description": "toServices -- a Kubernetes Service by name or selector. -> egress-service.yaml"
+        },
+        "fqdns": {
+          "$ref": "#/definitions/fqdns",
+          "description": "toFQDNs -- DNS names, allow-only. -> egress-fqdn.yaml"
+        }
+      },
+      "additionalProperties": false
+    },
+    "rule": {
+      "description": "One workload's full network posture: its subject selector plus every ingress/egress peer type it needs.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Default true. false skips this workload entirely."
+        },
+        "description": {
+          "type": "string",
+          "description": "-> spec.description on every resource this key renders."
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "labelSelector": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Flat matchLabels for this workload's subject. If neither this nor labelSelectorExpressions is set, the map key itself is used as app.kubernetes.io/name."
+        },
+        "labelSelectorExpressions": {
+          "$ref": "#/definitions/matchExpressions"
+        },
+        "ingress": {
+          "$ref": "#/definitions/ingress"
+        },
+        "egress": {
+          "$ref": "#/definitions/egress"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

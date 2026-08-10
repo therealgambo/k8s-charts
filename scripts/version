@@ -20,3 +20,7 @@ HELM_VERSION="${HELM_VERSION:-v4.2.3}"
 # https://github.com/homeport/dyff
 DYFF_REPO="https://github.com/homeport/dyff"
 DYFF_VERSION="${DYFF_VERSION:-v1.12.0}"
+
+# https://github.com/helm-unittest/helm-unittest
+HELM_UNITTEST_REPO="https://github.com/helm-unittest/helm-unittest"
+HELM_UNITTEST_VERSION="${HELM_UNITTEST_VERSION:-v1.1.2}"

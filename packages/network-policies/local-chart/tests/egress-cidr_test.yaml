@@ -1,0 +1,35 @@
+suite: egress-cidr
+templates:
+  - egress-cidr.yaml
+tests:
+  - it: renders nothing when egress.cidr is empty
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: a plain cidr entry renders into toCIDRSet with except carried through
+    set:
+      rules.webapp.egress.cidr.external-api:
+        cidr: 203.0.113.0/24
+        except: ["203.0.113.128/25"]
+        toPorts:
+          https:
+            port: "443"
+    asserts:
+      - equal:
+          path: spec.egress[0].toCIDRSet[0]
+          value:
+            cidr: 203.0.113.0/24
+            except: ["203.0.113.128/25"]
+
+  - it: deny:true routes the entry into egressDeny
+    set:
+      rules.webapp.egress.cidr.blocked:
+        cidr: 198.51.100.0/24
+        deny: true
+    asserts:
+      - notExists:
+          path: spec.egress
+      - equal:
+          path: spec.egressDeny[0].toCIDRSet[0].cidr
+          value: 198.51.100.0/24

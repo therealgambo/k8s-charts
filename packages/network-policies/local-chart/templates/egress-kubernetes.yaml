@@ -1,0 +1,21 @@
+{{/*
+One CiliumNetworkPolicy per workload in .Values.rules with `egress.kubernetes: true`: allows that
+workload to reach the kube-apiserver entity. Deliberately does NOT configure DNS access -- see
+egress-dns.yaml, which handles that independently (and automatically, whenever a workload has any
+egress restricted at all) rather than bundling it into this one. Scoped to the workload's own
+subject selector like every other resource this chart renders -- NOT namespace-wide.
+*/}}
+{{- if ne .Values.enabled false }}
+{{- $root := . }}
+{{- $fileBase := include "network-policies.fileBase" $root }}
+{{- range $key, $rule := .Values.rules }}
+{{- $rule := $rule | default dict }}
+{{- if ne $rule.enabled false }}
+{{- $egr := $rule.egress | default dict }}
+{{- if $egr.kubernetes }}
+{{- $allowList := include "network-policies.kubernetesEntries" $root | fromYamlArray }}
+{{- include "network-policies.emitResource" (dict "root" $root "fileBase" $fileBase "key" $key "cfg" $rule "direction" "egress" "allowEntries" $allowList "denyEntries" (list)) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

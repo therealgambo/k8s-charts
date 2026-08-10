@@ -1,0 +1,22 @@
+{{/*
+One CiliumNetworkPolicy per workload in .Values.rules that populates `ingress.endpoints`,
+allowing/denying ingress from specific pods (fromEndpoints).
+*/}}
+{{- if ne .Values.enabled false }}
+{{- $root := . }}
+{{- $fileBase := include "network-policies.fileBase" $root }}
+{{- range $key, $rule := .Values.rules }}
+{{- $rule := $rule | default dict }}
+{{- if ne $rule.enabled false }}
+{{- $ing := $rule.ingress | default dict }}
+{{- if $ing.endpoints }}
+{{- $parts := include "network-policies.partitionByDeny" $ing.endpoints | fromYaml }}
+{{- $allowList := list }}
+{{- if $parts.allow }}{{- $allowList = include "network-policies.selectorEntries" (dict "entries" $parts.allow "field" "fromEndpoints" "mode" "allow" "namespaced" true "root" $root) | fromYamlArray }}{{- end }}
+{{- $denyList := list }}
+{{- if $parts.deny }}{{- $denyList = include "network-policies.selectorEntries" (dict "entries" $parts.deny "field" "fromEndpoints" "mode" "deny" "namespaced" true "root" $root) | fromYamlArray }}{{- end }}
+{{- include "network-policies.emitResource" (dict "root" $root "fileBase" $fileBase "key" $key "cfg" $rule "direction" "ingress" "allowEntries" $allowList "denyEntries" $denyList) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,128 @@
+suite: ingress-endpoint
+templates:
+  - ingress-endpoint.yaml
+tests:
+  - it: renders nothing when ingress.endpoints is empty
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: stamps the reserved namespace label defaulting to the release namespace, even when namespace isn't set
+    set:
+      rules.webapp.ingress.endpoints.frontend.matchLabels:
+        app.kubernetes.io/name: frontend
+    asserts:
+      - equal:
+          path: spec.ingress[0].fromEndpoints[0]
+          value:
+            matchLabels:
+              app.kubernetes.io/name: frontend
+              k8s:io.kubernetes.pod.namespace: NAMESPACE
+
+  - it: an explicit namespace on the peer overrides the release-namespace default
+    set:
+      rules.webapp.ingress.endpoints.frontend:
+        matchLabels:
+          app.kubernetes.io/name: frontend
+        namespace: edge
+    asserts:
+      - equal:
+          path: spec.ingress[0].fromEndpoints[0].matchLabels["k8s:io.kubernetes.pod.namespace"]
+          value: edge
+
+  - it: a single cluster name renders as a matchLabels entry on the reserved cluster label
+    set:
+      rules.webapp.ingress.endpoints.frontend:
+        matchLabels:
+          app.kubernetes.io/name: frontend
+        cluster: cluster-a
+    asserts:
+      - equal:
+          path: spec.ingress[0].fromEndpoints[0].matchLabels["k8s:io.cilium.k8s.policy.cluster"]
+          value: cluster-a
+
+  - it: a list of clusters renders as an OR'd matchExpressions entry instead
+    set:
+      rules.webapp.ingress.endpoints.frontend:
+        matchLabels:
+          app.kubernetes.io/name: frontend
+        cluster: ["cluster-a", "cluster-b"]
+    asserts:
+      - notExists:
+          path: spec.ingress[0].fromEndpoints[0].matchLabels["k8s:io.cilium.k8s.policy.cluster"]
+      - equal:
+          path: spec.ingress[0].fromEndpoints[0].matchExpressions[0]
+          value:
+            key: k8s:io.cilium.k8s.policy.cluster
+            operator: In
+            values: ["cluster-a", "cluster-b"]
+
+  - it: toPorts/icmps/authentication all attach to the peer entry on allow
+    set:
+      rules.webapp.ingress.endpoints.frontend:
+        matchLabels:
+          app.kubernetes.io/name: frontend
+        toPorts:
+          http:
+            port: "8080"
+        icmps:
+          ping:
+            type: 8
+        authentication:
+          mode: required
+    asserts:
+      - equal:
+          path: spec.ingress[0].toPorts[0].ports[0]
+          value:
+            port: "8080"
+            protocol: TCP
+      - equal:
+          path: spec.ingress[0].icmps[0].fields[0].type
+          value: 8
+      - equal:
+          path: spec.ingress[0].authentication.mode
+          value: required
+
+  - it: deny:true routes the entry into spec.ingressDeny instead of spec.ingress
+    set:
+      rules.webapp.ingress.endpoints.frontend:
+        matchLabels:
+          app.kubernetes.io/name: frontend
+        deny: true
+        toPorts:
+          http:
+            port: "8080"
+    asserts:
+      - notExists:
+          path: spec.ingress
+      - equal:
+          path: spec.ingressDeny[0].fromEndpoints[0].matchLabels["app.kubernetes.io/name"]
+          value: frontend
+
+  - it: allow and deny entries under the same key split into ingress and ingressDeny on the same resource
+    set:
+      rules.webapp.ingress.endpoints.frontend:
+        matchLabels:
+          app.kubernetes.io/name: frontend
+      rules.webapp.ingress.endpoints.blocked:
+        matchLabels:
+          app.kubernetes.io/name: blocked
+        deny: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - lengthEqual:
+          path: spec.ingress
+          count: 1
+      - lengthEqual:
+          path: spec.ingressDeny
+          count: 1
+
+  - it: a workload with enabled=false is skipped entirely
+    set:
+      rules.webapp.enabled: false
+      rules.webapp.ingress.endpoints.frontend.matchLabels:
+        app.kubernetes.io/name: frontend
+    asserts:
+      - hasDocuments:
+          count: 0

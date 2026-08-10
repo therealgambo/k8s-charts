@@ -1,0 +1,39 @@
+suite: egress-kubernetes
+templates:
+  - egress-kubernetes.yaml
+tests:
+  - it: renders nothing when egress.kubernetes is unset
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders nothing when egress.kubernetes is explicitly false
+    set:
+      rules.webapp.egress.kubernetes: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: egress.kubernetes true allows ONLY the kube-apiserver entity -- no DNS bundled in
+    set:
+      rules.webapp.egress.kubernetes: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.egress
+          value:
+            - toEntities: ["kube-apiserver"]
+      - equal:
+          path: metadata.name
+          value: egress-kubernetes-webapp
+
+  - it: is scoped to the workload's own subject selector, not namespace-wide
+    set:
+      rules.webapp.egress.kubernetes: true
+    asserts:
+      - equal:
+          path: spec.endpointSelector
+          value:
+            matchLabels:
+              app.kubernetes.io/name: webapp
