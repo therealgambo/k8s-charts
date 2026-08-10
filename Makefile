@@ -74,6 +74,16 @@ kyverno-test: guard-package ## Run `kyverno test` against a package's kyverno-te
 		echo "no kyverno-test/ dir in $$chart, skipping"; \
 	fi
 
+# kyverno-test (above) proves the kyverno-pod-policies chart's OWN CEL rule logic is correct
+# against curated fixtures. This runs the opposite direction: renders PACKAGE's chart and asserts
+# the result against that (already-proven) ruleset, to catch real Pod Security Standards
+# violations in any chart before it merges. See scripts/kyverno-policy-check.sh for the
+# baseline(fails)/restricted(warns) split -- no allow-list, every package is held to the same bar.
+kyverno-policy-check: guard-package ## Assert a package's rendered chart against the kyverno-pod-policies ruleset (requires the kyverno CLI; make kyverno-policy-check PACKAGE=name [ENV=staging])
+	@chart="$$(./scripts/chart-dir.sh $(PACKAGE))"; \
+	test -d "$$chart" || { echo "error: $$chart not found — run 'make prepare PACKAGE=$(PACKAGE)' first" >&2; exit 1; }; \
+	./scripts/kyverno-policy-check.sh $(PACKAGE) $(ENV)
+
 ##@ Tooling
 
 pull-scripts: ## Download the pinned charts-build-scripts release into bin/ (skips if already current)
@@ -87,4 +97,4 @@ guard-package:
 help: ## Display this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z0-9][a-zA-Z0-9 _-]*:.*?##/ { split($$1, targets, " "); for (i in targets) { printf "  \033[36m%-15s\033[0m %s\n", targets[i], $$2 } } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
-.PHONY: prepare template patch charts clean unittest kyverno-test pull-scripts guard-package help
+.PHONY: prepare template patch charts clean unittest kyverno-test kyverno-policy-check pull-scripts guard-package help

@@ -84,7 +84,7 @@ controllers that actually create them in practice.
 
 ## Testing & validation
 
-Two different, complementary layers of test coverage, for two different questions:
+Three different, complementary layers of test coverage, for three different questions:
 
 - **`tests/*_test.yaml`** ([helm-unittest](https://github.com/helm-unittest/helm-unittest), via
   `make unittest PACKAGE=kyverno-pod-policies`) -- "does the *templating* behave as intended?" e.g.
@@ -100,16 +100,29 @@ Two different, complementary layers of test coverage, for two different question
   expected pass/fail outcome for each declared in `kyverno-test/kyverno-test.yaml`. This is what
   actually proves e.g. `disallow-privileged-containers`' CEL rejects `privileged: true` and
   accepts a Pod without it -- helm-unittest structurally can't tell those two cases apart.
+- **Every OTHER package's own CI** ([`scripts/kyverno-policy-check.sh`](../../../scripts/kyverno-policy-check.sh),
+  via `make kyverno-policy-check PACKAGE=<name>`) -- "does a *real chart elsewhere in this repo*
+  actually comply?" Renders this ruleset once, renders `<name>`'s chart, and feeds the latter to
+  `kyverno apply` against the former. This is the only one of the three that points the ruleset at
+  anything other than curated fixtures -- it's what actually catches e.g. a new Deployment in
+  `packages/onlineboutique` shipping `privileged: true` before it merges. Baseline (Enforce)
+  violations fail the check; restricted (Audit) violations are reported but never fail it, via
+  `kyverno apply --audit-warn` -- the same enforcement posture this chart ships with. No
+  allow-list -- every package is held to the same bar unconditionally, including ones (CNI/CSI/
+  node-agent workloads) that may legitimately need elevated pod security; those get fixed or
+  carved out per-package rather than exempted from the check itself.
 
-`make kyverno-test` requires the `kyverno` CLI (`./scripts/pull-kyverno.sh`, version pinned in
-[scripts/version](../../../scripts/version) to match `packages/kyverno`'s `appVersion`) and renders
-the chart fresh into `kyverno-test/policies.rendered.yaml` each run (gitignored -- never committed,
-so it can't drift from the live templates). Every fixture in `kyverno-test/resources.yaml`
+`make kyverno-test`/`make kyverno-policy-check` both require the `kyverno` CLI
+(`./scripts/pull-kyverno.sh`, version pinned in [scripts/version](../../../scripts/version) to match
+`packages/kyverno`'s `appVersion`). `kyverno-test` renders the chart fresh into
+`kyverno-test/policies.rendered.yaml` each run (gitignored -- never committed, so it can't drift
+from the live templates); `kyverno-policy-check` renders it fresh into a temp file the same way, so
+neither can ever test a stale copy of the policies. Every fixture in `kyverno-test/resources.yaml`
 deliberately lives in a `workloads` namespace, not `default` -- see the comment at the top of
 `kyverno-test/kyverno-test.yaml` for why (short version: it would otherwise get silently caught by
 every policy's own `exclude` block, which always excludes the release namespace `helm template`
-defaults to). Both suites run in CI via `.github/workflows/validate-charts.yaml`'s
-`helm-unittest`/`kyverno-test` jobs.
+defaults to). All three suites run in CI via `.github/workflows/validate-charts.yaml`'s
+`helm-unittest`/`kyverno-test`/`kyverno-policy-check` jobs.
 
 ## Exceptions
 
