@@ -1,0 +1,23 @@
+{{/*
+One CiliumNetworkPolicy per workload in .Values.rules that populates `ingress.nodes`,
+allowing/denying ingress from specific *nodes* (node identity, not workload identity) -- e.g.
+node-to-node or Cluster Mesh node policies.
+*/}}
+{{- if ne .Values.enabled false }}
+{{- $root := . }}
+{{- $fileBase := include "network-policies.fileBase" $root }}
+{{- range $key, $rule := .Values.rules }}
+{{- $rule := $rule | default dict }}
+{{- if ne $rule.enabled false }}
+{{- $ing := $rule.ingress | default dict }}
+{{- if $ing.nodes }}
+{{- $parts := include "network-policies.partitionByDeny" $ing.nodes | fromYaml }}
+{{- $allowList := list }}
+{{- if $parts.allow }}{{- $allowList = include "network-policies.selectorEntries" (dict "entries" $parts.allow "field" "fromNodes" "mode" "allow" "namespaced" false "root" $root) | fromYamlArray }}{{- end }}
+{{- $denyList := list }}
+{{- if $parts.deny }}{{- $denyList = include "network-policies.selectorEntries" (dict "entries" $parts.deny "field" "fromNodes" "mode" "deny" "namespaced" false "root" $root) | fromYamlArray }}{{- end }}
+{{- include "network-policies.emitResource" (dict "root" $root "fileBase" $fileBase "key" $key "cfg" $rule "direction" "ingress" "allowEntries" $allowList "denyEntries" $denyList) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

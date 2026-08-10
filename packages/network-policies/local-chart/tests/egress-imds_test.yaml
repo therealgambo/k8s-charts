@@ -1,0 +1,47 @@
+suite: egress-imds
+templates:
+  - egress-imds.yaml
+tests:
+  - it: renders nothing when egress.imds is unset
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: egress.imds true uses the default link-local metadata endpoint on port 80/tcp
+    set:
+      rules.processor.egress.imds: true
+    asserts:
+      - equal:
+          path: spec.egress[0]
+          value:
+            toCIDR: ["169.254.169.254/32"]
+            toPorts:
+              - ports:
+                  - port: "80"
+                    protocol: TCP
+      - equal:
+          path: metadata.name
+          value: egress-imds-processor
+
+  - it: a dict overrides cidr and port
+    set:
+      rules.processor.egress.imds:
+        cidr: "10.0.0.1/32"
+        port: 8080
+    asserts:
+      - equal:
+          path: spec.egress[0].toCIDR
+          value: ["10.0.0.1/32"]
+      - equal:
+          path: spec.egress[0].toPorts[0].ports[0].port
+          value: "8080"
+
+  - it: is scoped to the workload's own subject selector, not namespace-wide
+    set:
+      rules.processor.egress.imds: true
+    asserts:
+      - equal:
+          path: spec.endpointSelector
+          value:
+            matchLabels:
+              app.kubernetes.io/name: processor

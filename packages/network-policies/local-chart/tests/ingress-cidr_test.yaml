@@ -1,0 +1,62 @@
+suite: ingress-cidr
+templates:
+  - ingress-cidr.yaml
+tests:
+  - it: renders nothing when ingress.cidr is empty
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: a plain cidr entry renders into fromCIDRSet with except carried through
+    set:
+      rules.database.ingress.cidr.office-vpn:
+        cidr: 10.0.0.0/8
+        except: ["10.1.0.0/16"]
+        toPorts:
+          pg:
+            port: "5432"
+    asserts:
+      - equal:
+          path: spec.ingress[0].fromCIDRSet[0]
+          value:
+            cidr: 10.0.0.0/8
+            except: ["10.1.0.0/16"]
+      - equal:
+          path: spec.ingress[0].toPorts[0].ports[0].port
+          value: "5432"
+
+  - it: cidrGroupRef is accepted as an alternative to cidr
+    set:
+      rules.database.ingress.cidr.via-ref:
+        cidrGroupRef: my-cidr-group
+    asserts:
+      - equal:
+          path: spec.ingress[0].fromCIDRSet[0]
+          value:
+            cidrGroupRef: my-cidr-group
+
+  - it: cidrGroupSelector is accepted as an alternative to cidr
+    set:
+      rules.database.ingress.cidr.via-selector:
+        cidrGroupSelector:
+          matchLabels:
+            foo: bar
+    asserts:
+      - equal:
+          path: spec.ingress[0].fromCIDRSet[0]
+          value:
+            cidrGroupSelector:
+              matchLabels:
+                foo: bar
+
+  - it: omitting toPorts allows every port from that CIDR
+    set:
+      rules.database.ingress.cidr.wide-open:
+        cidr: 10.0.0.0/8
+    asserts:
+      - notExists:
+          path: spec.ingress[0].toPorts
+
+  # An entry with none of cidr/cidrGroupRef/cidrGroupSelector is rejected by values.schema.json
+  # before the chart ever renders (see the template's own `fail` guard in _peerentries.tpl,
+  # kept as defense-in-depth for anyone rendering with --skip-schema-validation).

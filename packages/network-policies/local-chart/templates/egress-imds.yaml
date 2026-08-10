@@ -1,0 +1,21 @@
+{{/*
+One CiliumNetworkPolicy per workload in .Values.rules with `egress.imds` set: allows that workload
+to reach the link-local cloud-provider metadata endpoint (169.254.169.254, AWS/GCP/Azure alike) on
+port 80/tcp, without hand-writing the CIDR/port. Pass a dict instead of `true` to override
+cidr/port (see values.yaml). Scoped to the workload's own subject selector like every other
+resource this chart renders -- NOT namespace-wide, since not every workload needs IMDS access.
+*/}}
+{{- if ne .Values.enabled false }}
+{{- $root := . }}
+{{- $fileBase := include "network-policies.fileBase" $root }}
+{{- range $key, $rule := .Values.rules }}
+{{- $rule := $rule | default dict }}
+{{- if ne $rule.enabled false }}
+{{- $egr := $rule.egress | default dict }}
+{{- if $egr.imds }}
+{{- $allowList := include "network-policies.imdsEntries" $egr.imds | fromYamlArray }}
+{{- include "network-policies.emitResource" (dict "root" $root "fileBase" $fileBase "key" $key "cfg" $rule "direction" "egress" "allowEntries" $allowList "denyEntries" (list)) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

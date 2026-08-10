@@ -1,0 +1,23 @@
+{{/*
+One CiliumNetworkPolicy per workload in .Values.rules that populates `ingress.cidr`,
+allowing/denying ingress from plain IP blocks. Omit `toPorts` on an entry to allow/deny every
+port from that CIDR.
+*/}}
+{{- if ne .Values.enabled false }}
+{{- $root := . }}
+{{- $fileBase := include "network-policies.fileBase" $root }}
+{{- range $key, $rule := .Values.rules }}
+{{- $rule := $rule | default dict }}
+{{- if ne $rule.enabled false }}
+{{- $ing := $rule.ingress | default dict }}
+{{- if $ing.cidr }}
+{{- $parts := include "network-policies.partitionByDeny" $ing.cidr | fromYaml }}
+{{- $allowList := list }}
+{{- if $parts.allow }}{{- $allowList = include "network-policies.cidrEntries" (dict "entries" $parts.allow "field" "fromCIDRSet" "mode" "allow" "root" $root) | fromYamlArray }}{{- end }}
+{{- $denyList := list }}
+{{- if $parts.deny }}{{- $denyList = include "network-policies.cidrEntries" (dict "entries" $parts.deny "field" "fromCIDRSet" "mode" "deny" "root" $root) | fromYamlArray }}{{- end }}
+{{- include "network-policies.emitResource" (dict "root" $root "fileBase" $fileBase "key" $key "cfg" $rule "direction" "ingress" "allowEntries" $allowList "denyEntries" $denyList) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

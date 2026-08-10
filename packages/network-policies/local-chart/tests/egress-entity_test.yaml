@@ -1,0 +1,41 @@
+suite: egress-entity
+templates:
+  - egress-entity.yaml
+tests:
+  - it: renders nothing when egress.entities is empty
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: the map key is used directly as the Cilium entity name
+    set:
+      rules.webapp.egress.entities.world: {}
+    asserts:
+      - equal:
+          path: spec.egress[0].toEntities
+          value: ["world"]
+
+  - it: regression -- two entity keys under one workload render as two entries in ONE resource
+    set:
+      rules.webapp.egress.entities.world: {}
+      rules.webapp.egress.entities.host: {}
+    asserts:
+      - hasDocuments:
+          count: 1
+      - lengthEqual:
+          path: spec.egress
+          count: 2
+
+  - it: deny:true routes the entity into egressDeny
+    set:
+      rules.webapp.egress.entities.world:
+        deny: true
+        toPorts:
+          https:
+            port: "443"
+    asserts:
+      - notExists:
+          path: spec.egress
+      - equal:
+          path: spec.egressDeny[0].toEntities
+          value: ["world"]

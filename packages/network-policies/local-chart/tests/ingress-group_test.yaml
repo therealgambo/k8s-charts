@@ -1,0 +1,24 @@
+suite: ingress-group
+templates:
+  - ingress-group.yaml
+tests:
+  - it: renders nothing when ingress.groups is empty
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders an AWS security-group peer with labels/ids/names
+    set:
+      rules.webapp.ingress.groups.aws-sg.aws:
+        labels:
+          env: prod
+        securityGroupIds: ["sg-123"]
+        securityGroupNames: ["my-sg"]
+    asserts:
+      - equal:
+          path: spec.ingress[0].fromGroups[0].aws
+          value:
+            labels:
+              env: prod
+            securityGroupsIds: ["sg-123"]
+            securityGroupsNames: ["my-sg"]

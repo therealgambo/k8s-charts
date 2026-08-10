@@ -1,0 +1,46 @@
+suite: egress-endpoint
+templates:
+  - egress-endpoint.yaml
+tests:
+  - it: renders nothing when egress.endpoints is empty
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: stamps the reserved namespace label defaulting to the release namespace
+    set:
+      rules.webapp.egress.endpoints.postgres.matchLabels:
+        app.kubernetes.io/name: postgres
+    asserts:
+      - equal:
+          path: spec.egress[0].toEndpoints[0]
+          value:
+            matchLabels:
+              app.kubernetes.io/name: postgres
+              k8s:io.kubernetes.pod.namespace: NAMESPACE
+
+  - it: an explicit namespace overrides the release-namespace default
+    set:
+      rules.webapp.egress.endpoints.postgres:
+        matchLabels:
+          app.kubernetes.io/name: postgres
+        namespace: data
+    asserts:
+      - equal:
+          path: spec.egress[0].toEndpoints[0].matchLabels["k8s:io.kubernetes.pod.namespace"]
+          value: data
+
+  - it: deny:true routes the entry into spec.egressDeny instead of spec.egress
+    set:
+      rules.webapp.egress.endpoints.blocked:
+        matchLabels:
+          app.kubernetes.io/name: blocked
+        deny: true
+        toPorts:
+          any:
+            port: "0"
+    asserts:
+      - notExists:
+          path: spec.egress
+      - exists:
+          path: spec.egressDeny

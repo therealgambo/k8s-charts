@@ -1,0 +1,60 @@
+suite: ingress-entity
+templates:
+  - ingress-entity.yaml
+tests:
+  - it: renders nothing when ingress.entities is empty
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: the map key is used directly as the Cilium entity name
+    set:
+      rules.webapp.ingress.entities.world: {}
+    asserts:
+      - equal:
+          path: spec.ingress[0].fromEntities
+          value: ["world"]
+
+  - it: regression -- two entity keys under one workload render as two entries in ONE resource, not two glued YAML documents
+    set:
+      rules.webapp.ingress.entities.world: {}
+      rules.webapp.ingress.entities.host: {}
+    asserts:
+      - hasDocuments:
+          count: 1
+      - lengthEqual:
+          path: spec.ingress
+          count: 2
+
+  - it: regression -- two DIFFERENT workloads populating the same type render as two separate, independently valid resources
+    set:
+      rules.webapp.ingress.entities.world: {}
+      rules.database.ingress.entities.host: {}
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: toPorts attaches per-entity
+    set:
+      rules.webapp.ingress.entities.world:
+        toPorts:
+          https:
+            port: "443"
+    asserts:
+      - equal:
+          path: spec.ingress[0].toPorts[0].ports[0].port
+          value: "443"
+
+  - it: deny:true routes the entity into ingressDeny
+    set:
+      rules.webapp.ingress.entities.world:
+        deny: true
+        toPorts:
+          https:
+            port: "443"
+    asserts:
+      - notExists:
+          path: spec.ingress
+      - equal:
+          path: spec.ingressDeny[0].fromEntities
+          value: ["world"]

@@ -1,0 +1,24 @@
+{{/*
+One CiliumNetworkPolicy per workload in .Values.rules that populates `egress.cidr`,
+allowing/denying egress to plain IP blocks. Omit `toPorts` on an entry to allow/deny every port to
+that CIDR. For the common cloud metadata endpoint, prefer the `egress.imds` shortcut (see
+egress-imds.yaml) over hand-writing it here.
+*/}}
+{{- if ne .Values.enabled false }}
+{{- $root := . }}
+{{- $fileBase := include "network-policies.fileBase" $root }}
+{{- range $key, $rule := .Values.rules }}
+{{- $rule := $rule | default dict }}
+{{- if ne $rule.enabled false }}
+{{- $egr := $rule.egress | default dict }}
+{{- if $egr.cidr }}
+{{- $parts := include "network-policies.partitionByDeny" $egr.cidr | fromYaml }}
+{{- $allowList := list }}
+{{- if $parts.allow }}{{- $allowList = include "network-policies.cidrEntries" (dict "entries" $parts.allow "field" "toCIDRSet" "mode" "allow" "root" $root) | fromYamlArray }}{{- end }}
+{{- $denyList := list }}
+{{- if $parts.deny }}{{- $denyList = include "network-policies.cidrEntries" (dict "entries" $parts.deny "field" "toCIDRSet" "mode" "deny" "root" $root) | fromYamlArray }}{{- end }}
+{{- include "network-policies.emitResource" (dict "root" $root "fileBase" $fileBase "key" $key "cfg" $rule "direction" "egress" "allowEntries" $allowList "denyEntries" $denyList) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,23 @@
+{{/*
+One CiliumNetworkPolicy per workload in .Values.rules that populates `egress.entities`,
+allowing/denying egress to special Cilium identities (world, cluster, cluster-mesh, host,
+remote-node, kube-apiserver, ingress, init, health, unmanaged, none, all, world-ipv4, world-ipv6).
+*/}}
+{{- if ne .Values.enabled false }}
+{{- $root := . }}
+{{- $fileBase := include "network-policies.fileBase" $root }}
+{{- range $key, $rule := .Values.rules }}
+{{- $rule := $rule | default dict }}
+{{- if ne $rule.enabled false }}
+{{- $egr := $rule.egress | default dict }}
+{{- if $egr.entities }}
+{{- $parts := include "network-policies.partitionByDeny" $egr.entities | fromYaml }}
+{{- $allowList := list }}
+{{- if $parts.allow }}{{- $allowList = include "network-policies.entityEntries" (dict "entries" $parts.allow "field" "toEntities" "mode" "allow") | fromYamlArray }}{{- end }}
+{{- $denyList := list }}
+{{- if $parts.deny }}{{- $denyList = include "network-policies.entityEntries" (dict "entries" $parts.deny "field" "toEntities" "mode" "deny") | fromYamlArray }}{{- end }}
+{{- include "network-policies.emitResource" (dict "root" $root "fileBase" $fileBase "key" $key "cfg" $rule "direction" "egress" "allowEntries" $allowList "denyEntries" $denyList) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

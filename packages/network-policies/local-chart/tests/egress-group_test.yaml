@@ -1,0 +1,18 @@
+suite: egress-group
+templates:
+  - egress-group.yaml
+tests:
+  - it: renders nothing when egress.groups is empty
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders an AWS security-group peer
+    set:
+      rules.webapp.egress.groups.aws-sg.aws:
+        securityGroupIds: ["sg-456"]
+    asserts:
+      - equal:
+          path: spec.egress[0].toGroups[0].aws
+          value:
+            securityGroupsIds: ["sg-456"]

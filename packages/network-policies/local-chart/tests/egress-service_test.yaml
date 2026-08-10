@@ -1,0 +1,51 @@
+suite: egress-service
+templates:
+  - egress-service.yaml
+tests:
+  - it: renders nothing when egress.services is empty
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: a serviceName peer renders k8sService by name/namespace
+    set:
+      rules.webapp.egress.services.postgres:
+        serviceName: postgres
+        namespace: data
+        toPorts:
+          pg:
+            port: "5432"
+    asserts:
+      - equal:
+          path: spec.egress[0].toServices[0]
+          value:
+            k8sService:
+              serviceName: postgres
+              namespace: data
+
+  - it: a matchLabels peer renders k8sServiceSelector
+    set:
+      rules.webapp.egress.services.by-label:
+        matchLabels:
+          app: my-svc
+        selectorNamespace: data
+    asserts:
+      - equal:
+          path: spec.egress[0].toServices[0]
+          value:
+            k8sServiceSelector:
+              namespace: data
+              selector:
+                matchLabels:
+                  app: my-svc
+
+  - it: deny:true routes the entry into egressDeny
+    set:
+      rules.webapp.egress.services.blocked:
+        serviceName: blocked-svc
+        deny: true
+    asserts:
+      - notExists:
+          path: spec.egress
+      - exists:
+          path: spec.egressDeny

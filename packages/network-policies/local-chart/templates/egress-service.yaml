@@ -1,0 +1,23 @@
+{{/*
+One CiliumNetworkPolicy per workload in .Values.rules that populates `egress.services`,
+allowing/denying egress to a Kubernetes Service (by name or by label selector) -- matches whatever
+backends it currently resolves to, even as pods roll.
+*/}}
+{{- if ne .Values.enabled false }}
+{{- $root := . }}
+{{- $fileBase := include "network-policies.fileBase" $root }}
+{{- range $key, $rule := .Values.rules }}
+{{- $rule := $rule | default dict }}
+{{- if ne $rule.enabled false }}
+{{- $egr := $rule.egress | default dict }}
+{{- if $egr.services }}
+{{- $parts := include "network-policies.partitionByDeny" $egr.services | fromYaml }}
+{{- $allowList := list }}
+{{- if $parts.allow }}{{- $allowList = include "network-policies.serviceEntries" (dict "entries" $parts.allow "mode" "allow" "root" $root) | fromYamlArray }}{{- end }}
+{{- $denyList := list }}
+{{- if $parts.deny }}{{- $denyList = include "network-policies.serviceEntries" (dict "entries" $parts.deny "mode" "deny" "root" $root) | fromYamlArray }}{{- end }}
+{{- include "network-policies.emitResource" (dict "root" $root "fileBase" $fileBase "key" $key "cfg" $rule "direction" "egress" "allowEntries" $allowList "denyEntries" $denyList) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
