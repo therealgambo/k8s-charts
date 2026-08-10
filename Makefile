@@ -29,8 +29,8 @@ prepare: guard-package pull-scripts ## Pull the upstream chart(s) into packages/
 #   1. values.yaml        - the chart's own defaults (implicit, always applied by helm)
 #   2. base.values.yaml   - local changes to values.yaml made here, values.yaml shouldn't be modified!
 #   3. $(ENV).values.yaml - environment-specific overrides (test/staging/production)
-template: guard-package ## Render packages/<name>/charts with values.yaml -> base.values.yaml -> [ENV].values.yaml layered (run 'make prepare' first; make template PACKAGE=name [ENV=staging])
-	@chart="packages/$(PACKAGE)/charts"; \
+template: guard-package ## Render a package's chart dir with values.yaml -> base.values.yaml -> [ENV].values.yaml layered (run 'make prepare' first; make template PACKAGE=name [ENV=staging])
+	@chart="$$(./scripts/chart-dir.sh $(PACKAGE))"; \
 	test -d "$$chart" || { echo "error: $$chart not found — run 'make prepare PACKAGE=$(PACKAGE)' first" >&2; exit 1; }; \
 	values=(); \
 	[[ -f "$$chart/values.yaml" ]] && values+=(-f "$$chart/values.yaml"); \
@@ -50,8 +50,8 @@ clean: guard-package pull-scripts ## Remove local working state so the repo is r
 
 ##@ Testing
 
-unittest: guard-package ## Run helm-unittest against packages/<name>/charts/tests (requires the helm-unittest plugin; no-op if the chart has no tests/ dir)
-	@chart="packages/$(PACKAGE)/charts"; \
+unittest: guard-package ## Run helm-unittest against a package's chart dir (requires the helm-unittest plugin; no-op if the chart has no tests/ dir)
+	@chart="$$(./scripts/chart-dir.sh $(PACKAGE))"; \
 	test -d "$$chart" || { echo "error: $$chart not found — run 'make prepare PACKAGE=$(PACKAGE)' first" >&2; exit 1; }; \
 	if [[ -d "$$chart/tests" ]]; then \
 		helm unittest "$$chart"; \

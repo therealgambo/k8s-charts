@@ -77,7 +77,7 @@ jobs:
         run: make prepare PACKAGE=${{ matrix.package }}
 
       - name: helm lint
-        run: helm lint "packages/${{ matrix.package }}/charts"
+        run: helm lint "$(./scripts/chart-dir.sh ${{ matrix.package }})"
 
   # Renders the chart and validates every resource against upstream
   # Kubernetes schemas (plus the CRDs-catalog for common CRDs, e.g.
@@ -163,7 +163,8 @@ jobs:
       - name: Check for a tests/ dir
         id: check
         run: |
-          if [[ -d "packages/${{ matrix.package }}/charts/tests" ]]; then
+          chart="$(./scripts/chart-dir.sh ${{ matrix.package }})"
+          if [[ -d "${chart}/tests" ]]; then
             echo "has_tests=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_tests=false" >> "$GITHUB_OUTPUT"
