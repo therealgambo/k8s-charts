@@ -1,0 +1,222 @@
+# Runs each ClusterPolicy's CEL against known-good/known-bad Pod fixtures (resources.yaml) to
+# prove the rule *logic* itself is correct -- as opposed to tests/*_test.yaml (helm-unittest),
+# which only checks the templating layer around it (does a flag turn a resource on/off, does a
+# value land in the right field). Complements, doesn't replace, the helm-unittest suite. See
+# https://kyverno.io/docs/guides/testing-policies/ and `make kyverno-test PACKAGE=kyverno-pod-policies`.
+#
+# `policies.rendered.yaml` is generated fresh by `make kyverno-test` (a `helm template` render of
+# the chart's default values) immediately before this runs -- gitignored, never committed, so it
+# can never drift from the live policy templates. Every fixture in resources.yaml lives in the
+# `workloads` namespace specifically because it must NOT be `default` (helm template's implicit
+# release namespace when no --namespace is given, which every policy's exclude block always
+# excludes defensively -- see _helpers.tpl) or kube-node-lease/kube-public (excluded by default in
+# values.yaml) -- any of those would make every "fail" fixture below silently skip instead of
+# actually being evaluated.
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kyverno-pod-policies
+policies:
+  - policies.rendered.yaml
+resources:
+  - resources.yaml
+results:
+  # --- baseline (Enforce) ---
+  - policy: disallow-privileged-containers
+    rule: privileged-containers
+    kind: Pod
+    resources: [privileged-containers-pass]
+    result: pass
+  - policy: disallow-privileged-containers
+    rule: privileged-containers
+    kind: Pod
+    resources: [privileged-containers-fail]
+    result: fail
+
+  - policy: disallow-host-namespaces
+    rule: host-namespaces
+    kind: Pod
+    resources: [host-namespaces-pass]
+    result: pass
+  - policy: disallow-host-namespaces
+    rule: host-namespaces
+    kind: Pod
+    resources: [host-namespaces-fail]
+    result: fail
+
+  - policy: disallow-host-path
+    rule: host-path
+    kind: Pod
+    resources: [host-path-pass]
+    result: pass
+  - policy: disallow-host-path
+    rule: host-path
+    kind: Pod
+    resources: [host-path-fail]
+    result: fail
+
+  - policy: disallow-host-ports
+    rule: host-ports-none
+    kind: Pod
+    resources: [host-ports-none-pass]
+    result: pass
+  - policy: disallow-host-ports
+    rule: host-ports-none
+    kind: Pod
+    resources: [host-ports-none-fail]
+    result: fail
+
+  - policy: disallow-capabilities
+    rule: adding-capabilities
+    kind: Pod
+    resources: [adding-capabilities-pass]
+    result: pass
+  - policy: disallow-capabilities
+    rule: adding-capabilities
+    kind: Pod
+    resources: [adding-capabilities-fail]
+    result: fail
+
+  - policy: disallow-host-process
+    rule: host-process-containers
+    kind: Pod
+    resources: [host-process-containers-pass]
+    result: pass
+  - policy: disallow-host-process
+    rule: host-process-containers
+    kind: Pod
+    resources: [host-process-containers-fail]
+    result: fail
+
+  - policy: disallow-proc-mount
+    rule: check-proc-mount
+    kind: Pod
+    resources: [check-proc-mount-pass]
+    result: pass
+  - policy: disallow-proc-mount
+    rule: check-proc-mount
+    kind: Pod
+    resources: [check-proc-mount-fail]
+    result: fail
+
+  - policy: disallow-selinux
+    rule: selinux-type
+    kind: Pod
+    resources: [selinux-type-pass]
+    result: pass
+  - policy: disallow-selinux
+    rule: selinux-type
+    kind: Pod
+    resources: [selinux-type-fail]
+    result: fail
+
+  - policy: disallow-selinux
+    rule: selinux-user-role
+    kind: Pod
+    resources: [selinux-user-role-pass]
+    result: pass
+  - policy: disallow-selinux
+    rule: selinux-user-role
+    kind: Pod
+    resources: [selinux-user-role-fail]
+    result: fail
+
+  - policy: restrict-seccomp
+    rule: check-seccomp
+    kind: Pod
+    resources: [check-seccomp-pass]
+    result: pass
+  - policy: restrict-seccomp
+    rule: check-seccomp
+    kind: Pod
+    resources: [check-seccomp-fail]
+    result: fail
+
+  - policy: restrict-sysctls
+    rule: check-sysctls
+    kind: Pod
+    resources: [check-sysctls-pass]
+    result: pass
+  - policy: restrict-sysctls
+    rule: check-sysctls
+    kind: Pod
+    resources: [check-sysctls-fail]
+    result: fail
+
+  # --- restricted (Audit) ---
+  - policy: disallow-capabilities-strict
+    rule: require-drop-all
+    kind: Pod
+    resources: [require-drop-all-pass]
+    result: pass
+  - policy: disallow-capabilities-strict
+    rule: require-drop-all
+    kind: Pod
+    resources: [require-drop-all-fail]
+    result: fail
+
+  - policy: disallow-capabilities-strict
+    rule: adding-capabilities-strict
+    kind: Pod
+    resources: [adding-capabilities-strict-pass]
+    result: pass
+  - policy: disallow-capabilities-strict
+    rule: adding-capabilities-strict
+    kind: Pod
+    resources: [adding-capabilities-strict-fail]
+    result: fail
+
+  - policy: disallow-privilege-escalation
+    rule: privilege-escalation
+    kind: Pod
+    resources: [privilege-escalation-pass]
+    result: pass
+  - policy: disallow-privilege-escalation
+    rule: privilege-escalation
+    kind: Pod
+    resources: [privilege-escalation-fail]
+    result: fail
+
+  - policy: require-run-as-nonroot
+    rule: run-as-non-root
+    kind: Pod
+    resources: [run-as-non-root-pass]
+    result: pass
+  - policy: require-run-as-nonroot
+    rule: run-as-non-root
+    kind: Pod
+    resources: [run-as-non-root-fail]
+    result: fail
+
+  - policy: require-run-as-non-root-user
+    rule: run-as-non-root-user
+    kind: Pod
+    resources: [run-as-non-root-user-pass]
+    result: pass
+  - policy: require-run-as-non-root-user
+    rule: run-as-non-root-user
+    kind: Pod
+    resources: [run-as-non-root-user-fail]
+    result: fail
+
+  - policy: restrict-seccomp-strict
+    rule: check-seccomp-strict
+    kind: Pod
+    resources: [check-seccomp-strict-pass]
+    result: pass
+  - policy: restrict-seccomp-strict
+    rule: check-seccomp-strict
+    kind: Pod
+    resources: [check-seccomp-strict-fail]
+    result: fail
+
+  - policy: restrict-volume-types
+    rule: restricted-volumes
+    kind: Pod
+    resources: [restricted-volumes-pass]
+    result: pass
+  - policy: restrict-volume-types
+    rule: restricted-volumes
+    kind: Pod
+    resources: [restricted-volumes-fail]
+    result: fail

@@ -1,0 +1,67 @@
+{{/*
+Restricted PSS control: every container must drop ALL capabilities, and may only add
+NET_BIND_SERVICE back.
+https://kyverno.io/policies/pod-security-cel/restricted/disallow-capabilities-strict/disallow-capabilities-strict/
+*/}}
+{{- $id := "disallow-capabilities-strict" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-pod-policies.policyEnabled" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-pod-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Disallow Capabilities (Strict)
+    policies.kyverno.io/category: Pod Security Standards (Restricted)
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      On top of the baseline capabilities check, every container must explicitly drop ALL
+      capabilities, and may only add back NET_BIND_SERVICE.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: require-drop-all
+      match:
+        any:
+          - resources: { kinds: [Pod], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-pod-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-pod-policies.failureAction" (dict "id" $id "tierDefault" "Audit" "root" $) }}
+        cel:
+          variables:
+            - name: allContainers
+              expression: >-
+                object.spec.containers + object.spec.?initContainers.orValue([]) +
+                object.spec.?ephemeralContainers.orValue([])
+          expressions:
+            - expression: >-
+                variables.allContainers.all(container,
+                  container.?securityContext.?capabilities.?drop.orValue([]).exists(cap, cap == 'ALL'))
+              message: "Every container must drop the ALL capability."
+    - name: adding-capabilities-strict
+      match:
+        any:
+          - resources: { kinds: [Pod], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-pod-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-pod-policies.failureAction" (dict "id" $id "tierDefault" "Audit" "root" $) }}
+        cel:
+          variables:
+            - name: allContainers
+              expression: >-
+                object.spec.containers + object.spec.?initContainers.orValue([]) +
+                object.spec.?ephemeralContainers.orValue([])
+          expressions:
+            - expression: >-
+                variables.allContainers.all(container,
+                  container.?securityContext.?capabilities.?add.orValue([]).all(capability,
+                    capability == 'NET_BIND_SERVICE'))
+              message: "Only the NET_BIND_SERVICE capability may be added."
+{{- end }}
+{{- end }}

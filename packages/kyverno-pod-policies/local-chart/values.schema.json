@@ -1,0 +1,201 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "kyverno-pod-policies",
+  "description": "Renders CEL-based Kyverno ClusterPolicy resources enforcing Kubernetes Pod Security Standards, plus centrally-managed PolicyExceptions. See README.md for the full field reference and worked examples.",
+  "type": "object",
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "description": "Master switch. false renders nothing at all, including PolicyExceptions."
+    },
+    "validationFailureAction": {
+      "type": "string",
+      "enum": ["", "Audit", "Enforce"],
+      "description": "GLOBAL override: forces every policy's validationFailureAction to this value regardless of tier default or any per-policy override. \"\" applies no override."
+    },
+    "background": {
+      "type": "boolean",
+      "description": "spec.background on every ClusterPolicy. No per-policy override."
+    },
+    "excludeNamespaces": {
+      "type": "array",
+      "description": "Namespaces excluded from every policy's exclude.any[].resources.namespaces, on top of policies.<id>.exclude.namespaces and this release's own namespace (always excluded).",
+      "items": {
+        "type": "string"
+      }
+    },
+    "commonLabels": {
+      "description": "Merged into every rendered resource's metadata.labels.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "commonAnnotations": {
+      "description": "Merged into every rendered resource's metadata.annotations.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "policies": {
+      "type": "object",
+      "description": "One key per policy id, matching its templates/<id>.yaml file name and ClusterPolicy metadata.name.",
+      "additionalProperties": {
+        "$ref": "#/definitions/policyToggle"
+      }
+    },
+    "exceptions": {
+      "type": "object",
+      "description": "One key per exception, short/unique/DNS-label-safe -- renders one kyverno.io/v2 PolicyException named after the key.",
+      "additionalProperties": {
+        "$ref": "#/definitions/exception"
+      }
+    },
+    "global": {
+      "type": "object",
+      "description": "Reserved for Helm's global values."
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "matchExpression": {
+      "description": "A Kubernetes-style label selector requirement.",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "operator": {
+          "type": "string",
+          "enum": ["In", "NotIn", "Exists", "DoesNotExist"]
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["key", "operator"],
+      "additionalProperties": false
+    },
+    "matchExpressions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/matchExpression"
+      }
+    },
+    "selector": {
+      "description": "A Kubernetes label selector: matchLabels and/or matchExpressions.",
+      "type": "object",
+      "properties": {
+        "matchLabels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "matchExpressions": {
+          "$ref": "#/definitions/matchExpressions"
+        }
+      },
+      "additionalProperties": false
+    },
+    "policyToggle": {
+      "description": "Per-policy enable/action/exclude switches -- never the CEL body itself, which is fixed per policy id.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "validationFailureAction": {
+          "type": "string",
+          "enum": ["", "Audit", "Enforce"]
+        },
+        "exclude": {
+          "type": "object",
+          "properties": {
+            "namespaces": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "kinds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "exceptionMatch": {
+      "type": "object",
+      "properties": {
+        "kinds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "namespaces": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "selector": {
+          "$ref": "#/definitions/selector"
+        }
+      },
+      "additionalProperties": false
+    },
+    "exception": {
+      "type": "object",
+      "description": "Renders one kyverno.io/v2 PolicyException. `policies` is required and must list at least one entry.",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "policies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "match": {
+          "$ref": "#/definitions/exceptionMatch"
+        },
+        "conditions": {
+          "type": "object"
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["policies"],
+      "additionalProperties": false
+    }
+  }
+}

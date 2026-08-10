@@ -1,0 +1,46 @@
+{{/*
+Baseline PSS control: /proc mount type must be Default.
+https://kyverno.io/policies/pod-security-cel/baseline/disallow-proc-mount/disallow-proc-mount/
+*/}}
+{{- $id := "disallow-proc-mount" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-pod-policies.policyEnabled" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-pod-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Disallow procMount
+    policies.kyverno.io/category: Pod Security Standards (Baseline)
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      The default /proc masks are there to reduce the attack surface, and should be required.
+      Containers must not set procMount to Unmasked.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: check-proc-mount
+      match:
+        any:
+          - resources: { kinds: [Pod], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-pod-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-pod-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
+        cel:
+          variables:
+            - name: allContainers
+              expression: >-
+                object.spec.containers + object.spec.?initContainers.orValue([]) +
+                object.spec.?ephemeralContainers.orValue([])
+          expressions:
+            - expression: >-
+                variables.allContainers.all(container,
+                  container.?securityContext.?procMount.orValue('Default') == 'Default')
+              message: "Only the default procMount can be used; Unmasked is disallowed."
+{{- end }}
+{{- end }}

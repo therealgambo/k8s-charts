@@ -1,0 +1,48 @@
+{{/*
+Restricted PSS control: allowPrivilegeEscalation must be false.
+https://kyverno.io/policies/pod-security-cel/restricted/disallow-privilege-escalation/disallow-privilege-escalation/
+*/}}
+{{- $id := "disallow-privilege-escalation" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-pod-policies.policyEnabled" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-pod-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Disallow Privilege Escalation
+    policies.kyverno.io/category: Pod Security Standards (Restricted)
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      A container running with the allowPrivilegeEscalation flag set to true may allow a process
+      to gain more privileges than its parent. This must be disallowed.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: privilege-escalation
+      match:
+        any:
+          - resources: { kinds: [Pod], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-pod-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-pod-policies.failureAction" (dict "id" $id "tierDefault" "Audit" "root" $) }}
+        cel:
+          variables:
+            - name: allContainers
+              expression: >-
+                object.spec.containers + object.spec.?initContainers.orValue([]) +
+                object.spec.?ephemeralContainers.orValue([])
+          expressions:
+            - expression: >-
+                variables.allContainers.all(container,
+                  container.?securityContext.?allowPrivilegeEscalation.orValue(true) == false)
+              message: >-
+                Privilege escalation is disallowed. Set allowPrivilegeEscalation to false on
+                every container.
+{{- end }}
+{{- end }}

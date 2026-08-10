@@ -1,0 +1,56 @@
+{{/*
+Restricted PSS control: containers must be required to run as non-root.
+https://kyverno.io/policies/pod-security-cel/restricted/require-run-as-nonroot/require-run-as-nonroot/
+*/}}
+{{- $id := "require-run-as-nonroot" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-pod-policies.policyEnabled" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-pod-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Require runAsNonRoot
+    policies.kyverno.io/category: Pod Security Standards (Restricted)
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Containers must be required to run as non-root, enforced either at the pod level (covering
+      every container) or explicitly on every individual container.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: run-as-non-root
+      match:
+        any:
+          - resources: { kinds: [Pod], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-pod-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-pod-policies.failureAction" (dict "id" $id "tierDefault" "Audit" "root" $) }}
+        cel:
+          variables:
+            - name: allContainers
+              expression: >-
+                object.spec.containers + object.spec.?initContainers.orValue([]) +
+                object.spec.?ephemeralContainers.orValue([])
+            - name: podLevelEnforced
+              expression: >-
+                object.spec.?securityContext.?runAsNonRoot.orValue(false) &&
+                variables.allContainers.all(container,
+                  container.?securityContext.?runAsNonRoot.orValue(true) == true)
+            - name: containerLevelEnforced
+              expression: >-
+                variables.allContainers.all(container,
+                  container.?securityContext.?runAsNonRoot.orValue(false) == true)
+          expressions:
+            - expression: variables.podLevelEnforced || variables.containerLevelEnforced
+              message: >-
+                Running as root is not allowed. Set spec.securityContext.runAsNonRoot to true (and
+                don't override it to false on any container), or set runAsNonRoot: true on every
+                container individually.
+{{- end }}
+{{- end }}

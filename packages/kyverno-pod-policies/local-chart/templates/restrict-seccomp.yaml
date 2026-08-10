@@ -1,0 +1,48 @@
+{{/*
+Baseline PSS control: seccompProfile.type must not be Unconfined.
+https://kyverno.io/policies/pod-security-cel/baseline/restrict-seccomp/restrict-seccomp/
+*/}}
+{{- $id := "restrict-seccomp" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-pod-policies.policyEnabled" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-pod-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Restrict Seccomp
+    policies.kyverno.io/category: Pod Security Standards (Baseline)
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Setting seccompProfile.type to Unconfined disables the container runtime's seccomp filter
+      entirely and must be disallowed. Leaving it unset is still permitted at this tier -- see
+      restrict-seccomp-strict for the restricted-tier control that also requires it be set.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: check-seccomp
+      match:
+        any:
+          - resources: { kinds: [Pod], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-pod-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-pod-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
+        cel:
+          variables:
+            - name: allContainers
+              expression: >-
+                object.spec.containers + object.spec.?initContainers.orValue([]) +
+                object.spec.?ephemeralContainers.orValue([])
+          expressions:
+            - expression: >-
+                object.spec.?securityContext.?seccompProfile.?type.orValue('RuntimeDefault') != 'Unconfined' &&
+                variables.allContainers.all(container,
+                  container.?securityContext.?seccompProfile.?type.orValue('RuntimeDefault') != 'Unconfined')
+              message: "A seccompProfile of Unconfined is disallowed."
+{{- end }}
+{{- end }}

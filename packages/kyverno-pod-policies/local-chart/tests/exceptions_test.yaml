@@ -1,0 +1,107 @@
+suite: exceptions
+release:
+  namespace: kyverno-pod-policies
+templates:
+  - exceptions.yaml
+tests:
+  - it: renders one PolicyException with autogen rule names expanded and selector passed through
+    set:
+      exceptions:
+        allow-node-exporter:
+          policies: [disallow-host-namespaces]
+          match:
+            namespaces: [monitoring]
+            selector:
+              matchLabels:
+                app.kubernetes.io/name: node-exporter
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PolicyException
+      - isAPIVersion:
+          of: kyverno.io/v2
+      - equal:
+          path: metadata.name
+          value: allow-node-exporter
+      - equal:
+          path: metadata.namespace
+          value: kyverno-pod-policies
+      - equal:
+          path: spec.exceptions[0]
+          value:
+            policyName: disallow-host-namespaces
+            ruleNames: [host-namespaces, autogen-host-namespaces, autogen-cronjob-host-namespaces]
+      - equal:
+          path: spec.match.any[0].resources.namespaces
+          value: [monitoring]
+      - equal:
+          path: spec.match.any[0].resources.selector
+          value:
+            matchLabels:
+              app.kubernetes.io/name: node-exporter
+
+  - it: multiple policies expand into multiple spec.exceptions entries
+    set:
+      exceptions:
+        multi:
+          policies: [disallow-host-namespaces, disallow-host-path]
+          match:
+            namespaces: [kube-system]
+    asserts:
+      - lengthEqual:
+          path: spec.exceptions
+          count: 2
+
+  - it: a policy with two rule names (disallow-selinux) expands all of them
+    set:
+      exceptions:
+        selinux-carveout:
+          policies: [disallow-selinux]
+          match:
+            namespaces: [default]
+    asserts:
+      - equal:
+          path: spec.exceptions[0].ruleNames
+          value:
+            - selinux-type
+            - autogen-selinux-type
+            - autogen-cronjob-selinux-type
+            - selinux-user-role
+            - autogen-selinux-user-role
+            - autogen-cronjob-selinux-user-role
+
+  - it: defaults match.kinds to the full controller kind list when match.kinds is unset
+    set:
+      exceptions:
+        defaults:
+          policies: [disallow-host-path]
+    asserts:
+      - equal:
+          path: spec.match.any[0].resources.kinds
+          value: [Pod, Deployment, StatefulSet, DaemonSet, Job, CronJob, ReplicaSet]
+
+  - it: enabled=false on one exception renders nothing
+    set:
+      exceptions:
+        disabled-one:
+          enabled: false
+          policies: [disallow-host-path]
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # `policies` being required and non-empty is enforced declaratively by values.schema.json
+  # (`exceptions.<name>.policies` has `minItems: 1` and is `required`) -- Helm rejects a values set
+  # missing it before any template even renders, so there's no `fail()` render path left to
+  # exercise here; the in-template `if not $exc.policies` guard in exceptions.yaml is defense in
+  # depth for anyone bypassing schema validation, not something helm-unittest can reach.
+
+  - it: an unknown policy id in `policies` fails the render with a clear error
+    set:
+      exceptions:
+        broken:
+          policies: [not-a-real-policy]
+    asserts:
+      - failedTemplate:
+          errorMessage: 'exceptions: unknown policy id "not-a-real-policy" (see policies: in values.yaml)'

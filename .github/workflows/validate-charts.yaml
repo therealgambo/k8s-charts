@@ -7,6 +7,7 @@ on:
       - "packages/**"
       - "scripts/changed-packages.sh"
       - "scripts/pull-kubeconform.sh"
+      - "scripts/pull-kyverno.sh"
       - "scripts/version"
       - "Makefile"
       - ".github/workflows/validate-charts.yaml"
@@ -178,6 +179,56 @@ jobs:
         if: steps.check.outputs.has_tests == 'true'
         run: make unittest PACKAGE=${{ matrix.package }}
 
+  # Runs each package's `kyverno test` suite (packages/<name>/charts/kyverno-test/kyverno-test.yaml),
+  # when it has one -- most packages have no kyverno-test/ dir, so this is skipped (not failed) for
+  # those. Complements helm-unittest/kubeconform: neither of those knows what a Kyverno CEL
+  # expression actually evaluates to. This does -- it renders the chart and feeds the result to the
+  # kyverno CLI against resource fixtures with known-good/known-bad expected results. See
+  # https://kyverno.io/docs/guides/testing-policies/
+  kyverno-test:
+    name: kyverno test (${{ matrix.package }})
+    needs: detect-packages
+    if: needs.detect-packages.outputs.packages != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.detect-packages.outputs.packages) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve pinned helm version
+        run: |
+          source scripts/version
+          echo "HELM_VERSION=${HELM_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Install helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: make prepare
+        run: make prepare PACKAGE=${{ matrix.package }}
+
+      - name: Check for a kyverno-test/ dir
+        id: check
+        run: |
+          chart="$(./scripts/chart-dir.sh ${{ matrix.package }})"
+          if [[ -d "${chart}/kyverno-test" ]]; then
+            echo "has_tests=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_tests=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install kyverno CLI
+        if: steps.check.outputs.has_tests == 'true'
+        run: ./scripts/pull-kyverno.sh
+
+      - name: make kyverno-test
+        if: steps.check.outputs.has_tests == 'true'
+        run: make kyverno-test PACKAGE=${{ matrix.package }}
+
   # Single stable job to set as a required status check — the matrix jobs
   # above have per-package names (e.g. "helm lint (external-dns)") that
   # change with whatever a PR happens to touch, which branch protection
@@ -186,7 +237,7 @@ jobs:
   summary:
     name: Summary
     if: always()
-    needs: [detect-packages, helm-lint, kubeconform, helm-unittest]
+    needs: [detect-packages, helm-lint, kubeconform, helm-unittest, kyverno-test]
     runs-on: ubuntu-latest
     steps:
       - name: Check matrix results
@@ -195,6 +246,7 @@ jobs:
           echo "helm-lint:       ${{ needs.helm-lint.result }}"
           echo "kubeconform:     ${{ needs.kubeconform.result }}"
           echo "helm-unittest:   ${{ needs.helm-unittest.result }}"
+          echo "kyverno-test:    ${{ needs.kyverno-test.result }}"
 
           failed=0
 
@@ -203,7 +255,7 @@ jobs:
             failed=1
           fi
 
-          for result in "${{ needs.helm-lint.result }}" "${{ needs.kubeconform.result }}" "${{ needs.helm-unittest.result }}"; do
+          for result in "${{ needs.helm-lint.result }}" "${{ needs.kubeconform.result }}" "${{ needs.helm-unittest.result }}" "${{ needs.kyverno-test.result }}"; do
             if [[ "${result}" != "success" && "${result}" != "skipped" ]]; then
               echo "::error::a validation job did not succeed (result: ${result})"
               failed=1

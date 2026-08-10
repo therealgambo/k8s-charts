@@ -1,0 +1,58 @@
+{{/*
+One kyverno.io/v2 PolicyException per entry in .Values.exceptions, in this release's namespace.
+See values.yaml and README.md "Exceptions" for the schema and worked examples. Requires
+features.policyExceptions.enabled: true on the companion packages/kyverno chart, with .namespace
+pointed at wherever this chart is released -- otherwise Kyverno ignores every PolicyException
+rendered here.
+*/}}
+{{- if ne .Values.enabled false }}
+{{- range $name, $exc := .Values.exceptions }}
+{{- $exc := $exc | default dict }}
+{{- if ne $exc.enabled false }}
+{{- if not $exc.policies }}
+{{- fail (printf "exceptions.%s: `policies` must list at least one policy id" $name) }}
+{{- end }}
+{{- $entries := list }}
+{{- range $pid := $exc.policies }}
+{{- $entries = append $entries (include "kyverno-pod-policies.exceptionEntry" $pid | fromYaml) }}
+{{- end }}
+---
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "kyverno-pod-policies.labels" $ | nindent 4 }}
+    {{- with $exc.labels }}{{- toYaml . | nindent 4 }}{{- end }}
+  {{- with (merge (dict) ($.Values.commonAnnotations | default dict) ($exc.annotations | default dict)) }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  exceptions:
+    {{- toYaml $entries | nindent 4 }}
+  match:
+    any:
+      - resources:
+          kinds:
+            {{- toYaml ((($exc.match).kinds) | default (list "Pod" "Deployment" "StatefulSet" "DaemonSet" "Job" "CronJob" "ReplicaSet")) | nindent 12 }}
+          {{- with (($exc.match).namespaces) }}
+          namespaces:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with (($exc.match).names) }}
+          names:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with (($exc.match).selector) }}
+          selector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+  {{- with $exc.conditions }}
+  conditions:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
