@@ -8,7 +8,9 @@ on:
       - "scripts/changed-packages.sh"
       - "scripts/pull-kubeconform.sh"
       - "scripts/pull-kyverno.sh"
+      - "scripts/pull-crane.sh"
       - "scripts/kyverno-policy-check.sh"
+      - "scripts/check-image-availability.sh"
       - "scripts/version"
       - "Makefile"
       - ".github/workflows/validate-charts.yaml"
@@ -129,6 +131,47 @@ jobs:
                 -schema-location default \
                 -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 
+  # Renders the chart and confirms every image it references actually exists in its registry.
+  # Complements kubeconform: that job proves the rendered YAML is a valid Kubernetes object,
+  # this proves the image it points at is real. Neither catches what the other does -- an upstream
+  # release can cut a chart tag without publishing that release's images (confirmed directly
+  # against packages/onlineboutique: GoogleCloudPlatform/microservices-demo's v0.10.6 tag exists,
+  # but every one of that release's images 404s on its registry; v0.10.5's do not), and the
+  # rendered manifest is still perfectly well-formed YAML either way. See
+  # scripts/check-image-availability.sh for the full reasoning, including how it tells "this
+  # image genuinely doesn't exist" apart from "the registry rate-limited an anonymous pull".
+  image-availability:
+    name: image availability (${{ matrix.package }})
+    needs: detect-packages
+    if: needs.detect-packages.outputs.packages != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.detect-packages.outputs.packages) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve pinned helm version
+        run: |
+          source scripts/version
+          echo "HELM_VERSION=${HELM_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Install helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: make prepare
+        run: make prepare PACKAGE=${{ matrix.package }}
+
+      - name: Install crane
+        run: ./scripts/pull-crane.sh
+
+      - name: make check-images
+        run: make check-images PACKAGE=${{ matrix.package }}
+
   # Runs each package's helm-unittest suite (packages/<name>/charts/tests/*_test.yaml), when it
   # has one -- most packages are forked upstream charts with no tests/ dir, so the "helm unittest"
   # step is skipped (not failed) for those. Complements kubeconform: kubeconform checks the
@@ -230,19 +273,21 @@ jobs:
         if: steps.check.outputs.has_tests == 'true'
         run: make kyverno-test PACKAGE=${{ matrix.package }}
 
-  # kyverno-test (above) proves the kyverno-pod-policies chart's OWN CEL rule logic is correct
-  # against curated fixtures. This runs the opposite direction: renders EVERY changed package's
-  # chart (not just kyverno-pod-policies itself) and asserts the result against that
-  # already-proven ruleset, to catch real Pod Security Standards violations in any chart before it
-  # merges. Enforcement mirrors the ruleset's own shipped posture -- baseline (Enforce) violations
-  # fail this job, restricted (Audit) violations are reported but never fail it. Skips
-  # kyverno-pod-policies and network-policies themselves (neither renders Pod-shaped resources for
-  # this ruleset to evaluate). No allow-list -- every changed package is held to the same bar,
-  # unconditionally. See scripts/kyverno-policy-check.sh for the full mechanics.
+  # kyverno-test (above) proves each policies chart's OWN CEL rule logic is correct against
+  # curated fixtures. This runs the opposite direction: renders EVERY changed package's chart and
+  # asserts the result against the kyverno-pod-policies + kyverno-cluster-policies rulesets
+  # layered together, to catch real violations (Pod Security Standards, plus org-governance/
+  # cluster-security controls -- image tags, DNS hygiene, RBAC escalation, ...) in any chart before
+  # it merges. Enforcement mirrors each ruleset's own shipped posture -- Enforce-tier violations
+  # fail this job, Audit-tier violations are reported but never fail it. Skips
+  # kyverno-pod-policies, kyverno-cluster-policies, and network-policies themselves (none render
+  # workload-shaped resources for either ruleset to evaluate). No allow-list -- every changed
+  # package is held to the same bar, unconditionally. See scripts/kyverno-policy-check.sh for the
+  # full mechanics.
   #
   # Known gap: only re-checks packages a PR actually touches (see detect-packages) -- a change to
-  # kyverno-pod-policies' own rules that newly fails an untouched package elsewhere won't be caught
-  # until that package's own next PR.
+  # either policies chart's own rules that newly fails an untouched package elsewhere won't be
+  # caught until that package's own next PR.
   kyverno-policy-check:
     name: kyverno policy check (${{ matrix.package }})
     needs: detect-packages
@@ -283,7 +328,7 @@ jobs:
   summary:
     name: Summary
     if: always()
-    needs: [detect-packages, helm-lint, kubeconform, helm-unittest, kyverno-test, kyverno-policy-check]
+    needs: [detect-packages, helm-lint, kubeconform, image-availability, helm-unittest, kyverno-test, kyverno-policy-check]
     runs-on: ubuntu-latest
     steps:
       - name: Check matrix results
@@ -291,6 +336,7 @@ jobs:
           echo "detect-packages:      ${{ needs.detect-packages.result }}"
           echo "helm-lint:            ${{ needs.helm-lint.result }}"
           echo "kubeconform:          ${{ needs.kubeconform.result }}"
+          echo "image-availability:   ${{ needs.image-availability.result }}"
           echo "helm-unittest:        ${{ needs.helm-unittest.result }}"
           echo "kyverno-test:         ${{ needs.kyverno-test.result }}"
           echo "kyverno-policy-check: ${{ needs.kyverno-policy-check.result }}"
@@ -302,7 +348,7 @@ jobs:
             failed=1
           fi
 
-          for result in "${{ needs.helm-lint.result }}" "${{ needs.kubeconform.result }}" "${{ needs.helm-unittest.result }}" "${{ needs.kyverno-test.result }}" "${{ needs.kyverno-policy-check.result }}"; do
+          for result in "${{ needs.helm-lint.result }}" "${{ needs.kubeconform.result }}" "${{ needs.image-availability.result }}" "${{ needs.helm-unittest.result }}" "${{ needs.kyverno-test.result }}" "${{ needs.kyverno-policy-check.result }}"; do
             if [[ "${result}" != "success" && "${result}" != "skipped" ]]; then
               echo "::error::a validation job did not succeed (result: ${result})"
               failed=1

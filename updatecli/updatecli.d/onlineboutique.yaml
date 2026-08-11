@@ -1,26 +1,107 @@
 {{/*
-Hybrid shape: version is tracked via a GitHub release on the app repo (the
-OCI registry it's actually published to doesn't tag independently), but
-the published artifact itself is checked/referenced the same way as any
-other OCI chart -- so this mixes githubrelease.source with the
-dockerimage.* condition/target templates instead of introducing a new
-family for what's otherwise a one-off.
+Hand-rolled shape, same idea as gateway-api-crd.yaml/metrics-server.yaml/
+spire.yaml: packages/onlineboutique/package.yaml pulls the chart straight out
+of helm-chart in GoogleCloudPlatform/microservices-demo at a pinned commit
+(`url` + `commit` + `subdirectory`), not from a release asset or an OCI
+registry -- so this tracks the commit the latest stable release *tag* points
+to via the `githubrelease` resource, the same shape spire.yaml uses (`key:
+"tagname"` for the human-readable tag, `key: "taghash"` for the commit
+actually written to `$.commit`). Unlike spire's repo (a monorepo of several
+independently-tagged charts needing a regex + findsubmatch to disambiguate),
+microservices-demo tags this chart's releases as plain `vX.Y.Z` with nothing
+else to filter out, so `versionfilter: {kind: semver, pattern: ">=0.0.0"}`
+on the raw tag is enough on its own (semver parsing strips a leading "v" the
+same way gateway-api-crd/metrics-server rely on for their `gittag` sources)
+-- no `capturePattern`/`findsubmatch` needed, and `source "lastRelease"`
+stays the full "vX.Y.Z" tag, which common.releaseLink's owner/repo fallback
+needs verbatim to build a working releases/tag/ URL.
+
+This package previously used a hybrid dockerimage+githubrelease shape,
+pointed at us-docker.pkg.dev/online-boutique-ci/charts/onlineboutique -- an
+unofficial CI mirror, not something Google publishes as a stable artifact.
+Switched to pulling the chart straight from its actual source of truth.
+
+The real hazard this shape has to guard against: microservices-demo cuts the
+chart's GitHub release (source tag) independently of actually publishing
+that version's container images to
+us-central1-docker.pkg.dev/google-samples/microservices-demo/<service> --
+confirmed directly (`docker manifest inspect`) that v0.10.6's tag exists and
+its chart's default values.yaml resolves to it (images.tag empty ->
+Chart.AppVersion), but every one of that release's images 404s; v0.10.5's do
+not. A plain "did the release change" condition would happily bump to a
+release that deploys nothing. So one dockerimage condition per
+default-enabled microservice (the chart ships 11 -- opentelemetryCollector
+and shoppingAssistantService are both `create: false` by default, so they're
+skipped) checks the actual image:tag exists before any target runs, gating
+the whole pipeline exactly like `dockerimage.condition` does for a
+straight OCI-chart package, just repeated per image instead of per chart.
+
+The "packageURL" target id below is kept (rather than renamed to e.g.
+"packageCommit") only so common.buildChart's hardcoded
+`dependson: ["packageURL", "packageBuildVersion"]` still resolves --
+_common.yaml has no per-shape awareness of which key was actually bumped.
 */}}
-{{ $pkg := dict "name" "onlineboutique" "owner" "GoogleCloudPlatform" "repo" "microservices-demo" "versionPattern" "^v\\d+\\.\\d+\\.\\d+$" "capturePattern" "^v(\\d+\\.\\d+\\.\\d+)$" "sourceLabel" "microservices-demo" "releaseNoun" "release" "image" "us-docker.pkg.dev/online-boutique-ci/charts/onlineboutique" "github" .github }}
+{{ $pkg := dict "name" "onlineboutique" "owner" "GoogleCloudPlatform" "repo" "microservices-demo" "images" (list "adservice" "cartservice" "checkoutservice" "currencyservice" "emailservice" "frontend" "loadgenerator" "paymentservice" "productcatalogservice" "recommendationservice" "shippingservice") "github" .github }}
 name: "Bump onlineboutique chart to the latest upstream release"
 pipelineid: "{{ $pkg.name }}"
 scms:
   default:{{ template "common.scm" $pkg }}
 
 sources:
-  lastRelease:{{ template "githubrelease.source" $pkg }}
+  lastRelease:
+    name: "Get the latest {{ $pkg.owner }}/{{ $pkg.repo }} release"
+    kind: githubrelease
+    spec:
+      owner: "{{ $pkg.owner }}"
+      repository: "{{ $pkg.repo }}"
+      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
+      key: "tagname"
+      versionfilter:
+        kind: "semver"
+        pattern: ">=0.0.0"
+  lastReleaseCommit:
+    name: "Resolve the commit the latest {{ $pkg.owner }}/{{ $pkg.repo }} release points to"
+    kind: githubrelease
+    spec:
+      owner: "{{ $pkg.owner }}"
+      repository: "{{ $pkg.repo }}"
+      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
+      key: "taghash"
+      versionfilter:
+        kind: "semver"
+        pattern: ">=0.0.0"
 
 conditions:
-  chartTagPublished:{{ template "dockerimage.condition" $pkg }}
-  upstreamVersionChanged:{{ template "dockerimage.upstreamVersionChanged" $pkg }}
+  upstreamVersionChanged:
+    name: "Only continue if this commit isn't already applied"
+    kind: yaml
+    scmid: "default"
+    disablesourceinput: true
+    failwhen: true
+    spec:
+      file: "packages/{{ $pkg.name }}/package.yaml"
+      key: "$.commit"
+      value: '{{ source "lastReleaseCommit" }}'
+{{- range $img := $pkg.images }}
+  {{ $img }}ImagePublished:
+    name: "Check the {{ $img }} image for this release is published"
+    kind: dockerimage
+    disablesourceinput: true
+    spec:
+      image: "us-central1-docker.pkg.dev/google-samples/microservices-demo/{{ $img }}"
+      tag: '{{ source "lastRelease" }}'
+{{- end }}
 
 targets:
-  packageURL:{{ template "dockerimage.packageURL" $pkg }}
+  packageURL:
+    name: "Point packages/{{ $pkg.name }}/package.yaml at the new release commit"
+    kind: yaml
+    sourceid: "lastReleaseCommit"
+    scmid: "default"
+    spec:
+      file: "packages/{{ $pkg.name }}/package.yaml"
+      key: "$.commit"
+      value: '{{ source "lastReleaseCommit" }}'
   packageBuildVersion:{{ template "common.packageBuildVersion" $pkg }}
   buildChart:{{ template "common.buildChart" $pkg }}
 

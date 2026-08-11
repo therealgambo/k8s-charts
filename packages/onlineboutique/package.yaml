@@ -1,2 +1,4 @@
-url: oci://us-docker.pkg.dev/online-boutique-ci/charts/onlineboutique:0.10.6
-packageVersion: 02
+url: https://github.com/GoogleCloudPlatform/microservices-demo.git
+subdirectory: helm-chart
+commit: 16a51f8dbabc4af2c4c82f81ca6d4813888c2c34 # v0.10.5
+packageVersion: 01
