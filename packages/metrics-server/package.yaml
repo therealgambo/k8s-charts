@@ -1,4 +1,4 @@
 url: https://github.com/kubernetes-sigs/metrics-server.git
 subdirectory: charts/metrics-server
-commit: master
+commit: 2a7c4b2c7d46552ff47f4aeaa3a735c582587ecd
 packageVersion: 01
