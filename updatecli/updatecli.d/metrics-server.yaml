@@ -1,0 +1,75 @@
+{{/*
+Hand-rolled shape: same as gateway-api-crd -- the chart under
+charts/metrics-server in kubernetes-sigs/metrics-server isn't released
+independently (packages/metrics-server/package.yaml has no `version:`, just
+`url` + `commit` + `subdirectory`), so this tracks the commit the latest
+stable release *tag* (e.g. v0.9.0) points to, via two `gittag` sources
+sharing the same versionfilter and `lsRemote: true` (reads tags straight off
+the remote via `git ls-remote --tags`, no clone needed) -- `lastRelease`
+returns the tag name (`key: name`, just for a readable PR title) and
+`lastReleaseCommit` resolves the commit hash that same tag points to (`key:
+hash`, the actual value written to `$.commit`) -- rather than any of the
+three _*.yaml shapes. `versionfilter: {kind: semver, pattern: ">=0.0.0"}`
+sorts by semver precedence and skips pre-releases (e.g. v0.3.0-alpha.1) the
+same way the dockerimage shape does.
+
+The "packageURL" target id below is kept (rather than renamed to e.g.
+"packageCommit") only so common.buildChart's hardcoded
+`dependson: ["packageURL", "packageBuildVersion"]` still resolves --
+_common.yaml has no per-shape awareness of which key was actually bumped.
+*/}}
+{{ $pkg := dict "name" "metrics-server" "owner" "kubernetes-sigs" "repo" "metrics-server" "github" .github }}
+name: "Bump metrics-server to the latest upstream release"
+pipelineid: "{{ $pkg.name }}"
+scms:
+  default:{{ template "common.scm" $pkg }}
+
+sources:
+  lastRelease:
+    name: "Get the latest {{ $pkg.owner }}/{{ $pkg.repo }} release tag"
+    kind: gittag
+    spec:
+      url: "https://github.com/{{ $pkg.owner }}/{{ $pkg.repo }}.git"
+      lsremote: true
+      key: "name"
+      versionfilter:
+        kind: "semver"
+        pattern: ">=0.0.0"
+  lastReleaseCommit:
+    name: "Resolve the commit the latest {{ $pkg.owner }}/{{ $pkg.repo }} release tag points to"
+    kind: gittag
+    spec:
+      url: "https://github.com/{{ $pkg.owner }}/{{ $pkg.repo }}.git"
+      lsremote: true
+      key: "hash"
+      versionfilter:
+        kind: "semver"
+        pattern: ">=0.0.0"
+
+conditions:
+  upstreamVersionChanged:
+    name: "Only continue if this commit isn't already applied"
+    kind: yaml
+    scmid: "default"
+    disablesourceinput: true
+    failwhen: true
+    spec:
+      file: "packages/{{ $pkg.name }}/package.yaml"
+      key: "$.commit"
+      value: '{{ source "lastReleaseCommit" }}'
+
+targets:
+  packageURL:
+    name: "Point packages/{{ $pkg.name }}/package.yaml at the new release commit"
+    kind: yaml
+    sourceid: "lastReleaseCommit"
+    scmid: "default"
+    spec:
+      file: "packages/{{ $pkg.name }}/package.yaml"
+      key: "$.commit"
+      value: '{{ source "lastReleaseCommit" }}'
+  packageBuildVersion:{{ template "common.packageBuildVersion" $pkg }}
+  buildChart:{{ template "common.buildChart" $pkg }}
+
+actions:
+  default:{{ template "common.action" $pkg }}
