@@ -1,0 +1,4 @@
+api:
+  adminAccount:
+    passwordHash: admin:$apr1$1FrZ.T8Z$6Mz4aUA/6ti1KXA8xEC0c/
+    tokenSigningKey: 123456789asdfghjkl
