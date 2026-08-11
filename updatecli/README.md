@@ -175,8 +175,7 @@ put in `$pkg`, do. Pick the shape based on how the package pulls upstream:
   produces two (`argo-cd`/`external-dns`/`coredns`/etc. embed the version
   twice: once in the release-tag path segment, once in the asset
   filename). If the tracked repo isn't named after the package (`consul`
-  tracks `hashicorp/consul-k8s`, `vault` tracks `hashicorp/vault-helm`,
-  `online-boutique` tracks `GoogleCloudPlatform/microservices-demo`), add
+  tracks `hashicorp/consul-k8s`, `vault` tracks `hashicorp/vault-helm`), add
   `sourceLabel` so the `sources.lastRelease.name` wording says the repo
   being tracked, not the package folder name. For the chart-mirror shape
   specifically, also set `releaseNoun` to `"release"` (it defaults to
@@ -193,18 +192,20 @@ put in `$pkg`, do. Pick the shape based on how the package pulls upstream:
   all.
 - **Hybrid shapes**: nothing requires using one shape's *entire* set of
   templates — mix and match per block if a package's version tracking and
-  asset hosting genuinely differ. `online-boutique.yaml` is the existing
-  example: its OCI-published chart doesn't tag independently, so it uses
-  `githubrelease.source` (tracking the app repo's own releases) together
-  with `dockerimage.condition`/`dockerimage.upstreamVersionChanged`/
-  `dockerimage.packageURL` (checking/targeting the OCI artifact the
-  resolved version actually publishes to) — see that file's leading
-  comment for the full reasoning before copying the pattern elsewhere.
+  asset hosting genuinely differ. No package currently needs this, but the
+  building blocks (`githubrelease.source` paired with `dockerimage.condition`/
+  `dockerimage.upstreamVersionChanged`/`dockerimage.packageURL`, or any other
+  combination) are all still there in `_githubrelease-chart.yaml`/
+  `_dockerimage-chart.yaml`/`_helmchart.yaml` if a future package's version
+  tracking and asset hosting genuinely come from different places.
 
-If a package's shape doesn't fit any of the three `_*.yaml` partials at all
-(rare — nothing here so far has needed it), write the `sources`/`conditions`/
-`targets` blocks out by hand in that one manifest instead of forcing a new
-shared partial into existence for a single package; still reuse
+If a package's shape doesn't fit any of the three `_*.yaml` partials at all,
+write the `sources`/`conditions`/`targets` blocks out by hand in that one
+manifest instead of forcing a new shared partial into existence for a single
+package — see `gateway-api-crd.yaml`, `metrics-server.yaml`, `spire.yaml` and
+`onlineboutique.yaml` for real examples (each pulls its chart straight out of
+a subdirectory of the upstream app repo at a pinned commit, tracked via the
+latest release tag, rather than fetching a packaged chart asset). Still reuse
 `common.scm`/`common.packageBuildVersion`/`common.buildChart`/`common.action`
 for the boilerplate that's genuinely universal.
 

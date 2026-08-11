@@ -31,3 +31,9 @@ HELM_UNITTEST_VERSION="${HELM_UNITTEST_VERSION:-v1.1.2}"
 # packages/kyverno's appVersion so the CLI's CEL engine matches what's actually deployed.
 KYVERNO_CLI_REPO="https://github.com/kyverno/kyverno"
 KYVERNO_CLI_VERSION="${KYVERNO_CLI_VERSION:-v1.18.2}"
+
+# https://github.com/google/go-containerregistry -- `crane`, used by
+# scripts/check-image-availability.sh to confirm every image a rendered chart references is
+# actually pullable, without needing a docker daemon.
+CRANE_REPO="https://github.com/google/go-containerregistry"
+CRANE_VERSION="${CRANE_VERSION:-v0.21.9}"
