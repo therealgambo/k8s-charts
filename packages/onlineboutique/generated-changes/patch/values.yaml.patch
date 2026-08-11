@@ -1,0 +1,10 @@
+--- charts-original/values.yaml
++++ charts/values.yaml
+@@ -218,3 +218,6 @@
+ shoppingAssistantService:
+   create: false
+   name: shoppingassistantservice
++
++gatewayAPI:
++  create: false
+\ No newline at end of file
