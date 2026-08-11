@@ -1,0 +1,46 @@
+{{/*
+Organizational governance: end users must not set `kyverno.io/`-prefixed annotations on their own
+workloads -- that prefix is reserved for Kyverno's own controller-managed metadata (policy
+titles/categories/reports), and letting arbitrary workloads set it risks spoofing or confusing
+policy tooling that reads it. No direct kyverno/policies CEL equivalent found -- derived directly
+from the Pod metadata schema.
+*/}}
+{{- $id := "disallow-reserved-annotation-prefixes" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-cluster-policies.policyEnabled" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-cluster-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Disallow Reserved Annotation Prefixes
+    policies.kyverno.io/category: Organizational Governance
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Blocks end users from setting `kyverno.io/`-prefixed annotations on their own workloads --
+      that prefix is reserved for Kyverno's own controller-managed metadata.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: reserved-annotation-prefix
+      match:
+        any:
+          - resources: { kinds: [Pod], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Audit" "root" $) }}
+        cel:
+          variables:
+            - name: annotations
+              expression: "object.metadata.?annotations.orValue({})"
+          expressions:
+            - expression: >-
+                (variables.annotations == null ? {} : variables.annotations).all(k, !k.startsWith('kyverno.io/'))
+              message: "Setting `kyverno.io/`-prefixed annotations is reserved for Kyverno itself."
+{{- end }}
+{{- end }}

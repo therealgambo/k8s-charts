@@ -1,0 +1,58 @@
+{{/*
+Policy-engine self-protection: ValidatingWebhookConfiguration/MutatingWebhookConfiguration objects
+should only be created/updated/deleted by an identity in config.gitopsIdentities -- an attacker
+able to tamper with these can shadow or race Kyverno's own admission webhook, or install a
+malicious one, bypassing every control here entirely without touching a single ClusterPolicy. Same
+skip-when-unconfigured and Audit-by-default reasoning as protect-kyverno-resources -- see that
+template's comment for the request.userInfo verification note. No kyverno/policies reference for
+this specific identity-based shape; kyverno/policies' other/restrict-clusterrole-mutating-
+validating-admission-webhooks takes a complementary RBAC-level approach (restricting which
+ClusterRoles may grant write access to these kinds at all) worth adding alongside this one in a
+future iteration -- not duplicated here since it targets a different kind (ClusterRole) and has no
+CEL variant upstream yet.
+*/}}
+{{- $id := "disallow-webhook-tampering" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-cluster-policies.policyEnabled" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-cluster-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Disallow Non-GitOps Webhook Tampering
+    policies.kyverno.io/category: Policy Engine Self-Protection
+    policies.kyverno.io/subject: ValidatingWebhookConfiguration, MutatingWebhookConfiguration
+    policies.kyverno.io/description: >-
+      Only an identity in config.gitopsIdentities may create, update, or delete
+      ValidatingWebhookConfiguration/MutatingWebhookConfiguration resources -- stops tampering that
+      could shadow, race, or bypass Kyverno's own admission webhook. No-op until that list is
+      populated.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: false
+  rules:
+    - name: restrict-changes
+      match:
+        any:
+          - resources: { kinds: [ValidatingWebhookConfiguration, MutatingWebhookConfiguration], operations: [CREATE, UPDATE, DELETE] }
+      exclude:
+        {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      celPreconditions:
+        - name: has-gitops-identities
+          expression: {{ printf "%s.size() > 0" (.Values.config.gitopsIdentities | default list | toJson) | quote }}
+      validate:
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Audit" "root" $) }}
+        cel:
+          variables:
+            - name: gitopsIdentities
+              expression: {{ .Values.config.gitopsIdentities | default list | toJson | quote }}
+          expressions:
+            - expression: "request.userInfo.username in variables.gitopsIdentities"
+              message: >-
+                Only a GitOps identity in config.gitopsIdentities may modify webhook
+                configurations.
+{{- end }}
+{{- end }}

@@ -1,0 +1,289 @@
+# Runs each ClusterPolicy's CEL against known-good/known-bad fixtures (resources.yaml) to prove the
+# rule *logic* itself is correct -- as opposed to tests/*_test.yaml (helm-unittest), which only
+# checks the templating layer around it. Complements, doesn't replace, that suite. See
+# https://kyverno.io/docs/guides/testing-policies/ and
+# `make kyverno-test PACKAGE=kyverno-cluster-policies`.
+#
+# `policies.rendered.yaml` is generated fresh by `make kyverno-test` immediately before this runs
+# (gitignored, never committed) -- rendered with values.yaml + this chart's own `ci.values.yaml`
+# layered on top (see that file), which populates every config/ allow-list and opts every Category
+# F (disabled-by-default) policy in so their CEL is actually exercised here. The chart's real
+# shipped DEFAULTS (empty config lists, Category F off) are proven separately by
+# tests/policy-toggles_test.yaml (helm-unittest) -- this file is about rule *logic*, not defaults.
+#
+# `userinfo.yaml` injects a single simulated requester for the WHOLE run (the Kyverno CLI's
+# `userinfo:` field is one setting for the entire Test object, not per-resource) -- deliberately an
+# identity NOT in ci.values.yaml's config.gitopsIdentities. That means every fixture for the 3
+# identity-gated rules (protect-kyverno-resources, disallow-webhook-tampering,
+# restrict-crd-creation) below only has a "fail" case, proving the security-relevant "wrong
+# identity is blocked" direction; the complementary "right identity is allowed" direction isn't
+# separately fixture-tested here -- there is no way to inject a second, different userinfo for a
+# subset of resources within one CLI test run. Not a silent gap: flagged here, and worth splitting
+# into a second kyverno-test/ Test manifest (with its own userinfo.yaml, in its own subdirectory)
+# as a follow-up if that direction needs its own regression coverage.
+#
+# Every namespaced fixture lives in the `workloads` namespace, never `default`/kube-node-lease/
+# kube-public -- see kyverno-pod-policies' own kyverno-test/kyverno-test.yaml comment for why (every
+# policy's exclude block would otherwise silently swallow it, making a "should fail" fixture
+# vacuously pass for the wrong reason).
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kyverno-cluster-policies
+policies:
+  - policies.rendered.yaml
+resources:
+  - resources.yaml
+userinfo: userinfo.yaml
+results:
+  # --- A. organizational governance ---
+  - policy: require-labels
+    rule: check-required-labels
+    kind: Namespace
+    resources: [labels-pass]
+    result: pass
+  - policy: require-labels
+    rule: check-required-labels
+    kind: Namespace
+    resources: [labels-fail, labels-null-fail]
+    result: fail
+
+  - policy: disallow-reserved-annotation-prefixes
+    rule: reserved-annotation-prefix
+    kind: Pod
+    resources: [reserved-annotation-pass]
+    result: pass
+  - policy: disallow-reserved-annotation-prefixes
+    rule: reserved-annotation-prefix
+    kind: Pod
+    resources: [reserved-annotation-fail]
+    result: fail
+
+  # --- B. supply chain ---
+  - policy: disallow-latest-tag
+    rule: require-and-validate-image-tag
+    kind: Pod
+    resources: [latest-tag-pass]
+    result: pass
+  - policy: disallow-latest-tag
+    rule: require-and-validate-image-tag
+    kind: Pod
+    resources: [latest-tag-fail]
+    result: fail
+
+  - policy: restrict-image-registries
+    rule: validate-registries
+    kind: Pod
+    resources: [registries-pass, registries-null-initcontainers-pass]
+    result: pass
+  - policy: restrict-image-registries
+    rule: validate-registries
+    kind: Pod
+    resources: [registries-fail]
+    result: fail
+
+  # --- C. DNS hygiene ---
+  - policy: restrict-dns-policy
+    rule: restrict-dns-policy
+    kind: Pod
+    resources: [dns-policy-pass]
+    result: pass
+  - policy: restrict-dns-policy
+    rule: restrict-dns-policy
+    kind: Pod
+    resources: [dns-policy-fail]
+    result: fail
+
+  - policy: disallow-custom-dns-config
+    rule: disallow-custom-nameservers
+    kind: Pod
+    resources: [dns-config-pass]
+    result: pass
+  - policy: disallow-custom-dns-config
+    rule: disallow-custom-nameservers
+    kind: Pod
+    resources: [dns-config-fail]
+    result: fail
+
+  - policy: disallow-host-aliases
+    rule: disallow-host-aliases
+    kind: Pod
+    resources: [host-aliases-pass]
+    result: pass
+  - policy: disallow-host-aliases
+    rule: disallow-host-aliases
+    kind: Pod
+    resources: [host-aliases-fail]
+    result: fail
+
+  # --- D. resource / DoS protection ---
+  - policy: require-emptydir-sizelimit
+    rule: require-emptydir-sizelimit
+    kind: Pod
+    resources: [emptydir-sizelimit-pass]
+    result: pass
+  - policy: require-emptydir-sizelimit
+    rule: require-emptydir-sizelimit
+    kind: Pod
+    resources: [emptydir-sizelimit-fail]
+    result: fail
+  # No emptyDir volume at all (and an explicit `volumes: null`, the same present-but-null CEL
+  # gotcha guarded elsewhere) -- celPreconditions correctly SKIPS the rule entirely rather than
+  # evaluating it, which the CLI reports as `skip`, not `pass`. That skip (not a crash) is exactly
+  # what proves the null-coalesce guard on the precondition itself works.
+  - policy: require-emptydir-sizelimit
+    rule: require-emptydir-sizelimit
+    kind: Pod
+    resources: [emptydir-sizelimit-no-volumes-skip]
+    result: skip
+
+  - policy: restrict-priorityclass
+    rule: restrict-priorityclass
+    kind: Pod
+    resources: [priorityclass-pass]
+    result: pass
+  - policy: restrict-priorityclass
+    rule: restrict-priorityclass
+    kind: Pod
+    resources: [priorityclass-fail]
+    result: fail
+
+  - policy: require-resource-requests-limits
+    rule: validate-resources
+    kind: Pod
+    resources: [requests-limits-pass]
+    result: pass
+  - policy: require-resource-requests-limits
+    rule: validate-resources
+    kind: Pod
+    resources: [requests-limits-fail]
+    result: fail
+
+  # --- E. RBAC privilege escalation ---
+  - policy: disallow-rbac-escalation-verbs
+    rule: escalate
+    kind: ClusterRole
+    resources: [escalation-verbs-pass]
+    result: pass
+  - policy: disallow-rbac-escalation-verbs
+    rule: escalate
+    kind: ClusterRole
+    resources: [escalation-verbs-fail]
+    result: fail
+
+  - policy: disallow-wildcard-rbac
+    rule: wildcard-verbs
+    kind: ClusterRole
+    resources: [wildcard-rbac-pass]
+    result: pass
+  - policy: disallow-wildcard-rbac
+    rule: wildcard-verbs
+    kind: ClusterRole
+    resources: [wildcard-verbs-fail]
+    result: fail
+  - policy: disallow-wildcard-rbac
+    rule: wildcard-resources
+    kind: ClusterRole
+    resources: [wildcard-rbac-pass]
+    result: pass
+  - policy: disallow-wildcard-rbac
+    rule: wildcard-resources
+    kind: ClusterRole
+    resources: [wildcard-resources-fail]
+    result: fail
+  - policy: disallow-wildcard-rbac
+    rule: wildcard-apigroups
+    kind: ClusterRole
+    resources: [wildcard-rbac-pass]
+    result: pass
+  - policy: disallow-wildcard-rbac
+    rule: wildcard-apigroups
+    kind: ClusterRole
+    resources: [wildcard-apigroups-fail]
+    result: fail
+
+  - policy: disallow-clusteradmin-binding
+    rule: clusteradmin-default-sa-binding
+    kind: ClusterRoleBinding
+    resources: [clusteradmin-binding-pass]
+    result: pass
+  - policy: disallow-clusteradmin-binding
+    rule: clusteradmin-default-sa-binding
+    kind: ClusterRoleBinding
+    resources: [clusteradmin-binding-fail]
+    result: fail
+
+  - policy: require-explicit-automount
+    rule: require-explicit-automount
+    kind: Pod
+    resources: [automount-pass]
+    result: pass
+  - policy: require-explicit-automount
+    rule: require-explicit-automount
+    kind: Pod
+    resources: [automount-fail]
+    result: fail
+
+  # --- G. policy-engine self-protection (fail-only, see header) ---
+  - policy: protect-kyverno-resources
+    rule: restrict-changes
+    kind: ClusterPolicy
+    resources: [protect-kyverno-resources-fail]
+    result: fail
+
+  - policy: disallow-webhook-tampering
+    rule: restrict-changes
+    kind: ValidatingWebhookConfiguration
+    resources: [webhook-tampering-fail]
+    result: fail
+
+  # --- F. CRD confused-deputy (opt-in, enabled via ci.values.yaml for this test run) ---
+  - policy: restrict-rbacdefinition-clusterrole
+    rule: restrict-clusterrole
+    kind: RBACDefinition
+    resources: [rbacdefinition-pass]
+    result: pass
+  - policy: restrict-rbacdefinition-clusterrole
+    rule: restrict-clusterrole
+    kind: RBACDefinition
+    resources: [rbacdefinition-fail]
+    result: fail
+
+  - policy: restrict-argocd-application-project
+    rule: require-scoped-project
+    kind: Application
+    resources: [application-pass]
+    result: pass
+  - policy: restrict-argocd-application-project
+    rule: require-scoped-project
+    kind: Application
+    resources: [application-fail]
+    result: fail
+
+  - policy: restrict-kargo-promotion-scope
+    rule: restrict-promotion-target
+    kind: Promotion
+    resources: [promotion-pass]
+    result: pass
+  - policy: restrict-kargo-promotion-scope
+    rule: restrict-promotion-target
+    kind: Promotion
+    resources: [promotion-fail]
+    result: fail
+
+  - policy: restrict-karpenter-nodeclass-profile
+    rule: restrict-instance-profile
+    kind: EC2NodeClass
+    resources: [nodeclass-pass]
+    result: pass
+  - policy: restrict-karpenter-nodeclass-profile
+    rule: restrict-instance-profile
+    kind: EC2NodeClass
+    resources: [nodeclass-fail]
+    result: fail
+
+  - policy: restrict-crd-creation
+    rule: restrict-creation
+    kind: CustomResourceDefinition
+    resources: [widgets.example.com-fail]
+    result: fail

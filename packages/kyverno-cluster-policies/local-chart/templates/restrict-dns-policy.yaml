@@ -1,0 +1,46 @@
+{{/*
+DNS hygiene: dnsPolicy must be ClusterFirst or ClusterFirstWithHostNet -- `Default` (inherits the
+node's /etc/resolv.conf, bypassing CoreDNS/node-local-dns) and `None` (fully custom, no cluster DNS
+at all) both dodge cluster-managed DNS resolution and any DNS-aware egress control built on top of
+it. `.orValue('ClusterFirst')` reflects dnsPolicy's real Kubernetes API default when omitted -- a
+plain scalar `in` check, not a `.all()`/iteration, so the documented CEL null-vs-absent gotcha
+(see README) does not apply here even without an extra null-coalesce guard. No direct
+kyverno/policies CEL equivalent found -- derived directly from the Pod spec schema.
+*/}}
+{{- $id := "restrict-dns-policy" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-cluster-policies.policyEnabled" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-cluster-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Restrict DNS Policy
+    policies.kyverno.io/category: DNS Hygiene
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Blocks dnsPolicy: Default (bypasses cluster DNS in favor of the node's own resolv.conf) and
+      dnsPolicy: None (fully custom, no cluster DNS at all) -- both dodge CoreDNS/node-local-dns
+      and any DNS-aware egress control layered on top.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: restrict-dns-policy
+      match:
+        any:
+          - resources: { kinds: [Pod], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
+        cel:
+          expressions:
+            - expression: >-
+                object.spec.?dnsPolicy.orValue('ClusterFirst') in ['ClusterFirst', 'ClusterFirstWithHostNet']
+              message: "dnsPolicy must be ClusterFirst or ClusterFirstWithHostNet."
+{{- end }}
+{{- end }}

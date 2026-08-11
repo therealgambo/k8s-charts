@@ -1,0 +1,185 @@
+suite: policy toggles
+release:
+  namespace: kyverno-cluster-policies
+templates:
+  - disallow-latest-tag.yaml
+  - require-labels.yaml
+  - restrict-image-registries.yaml
+  - restrict-rbacdefinition-clusterrole.yaml
+  - restrict-crd-creation.yaml
+  - disallow-rbac-escalation-verbs.yaml
+tests:
+  - it: renders an Enforce-tier policy with failureAction Enforce and the default merged exclude namespaces
+    template: disallow-latest-tag.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ClusterPolicy
+      - isAPIVersion:
+          of: kyverno.io/v1
+      - equal:
+          path: metadata.name
+          value: disallow-latest-tag
+      - equal:
+          path: spec.background
+          value: true
+      - equal:
+          path: spec.rules[0].validate.failureAction
+          value: Enforce
+      - equal:
+          path: spec.rules[0].exclude.any[0].resources.namespaces
+          value: [kube-node-lease, kube-public, kyverno-cluster-policies]
+
+  - it: renders an Audit-tier policy with failureAction Audit by default
+    template: require-labels.yaml
+    asserts:
+      - equal:
+          path: spec.rules[0].validate.failureAction
+          value: Audit
+
+  - it: a non-Pod-kind policy (Namespace) does not carry Pod-controller kinds in its match
+    template: require-labels.yaml
+    asserts:
+      - equal:
+          path: spec.rules[0].match.any[0].resources.kinds
+          value: [Namespace]
+
+  - it: policies.<id>.enabled false skips that policy only
+    template: disallow-latest-tag.yaml
+    set:
+      policies:
+        disallow-latest-tag:
+          enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: per-policy validationFailureAction override wins over the tier default
+    template: require-labels.yaml
+    set:
+      policies:
+        require-labels:
+          validationFailureAction: Enforce
+    asserts:
+      - equal:
+          path: spec.rules[0].validate.failureAction
+          value: Enforce
+
+  - it: the global validationFailureAction override wins over a per-policy override
+    template: require-labels.yaml
+    set:
+      validationFailureAction: Audit
+      policies:
+        require-labels:
+          validationFailureAction: Enforce
+    asserts:
+      - equal:
+          path: spec.rules[0].validate.failureAction
+          value: Audit
+
+  - it: master switch enabled=false skips every policy
+    template: disallow-latest-tag.yaml
+    set:
+      enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: excludeNamespaces and a per-policy exclude.namespaces are both merged in, deduped and sorted
+    template: disallow-latest-tag.yaml
+    set:
+      excludeNamespaces: [kube-node-lease, kube-public, cert-manager]
+      policies:
+        disallow-latest-tag:
+          exclude:
+            namespaces: [istio-system]
+    asserts:
+      - equal:
+          path: spec.rules[0].exclude.any[0].resources.namespaces
+          value: [cert-manager, istio-system, kube-node-lease, kube-public, kyverno-cluster-policies]
+
+  - it: a per-policy exclude.kinds renders exclude.any[0].resources.kinds
+    template: disallow-latest-tag.yaml
+    set:
+      policies:
+        disallow-latest-tag:
+          exclude:
+            kinds: [CronJob]
+    asserts:
+      - equal:
+          path: spec.rules[0].exclude.any[0].resources.kinds
+          value: [CronJob]
+
+  - it: stamps commonLabels onto the rendered ClusterPolicy
+    template: disallow-latest-tag.yaml
+    set:
+      commonLabels:
+        team: platform
+    asserts:
+      - equal:
+          path: metadata.labels.team
+          value: platform
+
+  - it: config.requiredNamespaceLabels renders into the require-labels CEL variable as a JSON list string
+    template: require-labels.yaml
+    set:
+      config:
+        requiredNamespaceLabels: [team, cost-center]
+    asserts:
+      - equal:
+          path: spec.rules[0].validate.cel.variables[0].expression
+          value: '["team","cost-center"]'
+
+  - it: an empty config.allowedRegistries still renders a valid (empty-list) celPrecondition, not blocking every Pod
+    template: restrict-image-registries.yaml
+    asserts:
+      - equal:
+          path: spec.rules[0].celPreconditions[0].expression
+          value: "[].size() > 0"
+
+  - it: Category F (opt-in) policy renders nothing by default, even though the chart+policy are not disabled
+    template: restrict-rbacdefinition-clusterrole.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: Category F (opt-in) policy renders once explicitly enabled
+    template: restrict-rbacdefinition-clusterrole.yaml
+    set:
+      policies:
+        restrict-rbacdefinition-clusterrole:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.rules[0].match.any[0].resources.kinds
+          value: [rbacmanager.reactiveops.io/v1beta1/RBACDefinition]
+
+  - it: Category F (opt-in) policy stays off even with the chart-wide master switch left on and no other config
+    template: restrict-crd-creation.yaml
+    set:
+      config:
+        gitopsIdentities: [system:serviceaccount:argo-cd:argocd-application-controller]
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: master switch enabled=false also suppresses an explicitly opted-in Category F policy
+    template: restrict-rbacdefinition-clusterrole.yaml
+    set:
+      enabled: false
+      policies:
+        restrict-rbacdefinition-clusterrole:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: a policy with multiple rule names (disallow-rbac-escalation-verbs has just one, use it to check kinds) matches Role and ClusterRole, not Pod-controller kinds
+    template: disallow-rbac-escalation-verbs.yaml
+    asserts:
+      - equal:
+          path: spec.rules[0].match.any[0].resources.kinds
+          value: [Role, ClusterRole]

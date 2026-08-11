@@ -1,0 +1,55 @@
+{{/*
+DNS hygiene: dnsConfig.nameservers must only contain entries from config.allowedNameservers --
+arbitrary custom nameservers are a classic DNS-exfil/hijack vector (a compromised or malicious
+workload can point its own resolution at an attacker-controlled server). Skipped entirely
+(celPreconditions) when that list is empty -- rather than blocking every custom nameserver
+including ones a cluster owner hasn't had a chance to allow-list yet, an empty list here means
+"not configured", not "block all". Enforce-by-default is still safe: with an empty allow-list the
+precondition makes this rule an inert no-op until populated. No direct kyverno/policies CEL
+equivalent found -- derived directly from the Pod spec schema.
+*/}}
+{{- $id := "disallow-custom-dns-config" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-cluster-policies.policyEnabled" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-cluster-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Disallow Custom DNS Config
+    policies.kyverno.io/category: DNS Hygiene
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Blocks dnsConfig.nameservers entries outside config.allowedNameservers -- arbitrary custom
+      nameservers are a DNS-exfil/hijack vector. No-op until that list is populated.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: disallow-custom-nameservers
+      match:
+        any:
+          - resources: { kinds: [Pod], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      celPreconditions:
+        - name: has-allowed-nameservers
+          expression: {{ printf "%s.size() > 0" (.Values.config.allowedNameservers | default list | toJson) | quote }}
+      validate:
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
+        cel:
+          variables:
+            - name: allowedNameservers
+              expression: {{ .Values.config.allowedNameservers | default list | toJson | quote }}
+            - name: nameservers
+              expression: "object.spec.?dnsConfig.orValue({}).?nameservers.orValue([])"
+          expressions:
+            - expression: >-
+                (variables.nameservers == null ? [] : variables.nameservers).all(ns, ns in variables.allowedNameservers)
+              message: >-
+                dnsConfig.nameservers entries must be in config.allowedNameservers.
+{{- end }}
+{{- end }}

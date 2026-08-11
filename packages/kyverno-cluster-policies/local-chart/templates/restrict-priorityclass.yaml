@@ -1,0 +1,51 @@
+{{/*
+Resource/DoS protection: system-cluster-critical/system-node-critical priorityClassName is blocked
+by default -- those two priority classes are meant for real node-critical system DaemonSets; a
+workload elsewhere claiming one can starve the pods that actually need it. Deliberately does NOT
+hardcode a kube-system/kyverno carve-out here -- consistent with this chart's (and
+kyverno-pod-policies') convention of selector-scoped `exceptions:` for real node-agent workloads
+rather than a blanket namespace exemption baked into the policy itself; see README "Exceptions".
+Field path confirmed against kyverno/policies other-cel/require-pod-priorityclassname (that policy
+REQUIRES a priorityClassName be set at all; this one instead RESTRICTS which values are usable).
+https://github.com/kyverno/policies/blob/main/other-cel/require-pod-priorityclassname/require-pod-priorityclassname.yaml
+*/}}
+{{- $id := "restrict-priorityclass" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-cluster-policies.policyEnabled" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-cluster-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Restrict PriorityClass
+    policies.kyverno.io/category: Resource and DoS Protection
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Blocks system-cluster-critical/system-node-critical priorityClassName -- those two priority
+      classes are meant for real node-critical system DaemonSets; a workload elsewhere claiming
+      one can starve the pods that actually need it. Use a selector-scoped `exceptions:` entry for
+      legitimate kube-system/kyverno node-critical workloads (see README).
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: restrict-priorityclass
+      match:
+        any:
+          - resources: { kinds: [Pod], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
+        cel:
+          expressions:
+            - expression: >-
+                !(object.spec.?priorityClassName.orValue('') in ['system-cluster-critical', 'system-node-critical'])
+              message: >-
+                system-cluster-critical/system-node-critical priorityClassName is reserved for
+                real node-critical system workloads -- use a PolicyException if this one qualifies.
+{{- end }}
+{{- end }}

@@ -1,0 +1,58 @@
+{{/*
+RBAC privilege-escalation prevention: blocks `bind`/`escalate`/`impersonate` verbs on Role/
+ClusterRole rules that target roles/clusterroles resources under the rbac.authorization.k8s.io
+apiGroup -- these are the canonical Kubernetes RBAC privilege-escalation primitives. Role/
+ClusterRole are NOT Pod-controller kinds, so no autogen coverage applies (see
+kyverno-cluster-policies.policyRuleNames' `autogen: false` for this id). `object.rules == null ||
+...` verbatim from kyverno/policies other-cel/restrict-escalation-verbs-roles -- `rules` is a
+required RBAC field but the upstream policy still guards it explicitly, kept as-is here too.
+https://github.com/kyverno/policies/blob/main/other-cel/restrict-escalation-verbs-roles/restrict-escalation-verbs-roles.yaml
+*/}}
+{{- $id := "disallow-rbac-escalation-verbs" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-cluster-policies.policyEnabled" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-cluster-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Disallow RBAC Escalation Verbs
+    policies.kyverno.io/category: RBAC Privilege Escalation
+    policies.kyverno.io/subject: Role, ClusterRole, RBAC
+    policies.kyverno.io/description: >-
+      The verbs `bind`, `escalate`, and `impersonate` on roles/clusterroles resources may lead to
+      privilege escalation and should be tightly controlled. This policy blocks their use in Role
+      or ClusterRole resources.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: escalate
+      match:
+        any:
+          - resources: { kinds: [Role, ClusterRole], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
+        cel:
+          variables:
+            - name: apiGroups
+              expression: "['*', 'rbac.authorization.k8s.io']"
+            - name: resources
+              expression: "['*', 'clusterroles', 'roles']"
+            - name: verbs
+              expression: "['*', 'bind', 'escalate', 'impersonate']"
+          expressions:
+            - expression: >-
+                object.rules == null ||
+                !object.rules.exists(rule,
+                  rule.apiGroups.exists(apiGroup, apiGroup in variables.apiGroups) &&
+                  rule.resources.exists(resource, resource in variables.resources) &&
+                  rule.verbs.exists(verb, verb in variables.verbs))
+              message: "Use of verbs `bind`, `escalate`, and `impersonate` are forbidden."
+{{- end }}
+{{- end }}

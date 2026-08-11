@@ -1,0 +1,60 @@
+{{/*
+Policy-engine self-protection: ClusterPolicy/PolicyException objects should only be
+created/updated/deleted by an identity in config.gitopsIdentities (typically your GitOps
+controller's ServiceAccount, e.g. argo-cd's application-controller) -- otherwise an attacker who's
+already compromised some identity in the cluster could simply turn off every other control in this
+chart (or kyverno-pod-policies) by editing/deleting its ClusterPolicy, or carve themselves a
+PolicyException. Skipped entirely (celPreconditions) when config.gitopsIdentities is empty, same
+"no-op until configured" shape as the allow-list policies elsewhere in this chart. Audit by
+default even once configured -- getting the identity list wrong in Enforce mode would lock out
+legitimate GitOps reconciliation, so this is reviewed before promoting, not blocked outright.
+`request.userInfo` confirmed available in classic ClusterPolicy CEL by reading Kyverno's own
+pkg/cel/engine/request.go (builds `request` from the standard admission/v1.AdmissionRequest type,
+which carries UserInfo) -- kyverno.io docs 404'd when fetched directly, so this was confirmed
+against source, not assumed. No kyverno/policies reference for this one -- it's specific to this
+fleet's own self-protection posture, not an upstream sample.
+*/}}
+{{- $id := "protect-kyverno-resources" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-cluster-policies.policyEnabled" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-cluster-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Protect Kyverno Policy Resources
+    policies.kyverno.io/category: Policy Engine Self-Protection
+    policies.kyverno.io/subject: ClusterPolicy, PolicyException
+    policies.kyverno.io/description: >-
+      Only an identity in config.gitopsIdentities may create, update, or delete ClusterPolicy or
+      PolicyException resources -- stops a compromised identity from simply disabling every other
+      control in this chart (or kyverno-pod-policies). No-op until that list is populated.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: false
+  rules:
+    - name: restrict-changes
+      match:
+        any:
+          - resources: { kinds: [ClusterPolicy, PolicyException], operations: [CREATE, UPDATE, DELETE] }
+      exclude:
+        {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      celPreconditions:
+        - name: has-gitops-identities
+          expression: {{ printf "%s.size() > 0" (.Values.config.gitopsIdentities | default list | toJson) | quote }}
+      validate:
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Audit" "root" $) }}
+        cel:
+          variables:
+            - name: gitopsIdentities
+              expression: {{ .Values.config.gitopsIdentities | default list | toJson | quote }}
+          expressions:
+            - expression: "request.userInfo.username in variables.gitopsIdentities"
+              message: >-
+                Only a GitOps identity in config.gitopsIdentities may modify ClusterPolicy/
+                PolicyException resources.
+{{- end }}
+{{- end }}

@@ -1,0 +1,53 @@
+{{/*
+CRD confused-deputy prevention (Category F, opt-in/disabled by default): a karpenter EC2NodeClass'
+spec.role/spec.instanceProfile (mutually exclusive per the API) name the IAM identity new EC2
+nodes launch with -- an unvalidated value here is a direct path to arbitrary IAM privileges/cloud
+lateral movement for anyone who can create or edit this cluster-scoped CRD. Field paths confirmed
+against aws/karpenter-provider-aws's real Go types (pkg/apis/v1/ec2nodeclass.go: `Role string
+json:"role,omitempty"` / `InstanceProfile string json:"instanceProfile,omitempty"`). Requires
+https://github.com/therealgambo/k8s-charts/tree/main/packages/karpenter installed -- rendered but
+inert (kind never matches) otherwise, and disabled by default regardless.
+https://github.com/aws/karpenter-provider-aws/blob/main/pkg/apis/v1/ec2nodeclass.go
+*/}}
+{{- $id := "restrict-karpenter-nodeclass-profile" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-cluster-policies.policyEnabledOptIn" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-cluster-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Restrict Karpenter EC2NodeClass Instance Profile
+    policies.kyverno.io/category: CRD Confused Deputy (opt-in)
+    policies.kyverno.io/subject: EC2NodeClass
+    policies.kyverno.io/description: >-
+      Opt-in. Validates a karpenter EC2NodeClass' spec.role/spec.instanceProfile against
+      config.karpenterAllowedInstanceProfiles -- an unvalidated value here is a direct path to
+      arbitrary IAM privileges for new EC2 nodes.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: restrict-instance-profile
+      match:
+        any:
+          - resources: { kinds: [karpenter.k8s.aws/v1/EC2NodeClass], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
+        cel:
+          variables:
+            - name: allowedProfiles
+              expression: {{ .Values.config.karpenterAllowedInstanceProfiles | default list | toJson | quote }}
+          expressions:
+            - expression: >-
+                (!object.spec.?role.hasValue() || object.spec.role in variables.allowedProfiles) &&
+                (!object.spec.?instanceProfile.hasValue() || object.spec.instanceProfile in variables.allowedProfiles)
+              message: >-
+                spec.role/spec.instanceProfile must be in config.karpenterAllowedInstanceProfiles.
+{{- end }}
+{{- end }}

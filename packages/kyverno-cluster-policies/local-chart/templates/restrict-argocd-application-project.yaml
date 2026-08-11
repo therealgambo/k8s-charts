@@ -1,0 +1,49 @@
+{{/*
+CRD confused-deputy prevention (Category F, opt-in/disabled by default): an argo-cd Application
+with no `spec.project` (defaults to "default") or an explicit `project: default` isn't scoped by
+an AppProject's source/destination restrictions at all -- a namespaced principal who can create
+Applications can deploy anywhere the argo-cd application-controller's own (usually broad)
+ServiceAccount can reach. `spec.project` is a well-established, stable Application field --
+https://argo-cd.readthedocs.io/en/stable/user-guide/application-2-way-diff/ and the
+argoproj.io/v1alpha1 Application CRD schema. Requires
+https://github.com/therealgambo/k8s-charts/tree/main/packages/argo-cd installed -- rendered but
+inert (kind never matches) otherwise, and disabled by default regardless.
+*/}}
+{{- $id := "restrict-argocd-application-project" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-cluster-policies.policyEnabledOptIn" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-cluster-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Restrict Argo CD Application Project
+    policies.kyverno.io/category: CRD Confused Deputy (opt-in)
+    policies.kyverno.io/subject: Application
+    policies.kyverno.io/description: >-
+      Opt-in. Requires an argo-cd Application set spec.project to something other than "default"
+      -- an unscoped Application isn't restricted by any AppProject source/destination allow-list,
+      letting a namespaced principal deploy anywhere the application-controller's own ServiceAccount
+      can reach.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: require-scoped-project
+      match:
+        any:
+          - resources: { kinds: [argoproj.io/v1alpha1/Application], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
+        cel:
+          expressions:
+            - expression: >-
+                object.spec.?project.orValue('default') != 'default'
+              message: "spec.project must be set to a non-default AppProject."
+{{- end }}
+{{- end }}

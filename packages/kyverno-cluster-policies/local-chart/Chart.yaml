@@ -1,0 +1,27 @@
+apiVersion: v2
+appVersion: 1.11+
+description: Renders CEL-based Kyverno ClusterPolicy resources enforcing organizational
+  governance and cluster-security controls outside the Kubernetes Pod Security Standards
+  (see the companion kyverno-pod-policies chart for those) -- image supply chain,
+  DNS hygiene, resource/DoS protection, RBAC privilege-escalation, CRD confused-deputy
+  lateral movement, and policy-engine self-protection -- plus centrally-managed PolicyExceptions.
+  Installed once, cluster-wide -- not a dependency of other charts.
+home: https://github.com/therealgambo/k8s-charts
+keywords:
+- kyverno
+- cluster-security
+- cel
+- policy
+- clusterpolicy
+- policyexception
+- rbac
+- governance
+kubeVersion: '>= 1.24.0-0'
+maintainers:
+- name: therealgambo
+name: kyverno-cluster-policies
+sources:
+- https://github.com/therealgambo/k8s-charts
+- https://github.com/kyverno/policies
+type: application
+version: 0.1.0

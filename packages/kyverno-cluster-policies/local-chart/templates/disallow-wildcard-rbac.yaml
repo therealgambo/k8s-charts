@@ -1,0 +1,70 @@
+{{/*
+RBAC privilege-escalation prevention: blocks `*` in verbs, resources, or apiGroups on any Role/
+ClusterRole rule -- wildcards grant far more than the principle of least privilege intends and are
+a common accidental over-grant. Audit by default (not Enforce): infra-heavy repos like this one
+legitimately ship some wildcard-shaped ClusterRoles today (operators, controllers), so this starts
+as visibility-only until reviewed. Verbatim logic from kyverno/policies other-cel/
+restrict-wildcard-verbs + restrict-wildcard-resources, plus an apiGroups check in the same shape
+(not present upstream as a separate policy, but the identical pattern applies).
+https://github.com/kyverno/policies/blob/main/other-cel/restrict-wildcard-verbs/restrict-wildcard-verbs.yaml
+https://github.com/kyverno/policies/blob/main/other-cel/restrict-wildcard-resources/restrict-wildcard-resources.yaml
+*/}}
+{{- $id := "disallow-wildcard-rbac" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-cluster-policies.policyEnabled" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-cluster-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Disallow Wildcard RBAC
+    policies.kyverno.io/category: RBAC Privilege Escalation
+    policies.kyverno.io/subject: Role, ClusterRole, RBAC
+    policies.kyverno.io/description: >-
+      Blocks `*` in verbs, resources, or apiGroups on any Role/ClusterRole rule -- wildcards grant
+      far more than the principle of least privilege intends.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: wildcard-verbs
+      match:
+        any:
+          - resources: { kinds: [Role, ClusterRole], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Audit" "root" $) }}
+        cel:
+          expressions:
+            - expression: "object.rules == null || !object.rules.exists(rule, '*' in rule.verbs)"
+              message: "Use of a wildcard ('*') in any verbs is forbidden."
+    - name: wildcard-resources
+      match:
+        any:
+          - resources: { kinds: [Role, ClusterRole], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Audit" "root" $) }}
+        cel:
+          expressions:
+            - expression: "object.rules == null || !object.rules.exists(rule, '*' in rule.resources)"
+              message: "Use of a wildcard ('*') in any resources is forbidden."
+    - name: wildcard-apigroups
+      match:
+        any:
+          - resources: { kinds: [Role, ClusterRole], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Audit" "root" $) }}
+        cel:
+          expressions:
+            - expression: "object.rules == null || !object.rules.exists(rule, '*' in rule.apiGroups)"
+              message: "Use of a wildcard ('*') in any apiGroups is forbidden."
+{{- end }}
+{{- end }}

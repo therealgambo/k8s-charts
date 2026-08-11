@@ -1,0 +1,61 @@
+{{/*
+CRD confused-deputy prevention (Category F, opt-in/disabled by default): rbac-manager's own
+RBACDefinition CRD exists specifically to grant RBAC -- create/update rights on it are equivalent
+to whatever RBAC its controller (usually broad) can hand out on your behalf, a textbook
+confused-deputy vector. This policy validates every rbacBindings[].clusterRoleBindings[].clusterRole
+and rbacBindings[].roleBindings[].clusterRole value against config.rbacDefinitionAllowedClusterRoles.
+Field paths confirmed against reactiveops/rbac-manager's real Go types
+(pkg/apis/rbacmanager/v1beta1/rbacdefinition_types.go), not assumed -- RBACDefinition is
+cluster-scoped (one object can fan out RoleBindings across multiple namespaces via each binding's
+own `namespace` field), so this chart's usual namespace-scoped `exclude` has no effect here, same
+as any other cluster-scoped kind. Requires https://github.com/therealgambo/k8s-charts/tree/main/packages/rbac-manager
+installed -- rendered but inert (kind never matches) otherwise, and disabled by default regardless.
+https://github.com/reactiveops/rbac-manager/blob/master/pkg/apis/rbacmanager/v1beta1/rbacdefinition_types.go
+*/}}
+{{- $id := "restrict-rbacdefinition-clusterrole" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-cluster-policies.policyEnabledOptIn" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-cluster-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Restrict rbac-manager RBACDefinition ClusterRoles
+    policies.kyverno.io/category: CRD Confused Deputy (opt-in)
+    policies.kyverno.io/subject: RBACDefinition
+    policies.kyverno.io/description: >-
+      Opt-in. Validates every rbacBindings[].clusterRoleBindings[]/roleBindings[].clusterRole
+      value on an rbac-manager RBACDefinition against config.rbacDefinitionAllowedClusterRoles --
+      creating this CRD is otherwise equivalent to whatever RBAC rbac-manager's own controller can
+      grant on your behalf.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: restrict-clusterrole
+      match:
+        any:
+          - resources: { kinds: [rbacmanager.reactiveops.io/v1beta1/RBACDefinition], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
+        cel:
+          variables:
+            - name: allowedClusterRoles
+              expression: {{ .Values.config.rbacDefinitionAllowedClusterRoles | default list | toJson | quote }}
+            - name: bindings
+              expression: "object.?rbacBindings.orValue([])"
+          expressions:
+            - expression: >-
+                (variables.bindings == null ? [] : variables.bindings).all(b,
+                  b.?clusterRoleBindings.orValue([]).all(c, c.clusterRole in variables.allowedClusterRoles) &&
+                  b.?roleBindings.orValue([]).all(r, !has(r.clusterRole) || r.clusterRole in variables.allowedClusterRoles))
+              message: >-
+                clusterRole values on this RBACDefinition must be in
+                config.rbacDefinitionAllowedClusterRoles.
+{{- end }}
+{{- end }}
