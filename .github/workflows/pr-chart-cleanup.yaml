@@ -21,9 +21,12 @@ name: Clean up PR charts
 # event payload docs — which covers any realistic merge here), then scopes
 # deletion to whichever packages that PR's file list touched.
 #
-# Token use is split for least privilege: GITHUB_TOKEN (read-only) resolves
-# PRs/packages/versions; PACKAGES_DELETE_TOKEN is only ever passed to the
-# actual DELETE call, never used for listing/reading.
+# Token use: GITHUB_TOKEN handles the repo-scoped calls (commit<->PR
+# association, PR file lists). Every GHCR *packages* REST call (listing
+# versions, deleting one) uses PACKAGES_DELETE_TOKEN instead — GITHUB_TOKEN
+# isn't just under-scoped for those on a personal-account-owned repo, it's
+# the wrong token type entirely and GitHub rejects it outright (HTTP 400,
+# not a scope-related 403).
 #
 # Known gap: this only fires on an actual merge to main. A PR closed
 # *without* merging produces no push event, so its chart isn't cleaned up
@@ -117,11 +120,19 @@ jobs:
         target: ${{ fromJSON(needs.detect-prs.outputs.targets) }}
     steps:
       - name: Delete PR chart version from GHCR
+        # Both calls below hit the GHCR packages REST API (list versions,
+        # delete a version) — on a personal-account-owned repo that API
+        # rejects GITHUB_TOKEN outright (wrong token type, not just under-
+        # scoped), so PACKAGES_DELETE_TOKEN is the only token this step uses.
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DELETE_TOKEN: ${{ secrets.PACKAGES_DELETE_TOKEN }}
+          GH_TOKEN: ${{ secrets.PACKAGES_DELETE_TOKEN }}
         run: |
           set -euo pipefail
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "::error::PACKAGES_DELETE_TOKEN secret is not set — see the 'PR charts' section of the README for one-time setup."
+            exit 1
+          fi
+
           owner="$(cut -d/ -f1 <<< '${{ github.repository }}')"
           repo_name="$(cut -d/ -f2 <<< '${{ github.repository }}')"
           pr_version="0.0.0-pr${{ matrix.target.pr }}"
@@ -144,14 +155,9 @@ jobs:
             exit 0
           fi
 
-          if [[ -z "${DELETE_TOKEN}" ]]; then
-            echo "::error::PACKAGES_DELETE_TOKEN secret is not set — see the 'PR charts' section of the README for one-time setup. ${package_name}:${pr_version} needs manual removal."
-            exit 1
-          fi
-
           for version_id in "${version_ids[@]}"; do
             echo "deleting ${package_name}:${pr_version} (version id ${version_id})"
-            GH_TOKEN="${DELETE_TOKEN}" gh api --method DELETE "users/${owner}/packages/container/${encoded}/versions/${version_id}"
+            gh api --method DELETE "users/${owner}/packages/container/${encoded}/versions/${version_id}"
           done
 
   comment:
