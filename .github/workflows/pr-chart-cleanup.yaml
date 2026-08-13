@@ -155,14 +155,38 @@ jobs:
             exit 0
           fi
 
+          # GHCR refuses to DELETE a version if doing so would leave the
+          # package with zero tagged versions ("You cannot delete the last
+          # tagged version of a package. You must delete the package
+          # instead.", HTTP 400) — and since each PR chart normally is the
+          # package's only tagged version, that's the common case here, not
+          # an edge case. Detect it up front: if the versions we're about to
+          # delete account for every currently-tagged version in the
+          # package, delete the package itself instead of looping.
+          mapfile -t all_tagged_ids < <(jq -r '.[] | select((.metadata.container.tags // []) | length > 0) | .id' <<< "${versions_json}")
+
+          if [[ "${#version_ids[@]}" -eq "${#all_tagged_ids[@]}" ]]; then
+            echo "${package_name}:${pr_version} is the last tagged version — deleting the package instead"
+            if ! out="$(gh api --method DELETE "users/${owner}/packages/container/${encoded}" 2>&1)"; then
+              if grep -qi '404' <<< "${out}"; then
+                echo "${package_name} already gone"
+              else
+                echo "::error::failed to delete package ${package_name}: ${out}"
+                exit 1
+              fi
+            fi
+            exit 0
+          fi
+
           for version_id in "${version_ids[@]}"; do
             echo "deleting ${package_name}:${pr_version} (version id ${version_id})"
             gh api --method DELETE "users/${owner}/packages/container/${encoded}/versions/${version_id}"
           done
 
-          # Other still-open PRs can leave versions behind in the same
-          # package, so only remove the package itself once nothing's left
-          # — per_page=1 is enough to answer "any versions remain at all".
+          # Other still-open PRs left tagged versions behind in the same
+          # package (handled above when they didn't), so only remove the
+          # package itself once nothing's left — per_page=1 is enough to
+          # answer "any versions remain at all".
           remaining="$(gh api "users/${owner}/packages/container/${encoded}/versions?per_page=1" --jq 'length' 2>/dev/null || echo "unknown")"
           if [[ "${remaining}" == "0" ]]; then
             echo "${package_name} has no versions left — deleting the package"

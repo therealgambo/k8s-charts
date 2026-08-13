@@ -107,6 +107,13 @@ jobs:
             echo "no 0.0.0-pr* versions under ${{ matrix.package_name }} — nothing to sweep"
           fi
 
+          # Sort candidates into "stale" (PR closed/missing, wants deleting)
+          # vs. "still open" (must be kept) before deleting anything. A -pr
+          # package only ever holds 0.0.0-pr* tags (see pr-chart.yaml), so
+          # if none of them are still open, `stale` is every tagged version
+          # the package has.
+          stale=()
+          any_open=0
           for entry in "${candidates[@]}"; do
             id="${entry%%$'\t'*}"
             tag="${entry##*$'\t'}"
@@ -115,10 +122,35 @@ jobs:
             state="$(gh api "repos/${{ github.repository }}/pulls/${pr}" --jq '.state' 2>/dev/null || echo "missing")"
             if [[ "${state}" == "open" ]]; then
               echo "keeping ${{ matrix.package_name }}:${tag} — PR #${pr} still open"
+              any_open=1
               continue
             fi
 
-            echo "deleting ${{ matrix.package_name }}:${tag} (PR #${pr} state=${state}) — version id ${id}"
+            echo "${{ matrix.package_name }}:${tag} (PR #${pr} state=${state}) is stale"
+            stale+=("${id}"$'\t'"${tag}")
+          done
+
+          if [[ "${#stale[@]}" -gt 0 && "${any_open}" -eq 0 ]]; then
+            # Deleting every remaining tagged version one by one would hit
+            # GHCR's "cannot delete the last tagged version of a package"
+            # rejection (HTTP 400) on the final one, so delete the package
+            # itself instead.
+            echo "${{ matrix.package_name }} has no open PRs left — deleting the package"
+            if ! out="$(GH_TOKEN="${DELETE_TOKEN}" gh api --method DELETE "users/${owner}/packages/container/${encoded}" 2>&1)"; then
+              if grep -qi '404' <<< "${out}"; then
+                echo "${{ matrix.package_name }} already gone"
+              else
+                echo "::error::failed to delete package ${{ matrix.package_name }}: ${out}"
+                exit 1
+              fi
+            fi
+            exit 0
+          fi
+
+          for entry in "${stale[@]}"; do
+            id="${entry%%$'\t'*}"
+            tag="${entry##*$'\t'}"
+            echo "deleting ${{ matrix.package_name }}:${tag} — version id ${id}"
             GH_TOKEN="${DELETE_TOKEN}" gh api --method DELETE "users/${owner}/packages/container/${encoded}/versions/${id}"
           done
 
