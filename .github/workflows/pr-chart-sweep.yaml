@@ -105,7 +105,6 @@ jobs:
 
           if [[ "${#candidates[@]}" -eq 0 ]]; then
             echo "no 0.0.0-pr* versions under ${{ matrix.package_name }} — nothing to sweep"
-            exit 0
           fi
 
           for entry in "${candidates[@]}"; do
@@ -122,3 +121,19 @@ jobs:
             echo "deleting ${{ matrix.package_name }}:${tag} (PR #${pr} state=${state}) — version id ${id}"
             GH_TOKEN="${DELETE_TOKEN}" gh api --method DELETE "users/${owner}/packages/container/${encoded}/versions/${id}"
           done
+
+          # Covers both "just emptied it above" and "already empty from a
+          # previous run that didn't clean up the package shell" — per_page=1
+          # is enough to answer "any versions remain at all".
+          remaining="$(GH_TOKEN="${DELETE_TOKEN}" gh api "users/${owner}/packages/container/${encoded}/versions?per_page=1" --jq 'length' 2>/dev/null || echo "unknown")"
+          if [[ "${remaining}" == "0" ]]; then
+            echo "${{ matrix.package_name }} has no versions left — deleting the package"
+            if ! out="$(GH_TOKEN="${DELETE_TOKEN}" gh api --method DELETE "users/${owner}/packages/container/${encoded}" 2>&1)"; then
+              if grep -qi '404' <<< "${out}"; then
+                echo "${{ matrix.package_name }} already gone"
+              else
+                echo "::error::failed to delete empty package ${{ matrix.package_name }}: ${out}"
+                exit 1
+              fi
+            fi
+          fi

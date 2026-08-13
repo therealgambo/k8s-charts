@@ -160,6 +160,22 @@ jobs:
             gh api --method DELETE "users/${owner}/packages/container/${encoded}/versions/${version_id}"
           done
 
+          # Other still-open PRs can leave versions behind in the same
+          # package, so only remove the package itself once nothing's left
+          # — per_page=1 is enough to answer "any versions remain at all".
+          remaining="$(gh api "users/${owner}/packages/container/${encoded}/versions?per_page=1" --jq 'length' 2>/dev/null || echo "unknown")"
+          if [[ "${remaining}" == "0" ]]; then
+            echo "${package_name} has no versions left — deleting the package"
+            if ! out="$(gh api --method DELETE "users/${owner}/packages/container/${encoded}" 2>&1)"; then
+              if grep -qi '404' <<< "${out}"; then
+                echo "${package_name} already gone"
+              else
+                echo "::error::failed to delete empty package ${package_name}: ${out}"
+                exit 1
+              fi
+            fi
+          fi
+
   comment:
     name: Update PR comment (pr-${{ matrix.pr }})
     needs: [detect-prs, cleanup]
