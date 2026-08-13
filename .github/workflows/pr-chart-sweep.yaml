@@ -59,6 +59,12 @@ jobs:
     needs: detect-packages
     if: needs.detect-packages.outputs.packages != '[]'
     runs-on: ubuntu-latest
+    # Same "main"-only environment as pr-chart-cleanup.yaml's cleanup job —
+    # a no-op today (schedule/workflow_dispatch already only ever run this
+    # from main), but a guardrail against PACKAGES_DELETE_TOKEN ever ending
+    # up reachable from a pull_request-triggered job. See that job's comment
+    # for the full reasoning.
+    environment: main
     strategy:
       fail-fast: false
       matrix:

@@ -103,6 +103,14 @@ jobs:
     needs: detect-prs
     if: needs.detect-prs.outputs.targets != '[]'
     runs-on: ubuntu-latest
+    # Scopes PACKAGES_DELETE_TOKEN to the "main" environment. Its deployment
+    # branch policy (restricted to "main") is a no-op today — push events
+    # already only ever run this job from main's committed workflow file —
+    # but it's a guardrail against ever wiring this secret into a future
+    # pull_request-triggered job: a pull_request ref (refs/pull/<N>/merge)
+    # can never satisfy a "main"-only policy, so that job would just be
+    # blocked outright rather than silently getting the token.
+    environment: main
     strategy:
       fail-fast: false
       matrix:
