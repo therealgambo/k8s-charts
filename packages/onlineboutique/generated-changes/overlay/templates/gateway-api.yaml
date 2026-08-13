@@ -1,0 +1,269 @@
+# Local addition (not part of upstream): Gateway API resources for this chart's traffic flows,
+# targeting Cilium's Gateway API implementation (gatewayClassName "cilium", requires the cilium
+# chart's gatewayAPI.enabled=true and the gateway-api-crd package installed). Istio-specific
+# concerns (mTLS/authn/authz -- Sidecar, AuthorizationPolicy, DestinationRule, ServiceEntry,
+# VirtualService, elsewhere in this chart) are out of scope here; this file only wires up routing.
+#
+# Two halves:
+#   - North-south: a Gateway + HTTPRoute exposing the frontend, alongside (not replacing) the
+#     existing frontend-external LoadBalancer Service and Istio VirtualService.
+#   - East-west (GAMMA): an HTTPRoute/GRPCRoute/TCPRoute per backend Service, with parentRefs
+#     pointing at the Service itself (kind: Service) instead of a Gateway. Cilium intercepts
+#     traffic addressed to the Service's ClusterIP and applies these rules. Each is a plain
+#     passthrough today -- no retries/timeouts/splits configured -- since there's no existing
+#     traffic-shaping to port over. The point is to have explicit, mesh-portable routing objects
+#     in place of the current implicit "just hit the ClusterIP" behavior, so real rules can be
+#     layered on top later.
+{{- if .Values.gatewayAPI.create }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: onlineboutique-gateway
+  namespace: {{ .Release.Namespace }}
+spec:
+  gatewayClassName: cilium
+  listeners:
+  - name: http
+    protocol: HTTP
+    port: 80
+    allowedRoutes:
+      namespaces:
+        from: Same
+{{- if .Values.frontend.create }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ .Values.frontend.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.frontend.name }}
+spec:
+  parentRefs:
+  - name: onlineboutique-gateway
+  rules:
+  - backendRefs:
+    - name: {{ .Values.frontend.name }}
+      port: 80
+{{- end }}
+
+{{- if .Values.adService.create }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: {{ .Values.adService.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.adService.name }}
+spec:
+  parentRefs:
+  - group: ""
+    kind: Service
+    name: {{ .Values.adService.name }}
+  rules:
+  - backendRefs:
+    - name: {{ .Values.adService.name }}
+      port: 9555
+{{- end }}
+
+{{- if .Values.cartService.create }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: {{ .Values.cartService.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.cartService.name }}
+spec:
+  parentRefs:
+  - group: ""
+    kind: Service
+    name: {{ .Values.cartService.name }}
+  rules:
+  - backendRefs:
+    - name: {{ .Values.cartService.name }}
+      port: 7070
+{{- end }}
+
+{{- if .Values.checkoutService.create }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: {{ .Values.checkoutService.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.checkoutService.name }}
+spec:
+  parentRefs:
+  - group: ""
+    kind: Service
+    name: {{ .Values.checkoutService.name }}
+  rules:
+  - backendRefs:
+    - name: {{ .Values.checkoutService.name }}
+      port: 5050
+{{- end }}
+
+{{- if .Values.currencyService.create }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: {{ .Values.currencyService.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.currencyService.name }}
+spec:
+  parentRefs:
+  - group: ""
+    kind: Service
+    name: {{ .Values.currencyService.name }}
+  rules:
+  - backendRefs:
+    - name: {{ .Values.currencyService.name }}
+      port: 7000
+{{- end }}
+
+{{- if .Values.emailService.create }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: {{ .Values.emailService.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.emailService.name }}
+spec:
+  parentRefs:
+  - group: ""
+    kind: Service
+    name: {{ .Values.emailService.name }}
+  rules:
+  - backendRefs:
+    - name: {{ .Values.emailService.name }}
+      port: 5000
+{{- end }}
+
+{{- if .Values.paymentService.create }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: {{ .Values.paymentService.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.paymentService.name }}
+spec:
+  parentRefs:
+  - group: ""
+    kind: Service
+    name: {{ .Values.paymentService.name }}
+  rules:
+  - backendRefs:
+    - name: {{ .Values.paymentService.name }}
+      port: 50051
+{{- end }}
+
+{{- if .Values.productCatalogService.create }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: {{ .Values.productCatalogService.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.productCatalogService.name }}
+spec:
+  parentRefs:
+  - group: ""
+    kind: Service
+    name: {{ .Values.productCatalogService.name }}
+  rules:
+  - backendRefs:
+    - name: {{ .Values.productCatalogService.name }}
+      port: 3550
+{{- end }}
+
+{{- if .Values.recommendationService.create }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: {{ .Values.recommendationService.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.recommendationService.name }}
+spec:
+  parentRefs:
+  - group: ""
+    kind: Service
+    name: {{ .Values.recommendationService.name }}
+  rules:
+  - backendRefs:
+    - name: {{ .Values.recommendationService.name }}
+      port: 8080
+{{- end }}
+
+{{- if .Values.shippingService.create }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: {{ .Values.shippingService.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.shippingService.name }}
+spec:
+  parentRefs:
+  - group: ""
+    kind: Service
+    name: {{ .Values.shippingService.name }}
+  rules:
+  - backendRefs:
+    - name: {{ .Values.shippingService.name }}
+      port: 50051
+{{- end }}
+
+{{- if .Values.cartDatabase.inClusterRedis.create }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: TCPRoute
+metadata:
+  name: {{ .Values.cartDatabase.inClusterRedis.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.cartDatabase.inClusterRedis.name }}
+spec:
+  parentRefs:
+  - group: ""
+    kind: Service
+    name: {{ .Values.cartDatabase.inClusterRedis.name }}
+  rules:
+  - backendRefs:
+    - name: {{ .Values.cartDatabase.inClusterRedis.name }}
+      port: 6379
+{{- end }}
+
+{{- if .Values.opentelemetryCollector.create }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: {{ .Values.opentelemetryCollector.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.opentelemetryCollector.name }}
+spec:
+  parentRefs:
+  - group: ""
+    kind: Service
+    name: {{ .Values.opentelemetryCollector.name }}
+  rules:
+  - backendRefs:
+    - name: {{ .Values.opentelemetryCollector.name }}
+      port: 4317
+{{- end }}
+{{- end }}

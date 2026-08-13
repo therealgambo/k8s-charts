@@ -1,0 +1,9 @@
+# Local additions on top of the upstream chart's values.yaml (see the Makefile's `template`
+# target for the values-layering order). values.yaml itself shouldn't be modified.
+
+# Cilium Gateway API resources (templates/gateway-api.yaml): a Gateway + HTTPRoute for
+# north-south ingress to the frontend, plus GAMMA HTTPRoute/GRPCRoute/TCPRoute attached directly
+# to each backend Service for east-west routing. Off by default -- turning it on requires the
+# Gateway API CRDs (packages/gateway-api-crd) and Cilium's own gatewayAPI.enabled=true.
+gatewayAPI:
+  create: true
