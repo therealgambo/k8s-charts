@@ -1,79 +1,123 @@
 name: Clean up PR charts
 
 # Deletes the mutable 0.0.0-pr<N> chart version(s) pr-chart.yaml published
-# for this PR, once the PR closes (merged or not) — so untested PR builds
-# don't accumulate indefinitely in the k8s-charts-pr GHCR package tree.
+# for a PR, once that PR's merge lands on main.
 #
-# GHCR's package-version DELETE API does not accept GITHUB_TOKEN for
-# packages owned by a personal (non-org) account, which this repo is — so
-# this job authenticates with a separate PAT instead. See the "PR charts"
-# section of the README for one-time setup.
+# Deliberately triggered by `push` to main, not `pull_request: closed`. For
+# a pull_request-triggered workflow, GitHub loads the workflow *file itself*
+# from the PR's merge ref — not just the code it checks out — and that's
+# true for same-repo PRs too, not only forks (the fork restriction only
+# withholds secrets, it doesn't change where the workflow definition comes
+# from). So anyone able to open a same-repo PR could edit this file to
+# exfiltrate PACKAGES_DELETE_TOKEN and have it take effect the moment their
+# own PR closes, before any review. A `push` trigger doesn't have this
+# problem: the workflow file that runs is always whatever's already
+# committed to main.
 #
-# Known limitation: this targets the GHCR package named exactly
-# "<repo>-pr/<package>", matching what pr-chart.yaml publishes for every
-# package today. A package whose additionalCharts publish under a chart
-# name that differs from the packages/<name> folder would need its extra
-# chart(s) cleaned up by hand.
+# main's history alone doesn't say which PR a commit came from, so this
+# looks it up via GitHub's own commit<->PR association
+# (repos/{owner}/{repo}/commits/{sha}/pulls) for every commit the push
+# introduced (a push event lists at most 20 commits — see GitHub's push
+# event payload docs — which covers any realistic merge here), then scopes
+# deletion to whichever packages that PR's file list touched.
+#
+# Token use is split for least privilege: GITHUB_TOKEN (read-only) resolves
+# PRs/packages/versions; PACKAGES_DELETE_TOKEN is only ever passed to the
+# actual DELETE call, never used for listing/reading.
+#
+# Known gap: this only fires on an actual merge to main. A PR closed
+# *without* merging produces no push event, so its chart isn't cleaned up
+# here — that's what pr-chart-sweep.yaml's daily reconciliation is for.
 on:
-  pull_request:
+  push:
     branches: ["main"]
-    types: [closed]
     paths:
       - "packages/**"
+  workflow_dispatch: {}
 
 permissions:
   contents: read
+  pull-requests: read
+  packages: read
 
 concurrency:
-  group: pr-chart-cleanup-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: pr-chart-cleanup-${{ github.sha }}
+  cancel-in-progress: false
 
 jobs:
-  # Reads the PR's changed files via the API rather than checking out and
-  # diffing git refs, since the head branch may already be gone by the time
-  # this runs (e.g. "automatically delete head branches" on merge).
-  detect-packages:
+  # Resolves the merged PR(s) behind this push (a squash/merge-commit push
+  # is normally one PR; a batch of rebase-merged commits, or a push
+  # covering more than one merge, can be several) and, for each, the
+  # packages/<name> directories its file list touched. Flattens to two
+  # outputs: `targets` (pr+package pairs, for the delete matrix below) and
+  # `prs` (unique PR numbers, for the PR-comment update).
+  detect-prs:
     runs-on: ubuntu-latest
     outputs:
-      packages: ${{ steps.detect.outputs.packages }}
+      targets: ${{ steps.detect.outputs.targets }}
+      prs: ${{ steps.detect.outputs.prs }}
     steps:
-      - name: Detect packages this PR touched
+      - name: Resolve merged PR(s) for this push and the packages they touched
         id: detect
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          files="$(gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" --paginate --jq '.[].filename')"
-          list="$(awk -F/ '/^packages\// { print $2 }' <<< "${files}" | sort -u)"
-          packages="$(jq -R -s -c 'split("\n") | map(select(length > 0))' <<< "${list}")"
-          echo "packages=${packages}" >> "$GITHUB_OUTPUT"
-          echo "Packages to clean up: ${packages}"
+
+          mapfile -t commit_shas < <(jq -r '.[]' <<< '${{ toJSON(github.event.commits.*.id) }}')
+          if [[ "${#commit_shas[@]}" -eq 0 ]]; then
+            commit_shas=("${{ github.sha }}")
+          fi
+
+          declare -A seen_prs=()
+          pr_numbers=()
+          for sha in "${commit_shas[@]}"; do
+            mapfile -t numbers < <(
+              gh api "repos/${{ github.repository }}/commits/${sha}/pulls" --jq '.[] | select(.merged_at != null) | .number' 2>/dev/null || true
+            )
+            for n in "${numbers[@]}"; do
+              [[ -n "${seen_prs[${n}]:-}" ]] && continue
+              seen_prs[${n}]=1
+              pr_numbers+=("${n}")
+            done
+          done
+
+          targets="[]"
+          prs="[]"
+          for pr in "${pr_numbers[@]}"; do
+            prs="$(jq --argjson pr "${pr}" '. + [$pr]' <<< "${prs}")"
+            files="$(gh api "repos/${{ github.repository }}/pulls/${pr}/files" --paginate --jq '.[].filename')"
+            mapfile -t packages < <(awk -F/ '/^packages\// { print $2 }' <<< "${files}" | sort -u)
+            for pkg in "${packages[@]}"; do
+              [[ -z "${pkg}" ]] && continue
+              targets="$(jq --argjson pr "${pr}" --arg pkg "${pkg}" '. + [{pr: $pr, package: $pkg}]' <<< "${targets}")"
+            done
+          done
+
+          echo "targets=$(jq -c . <<< "${targets}")" >> "$GITHUB_OUTPUT"
+          echo "prs=$(jq -c . <<< "${prs}")" >> "$GITHUB_OUTPUT"
+          echo "PR chart(s) to clean up: $(jq -c . <<< "${targets}")"
 
   cleanup:
-    name: cleanup (${{ matrix.package }})
-    needs: detect-packages
-    if: needs.detect-packages.outputs.packages != '[]'
+    name: cleanup (pr-${{ matrix.target.pr }}, ${{ matrix.target.package }})
+    needs: detect-prs
+    if: needs.detect-prs.outputs.targets != '[]'
     runs-on: ubuntu-latest
-    environment: main
     strategy:
       fail-fast: false
       matrix:
-        package: ${{ fromJSON(needs.detect-packages.outputs.packages) }}
+        target: ${{ fromJSON(needs.detect-prs.outputs.targets) }}
     steps:
       - name: Delete PR chart version from GHCR
         env:
-          GH_TOKEN: ${{ secrets.PACKAGES_DELETE_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DELETE_TOKEN: ${{ secrets.PACKAGES_DELETE_TOKEN }}
         run: |
           set -euo pipefail
-          if [[ -z "${GH_TOKEN}" ]]; then
-            echo "::error::PACKAGES_DELETE_TOKEN secret is not set — see the 'PR charts' section of the README for one-time setup. Its 0.0.0-pr${{ github.event.pull_request.number }} tag will need manual removal from k8s-charts-pr/${{ matrix.package }}."
-            exit 1
-          fi
-
           owner="$(cut -d/ -f1 <<< '${{ github.repository }}')"
           repo_name="$(cut -d/ -f2 <<< '${{ github.repository }}')"
-          pr_version="0.0.0-pr${{ github.event.pull_request.number }}"
-          package_name="${repo_name}-pr/${{ matrix.package }}"
+          pr_version="0.0.0-pr${{ matrix.target.pr }}"
+          package_name="${repo_name}-pr/${{ matrix.target.package }}"
           encoded="$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${package_name}")"
 
           if ! versions_json="$(gh api "users/${owner}/packages/container/${encoded}/versions?per_page=100" --paginate 2>&1)"; then
@@ -92,33 +136,43 @@ jobs:
             exit 0
           fi
 
+          if [[ -z "${DELETE_TOKEN}" ]]; then
+            echo "::error::PACKAGES_DELETE_TOKEN secret is not set — see the 'PR charts' section of the README for one-time setup. ${package_name}:${pr_version} needs manual removal."
+            exit 1
+          fi
+
           for version_id in "${version_ids[@]}"; do
             echo "deleting ${package_name}:${pr_version} (version id ${version_id})"
-            gh api --method DELETE "users/${owner}/packages/container/${encoded}/versions/${version_id}"
+            GH_TOKEN="${DELETE_TOKEN}" gh api --method DELETE "users/${owner}/packages/container/${encoded}/versions/${version_id}"
           done
 
   comment:
-    name: Update PR comment
-    needs: [detect-packages, cleanup]
-    if: always() && needs.detect-packages.outputs.packages != '[]'
+    name: Update PR comment (pr-${{ matrix.pr }})
+    needs: [detect-prs, cleanup]
+    if: always() && needs.detect-prs.outputs.prs != '[]'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
+    strategy:
+      fail-fast: false
+      matrix:
+        pr: ${{ fromJSON(needs.detect-prs.outputs.prs) }}
     steps:
       - name: Note cleanup on the PR chart comment
         uses: actions/github-script@v7
         with:
           script: |
             const marker = '<!-- pr-chart-comment -->';
+            const issue_number = ${{ matrix.pr }};
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
+              issue_number,
             });
             const existing = comments.find((c) => c.body && c.body.includes(marker));
             if (!existing) return;
 
-            const body = existing.body + '\n\n---\n🧹 PR closed — chart(s) removed from `k8s-charts-pr`.';
+            const body = existing.body + '\n\n---\n🧹 Chart(s) removed from `k8s-charts-pr` after merge.';
             await github.rest.issues.updateComment({
               owner: context.repo.owner,
               repo: context.repo.repo,

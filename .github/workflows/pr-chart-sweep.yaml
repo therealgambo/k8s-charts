@@ -1,0 +1,105 @@
+name: Sweep stale PR charts
+
+# Safety-net reconciliation for k8s-charts-pr: deletes any 0.0.0-pr<N> chart
+# version whose originating PR is no longer open (merged, closed, or
+# nonexistent) — regardless of whether pr-chart-cleanup.yaml already
+# handled it. This is what actually cleans up a PR that was closed
+# *without* merging: pr-chart-cleanup.yaml only fires on a push to main
+# (i.e. only on a merge), by design — see its header comment for why it
+# isn't triggered by PR activity directly. This workflow also acts as a
+# backstop if that push-triggered cleanup ever fails partway.
+#
+# Runs on a schedule / workflow_dispatch only — like pr-chart-cleanup.yaml,
+# deliberately never triggered by pull_request, so the workflow file that
+# executes (and gets PACKAGES_DELETE_TOKEN) is always whatever's committed
+# to main, never something a PR branch controls. Token use is split for
+# least privilege: GITHUB_TOKEN (read-only) does all the listing/reading;
+# PACKAGES_DELETE_TOKEN is only ever passed to the DELETE call itself.
+on:
+  schedule:
+    - cron: "17 4 * * *" # once daily; time picked arbitrarily to dodge the top-of-hour rush
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pull-requests: read
+  packages: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  # Lists every GHCR container package under the k8s-charts-pr tree, rather
+  # than walking packages/ locally — so a package folder that's since been
+  # renamed or removed doesn't leave its old PR tags un-sweepable.
+  detect-packages:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.detect.outputs.packages }}
+    steps:
+      - name: List k8s-charts-pr GHCR packages
+        id: detect
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          owner="$(cut -d/ -f1 <<< '${{ github.repository }}')"
+          repo_name="$(cut -d/ -f2 <<< '${{ github.repository }}')"
+          prefix="${repo_name}-pr/"
+
+          raw_packages="$(gh api "users/${owner}/packages?package_type=container&per_page=100" --paginate)"
+          packages="$(jq -c --arg prefix "${prefix}" '[.[] | select(.name | startswith($prefix)) | .name]' <<< "${raw_packages}")"
+
+          echo "packages=$(jq -c . <<< "${packages}")" >> "$GITHUB_OUTPUT"
+          echo "k8s-charts-pr packages found: ${packages}"
+
+  sweep:
+    name: sweep (${{ matrix.package_name }})
+    needs: detect-packages
+    if: needs.detect-packages.outputs.packages != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package_name: ${{ fromJSON(needs.detect-packages.outputs.packages) }}
+    steps:
+      - name: Delete versions whose PR is no longer open
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DELETE_TOKEN: ${{ secrets.PACKAGES_DELETE_TOKEN }}
+        run: |
+          set -euo pipefail
+          owner="$(cut -d/ -f1 <<< '${{ github.repository }}')"
+          encoded="$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${{ matrix.package_name }}")"
+
+          versions_json="$(gh api "users/${owner}/packages/container/${encoded}/versions?per_page=100" --paginate)"
+
+          mapfile -t candidates < <(
+            jq -r '.[] | .id as $id | (.metadata.container.tags[]? // empty) | select(test("^0\\.0\\.0-pr[0-9]+$")) | "\($id)\t\(.)"' <<< "${versions_json}"
+          )
+
+          if [[ "${#candidates[@]}" -eq 0 ]]; then
+            echo "no 0.0.0-pr* versions under ${{ matrix.package_name }} — nothing to sweep"
+            exit 0
+          fi
+
+          if [[ -z "${DELETE_TOKEN}" ]]; then
+            echo "::error::PACKAGES_DELETE_TOKEN secret is not set — see the 'PR charts' section of the README for one-time setup."
+            exit 1
+          fi
+
+          for entry in "${candidates[@]}"; do
+            id="${entry%%$'\t'*}"
+            tag="${entry##*$'\t'}"
+            pr="${tag#0.0.0-pr}"
+
+            state="$(gh api "repos/${{ github.repository }}/pulls/${pr}" --jq '.state' 2>/dev/null || echo "missing")"
+            if [[ "${state}" == "open" ]]; then
+              echo "keeping ${{ matrix.package_name }}:${tag} — PR #${pr} still open"
+              continue
+            fi
+
+            echo "deleting ${{ matrix.package_name }}:${tag} (PR #${pr} state=${state}) — version id ${id}"
+            GH_TOKEN="${DELETE_TOKEN}" gh api --method DELETE "users/${owner}/packages/container/${encoded}/versions/${id}"
+          done
