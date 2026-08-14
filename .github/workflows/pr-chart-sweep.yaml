@@ -1,6 +1,6 @@
 name: Sweep stale PR charts
 
-# Safety-net reconciliation for k8s-charts-pr: deletes any 0.0.0-pr<N> chart
+# Safety-net reconciliation for test-pr: deletes any 0.0.0-pr<N> chart
 # version whose originating PR is no longer open (merged, closed, or
 # nonexistent) — regardless of whether pr-chart-cleanup.yaml already
 # handled it. This is what actually cleans up a PR that was closed
@@ -35,7 +35,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Lists every GHCR container package under the k8s-charts-pr tree, rather
+  # Lists every GHCR container package under the test-pr tree, rather
   # than walking packages/ locally — so a package folder that's since been
   # renamed or removed doesn't leave its old PR tags un-sweepable.
   detect-packages:
@@ -46,7 +46,7 @@ jobs:
     outputs:
       packages: ${{ steps.detect.outputs.packages }}
     steps:
-      - name: List k8s-charts-pr GHCR packages
+      - name: List test-pr GHCR packages
         id: detect
         env:
           GH_TOKEN: ${{ secrets.PACKAGES_DELETE_TOKEN }}
@@ -58,14 +58,13 @@ jobs:
           fi
 
           owner="$(cut -d/ -f1 <<< '${{ github.repository }}')"
-          repo_name="$(cut -d/ -f2 <<< '${{ github.repository }}')"
-          prefix="${repo_name}-pr/"
+          prefix="test-pr/"
 
           raw_packages="$(gh api "users/${owner}/packages?package_type=container&per_page=100" --paginate)"
           packages="$(jq -c --arg prefix "${prefix}" '[.[] | select(.name | startswith($prefix)) | .name]' <<< "${raw_packages}")"
 
           echo "packages=$(jq -c . <<< "${packages}")" >> "$GITHUB_OUTPUT"
-          echo "k8s-charts-pr packages found: ${packages}"
+          echo "test-pr packages found: ${packages}"
 
   sweep:
     name: sweep (${{ matrix.package_name }})

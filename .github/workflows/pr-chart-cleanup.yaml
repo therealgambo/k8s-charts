@@ -134,9 +134,8 @@ jobs:
           fi
 
           owner="$(cut -d/ -f1 <<< '${{ github.repository }}')"
-          repo_name="$(cut -d/ -f2 <<< '${{ github.repository }}')"
           pr_version="0.0.0-pr${{ matrix.target.pr }}"
-          package_name="${repo_name}-pr/${{ matrix.target.package }}"
+          package_name="test-pr/${{ matrix.target.package }}"
           encoded="$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${package_name}")"
 
           if ! versions_json="$(gh api "users/${owner}/packages/container/${encoded}/versions?per_page=100" --paginate 2>&1)"; then
@@ -226,7 +225,7 @@ jobs:
             const existing = comments.find((c) => c.body && c.body.includes(marker));
             if (!existing) return;
 
-            const body = existing.body + '\n\n---\n🧹 Chart(s) removed from `k8s-charts-pr` after merge.';
+            const body = existing.body + '\n\n---\n🧹 Chart(s) removed from `test-pr` after merge.';
             await github.rest.issues.updateComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
