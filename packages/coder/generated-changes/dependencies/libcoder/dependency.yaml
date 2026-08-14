@@ -1,0 +1,5 @@
+workingDir: ""
+url: oci://ghcr.io/coder/chart/coder:2.35.4
+subdirectory: ../libcoder
+ignoreDependencies: []
+replacePaths: []

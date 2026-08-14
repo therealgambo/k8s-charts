@@ -192,12 +192,22 @@ put in `$pkg`, do. Pick the shape based on how the package pulls upstream:
   all.
 - **Hybrid shapes**: nothing requires using one shape's *entire* set of
   templates — mix and match per block if a package's version tracking and
-  asset hosting genuinely differ. No package currently needs this, but the
-  building blocks (`githubrelease.source` paired with `dockerimage.condition`/
-  `dockerimage.upstreamVersionChanged`/`dockerimage.packageURL`, or any other
-  combination) are all still there in `_githubrelease-chart.yaml`/
-  `_dockerimage-chart.yaml`/`_helmchart.yaml` if a future package's version
-  tracking and asset hosting genuinely come from different places.
+  asset hosting genuinely differ. The building blocks (`githubrelease.source`
+  paired with `dockerimage.condition`/`dockerimage.upstreamVersionChanged`/
+  `dockerimage.packageURL`, or any other combination) are all still there in
+  `_githubrelease-chart.yaml`/`_dockerimage-chart.yaml`/`_helmchart.yaml` if a
+  package's version tracking and asset hosting genuinely come from different
+  places. `yugabyte.yaml` is a real example: yugabyte-db's own GitHub
+  releases (`githubrelease.source`) are what's tracked for freshness, but the
+  chart itself ships from a classic Helm repo (`helmchart.condition`/
+  `helmchart.packageURL`) under a *truncated* version — the release tag's
+  trailing PATCH component is dropped by `capturePattern`, since the Helm
+  chart's own `version:` field doesn't carry it. That truncation also breaks
+  `common.releaseLink`'s usual tagPrefix + `source "lastRelease"`
+  reconstruction (it assumes the capture group is the entire tag suffix), so
+  that manifest hand-rolls its `actions.default` with a second source
+  (`lastReleaseTag`) instead of reusing `common.action`. See the comment at
+  the top of `yugabyte.yaml` for the full reasoning.
 
 If a package's shape doesn't fit any of the three `_*.yaml` partials at all,
 write the `sources`/`conditions`/`targets` blocks out by hand in that one

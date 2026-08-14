@@ -1,0 +1,84 @@
+{{/*
+Hybrid shape: version tracking comes from yugabyte/yugabyte-db's own GitHub
+releases (tagged vYEAR.MAJOR.MINOR.PATCH, e.g. v2026.1.1.0 ->
+https://github.com/yugabyte/yugabyte-db/releases/tag/v2026.1.1.0), but the
+chart itself is hosted on a classic Helm repo (https://charts.yugabyte.com)
+whose own chart `version:` field drops the trailing PATCH component --
+verified directly against charts.yugabyte.com/index.yaml: tag v2026.1.1.0
+(appVersion 2026.1.1.0-b91) ships as chart version 2026.1.1, and several
+consecutive GitHub patch releases can collapse onto the same already-
+published chart version (e.g. v2025.2.5.0/.1/.2 all map to chart 2025.2.5)
+until yugabyte cuts a new YEAR.MAJOR.MINOR bucket.
+
+That mismatch is why this needs two sources rather than a plain
+githubrelease.* or helmchart.* shape (same idea as the two-sources trick in
+gateway-api-crd.yaml/spire.yaml/metrics-server.yaml, just splitting a
+tag/version pair instead of a tag/commit pair): `lastReleaseTag` resolves the
+real, full GitHub tag (only used for the PR description's release link)
+while `lastRelease` -- what every helmchart.* template below, plus
+common.packageBuildVersion/common.action, actually read via
+`source "lastRelease"` -- captures just the YEAR.MAJOR.MINOR prefix matching
+the Helm chart's own version scheme via `githubrelease.source`'s
+findsubmatch transformer. versionPattern/capturePattern are anchored to
+`v20\d{2}...` specifically to exclude yugabyte-db's legacy pre-CalVer tags
+(v2.20.x.x, v2.25.x.x, etc, still further back in the release list), which
+share the same 4-numeric-component shape and would otherwise match just as
+well as the current scheme.
+
+helmchart.condition below is a real query against
+charts.yugabyte.com/index.yaml (not just a reachability check), so it
+double-checks the truncated version is actually published before any target
+runs -- per the collapsing behaviour above this can legitimately lag the
+GitHub release briefly, so an occasional failure here simply means the chart
+isn't cut yet and should self-resolve on a later run, not a broken manifest.
+
+actions.default is hand-rolled rather than reusing common.action: that
+template's description hardcodes common.releaseLink, which reconstructs the
+release URL as tagPrefix + `source "lastRelease"` -- correct only when the
+capture group is the entire tag suffix, which it deliberately isn't here
+(it's truncated to YEAR.MAJOR.MINOR). The hand-rolled version below links to
+`lastReleaseTag` instead, and separately calls out the chart version the
+release was packaged as.
+*/}}
+{{ $pkg := dict "name" "yugabyte" "owner" "yugabyte" "repo" "yugabyte-db" "versionPattern" "^v20\\d{2}\\.\\d+\\.\\d+\\.\\d+$" "capturePattern" "^v(20\\d{2}\\.\\d+\\.\\d+)\\.\\d+$" "repoURL" "https://charts.yugabyte.com" "chartName" "yugabyte" "sourceLabel" "yugabyte-db" "releaseNoun" "release" "github" .github }}
+name: "Bump yugabyte chart to the latest upstream release"
+pipelineid: "{{ $pkg.name }}"
+scms:
+  default:{{ template "common.scm" $pkg }}
+
+sources:
+  lastReleaseTag:
+    name: "Get the latest {{ $pkg.sourceLabel }} release tag"
+    kind: githubrelease
+    spec:
+      owner: "{{ $pkg.owner }}"
+      repository: "{{ $pkg.repo }}"
+      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
+      versionfilter:
+        kind: "regex"
+        pattern: '{{ $pkg.versionPattern }}'
+  lastRelease:{{ template "githubrelease.source" $pkg }}
+
+conditions:
+  chartVersionPublished:{{ template "helmchart.condition" $pkg }}
+  upstreamVersionChanged:{{ template "helmchart.upstreamVersionChanged" $pkg }}
+
+targets:
+  packageURL:{{ template "helmchart.packageURL" $pkg }}
+  packageBuildVersion:{{ template "common.packageBuildVersion" $pkg }}
+  buildChart:{{ template "common.buildChart" $pkg }}
+
+actions:
+  default:
+    kind: "github/pullrequest"
+    scmid: "default"
+    spec:
+      title: 'chore({{ $pkg.name }}): bump chart to {{ source "lastRelease" }}'
+      description: |
+        This is an automated upstream sync via [updatecli](https://www.updatecli.io/).
+
+        Pulls in changes for `{{ $pkg.name }}` due to new upstream release [`{{ source "lastReleaseTag" }}`](https://github.com/{{ $pkg.owner }}/{{ $pkg.repo }}/releases/tag/{{ source "lastReleaseTag" }}), packaged by yugabyte as helm chart version `{{ source "lastRelease" }}`, and regenerates the patched chart via `make prepare`, `make patch` and `make charts`.
+        Review the diff under `packages/{{ $pkg.name }}/` as you would any other chart bump before merging.
+      labels:
+        - "dependencies"
+        - "{{ $pkg.name }}"
