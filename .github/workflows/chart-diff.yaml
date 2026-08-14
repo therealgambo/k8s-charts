@@ -42,7 +42,11 @@ jobs:
         id: detect
         run: |
           set -euo pipefail
-          list="$(./scripts/changed-packages.sh "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")"
+          # See validate-charts.yaml's detect-packages step: base.sha can go
+          # stale relative to the base branch's current tip, so recompute a
+          # fresh merge-base instead of trusting the event payload.
+          base="$(git merge-base "origin/${{ github.event.pull_request.base.ref }}" "${{ github.sha }}")"
+          list="$(./scripts/changed-packages.sh "${base}" "${{ github.sha }}")"
           packages="$(jq -R -s -c 'split("\n") | map(select(length > 0))' <<< "${list}")"
           echo "packages=${packages}" >> "$GITHUB_OUTPUT"
           echo "Packages to diff: ${packages}"

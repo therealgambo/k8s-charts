@@ -42,7 +42,14 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            list="$(./scripts/changed-packages.sh "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")"
+            # github.event.pull_request.base.sha is frozen at the PR's last
+            # sync and goes stale as soon as unrelated commits land on the
+            # base branch afterwards -- diffing against it then pulls in
+            # every intervening change too, not just this PR's own. Diff
+            # from the merge-base with the base branch's *current* tip
+            # instead, so only packages this PR actually touches show up.
+            base="$(git merge-base "origin/${{ github.event.pull_request.base.ref }}" "${{ github.sha }}")"
+            list="$(./scripts/changed-packages.sh "${base}" "${{ github.sha }}")"
           else
             list="$(./scripts/changed-packages.sh --all)"
           fi
