@@ -32,9 +32,12 @@ spec:
       validate:
         failureAction: {{ include "kyverno-pod-policies.failureAction" (dict "id" $id "tierDefault" "Audit" "root" $) }}
         cel:
+          variables:
+            - name: volumes
+              expression: object.spec.?volumes.orValue([])
           expressions:
             - expression: >-
-                object.spec.?volumes.orValue([]).all(volume,
+                (variables.volumes == null ? [] : variables.volumes).all(volume,
                   has(volume.configMap) || has(volume.csi) || has(volume.downwardAPI) ||
                   has(volume.emptyDir) || has(volume.ephemeral) ||
                   has(volume.persistentVolumeClaim) || has(volume.projected) || has(volume.secret))

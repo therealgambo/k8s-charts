@@ -33,9 +33,12 @@ spec:
       validate:
         failureAction: {{ include "kyverno-pod-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
         cel:
+          variables:
+            - name: volumes
+              expression: object.spec.?volumes.orValue([])
           expressions:
             - expression: >-
-                object.spec.?volumes.orValue([]).all(volume, !has(volume.hostPath))
+                (variables.volumes == null ? [] : variables.volumes).all(volume, !has(volume.hostPath))
               message: "HostPath volumes are disallowed."
 {{- end }}
 {{- end }}

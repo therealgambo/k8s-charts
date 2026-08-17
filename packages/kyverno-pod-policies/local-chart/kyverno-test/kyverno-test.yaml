@@ -220,3 +220,60 @@ results:
     kind: Pod
     resources: [restricted-volumes-fail]
     result: fail
+
+  # --- null-safety regression (see resources.yaml) --
+  # An explicitly-`null` field (present key, no value -- e.g. a chart's own `{{- with }}`/`{{- if
+  # }}` guard leaving nothing under it) must be treated the same as an absent one, not crash the
+  # CEL expression that reads it.
+  - policy: disallow-privileged-containers
+    rule: privileged-containers
+    kind: Pod
+    resources: [all-containers-null-pass]
+    result: pass
+  - policy: disallow-privilege-escalation
+    rule: privilege-escalation
+    kind: Pod
+    resources: [all-containers-null-pass]
+    result: pass
+
+  - policy: disallow-host-path
+    rule: host-path
+    kind: Pod
+    resources: [volumes-null-pass]
+    result: pass
+  - policy: restrict-volume-types
+    rule: restricted-volumes
+    kind: Pod
+    resources: [volumes-null-pass]
+    result: pass
+
+  - policy: restrict-sysctls
+    rule: check-sysctls
+    kind: Pod
+    resources: [sysctls-null-pass]
+    result: pass
+
+  - policy: disallow-capabilities
+    rule: adding-capabilities
+    kind: Pod
+    resources: [capabilities-add-null-pass]
+    result: pass
+  - policy: disallow-capabilities-strict
+    rule: adding-capabilities-strict
+    kind: Pod
+    resources: [capabilities-add-null-pass]
+    result: pass
+
+  # A null (not merely absent) `drop` must still be a real violation -- the fix must not turn
+  # "didn't drop ALL" into a false pass.
+  - policy: disallow-capabilities-strict
+    rule: require-drop-all
+    kind: Pod
+    resources: [capabilities-drop-null-fail]
+    result: fail
+
+  - policy: disallow-host-ports
+    rule: host-ports-none
+    kind: Pod
+    resources: [host-ports-null-pass]
+    result: pass
