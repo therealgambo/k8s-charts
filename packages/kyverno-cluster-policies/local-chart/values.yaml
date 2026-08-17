@@ -16,9 +16,16 @@
 #
 # Controls are tiered, but NOT with kyverno-pod-policies' baseline/restricted vocabulary -- that's
 # specifically a Pod Security Standards term this chart's broader scope doesn't map onto. Instead:
-#   - Enforce (default) -- high-confidence, low false-positive controls, safe to block on immediately.
-#   - Audit (default)   -- needs per-org tuning (an empty config/ list below) or is likely to hit
-#                           real existing violations, so it only reports until tuned/reviewed.
+#   - Enforce (default) -- every policy in this chart, EXCEPT the Category F (opt-in) ids below,
+#                           blocks on admission by default. Config-dependent policies (an empty
+#                           config/ list below) stay a safe no-op via celPreconditions until their
+#                           list is populated -- see "Config-dependent policies" in the README. A
+#                           few non-config-dependent ids (disallow-wildcard-rbac,
+#                           require-explicit-automount) WILL surface real fleet violations
+#                           immediately -- see each template's own comment. Soften any individual
+#                           id back to visibility-only with policies.<id>.validationFailureAction:
+#                           Audit, or every id at once with the global validationFailureAction
+#                           override below.
 #   - Disabled (default) -- opt-in only. Targets an optional cluster component (rbac-manager,
 #                           argo-cd, kargo, karpenter) that may not even be installed -- these
 #                           policies render nothing at all unless explicitly
@@ -68,11 +75,26 @@ commonAnnotations: {}
 # =============================================================================================
 config:
   # require-labels: Namespace label keys that must be present.
-  requiredNamespaceLabels: []
+  requiredNamespaceLabels:
+    - pager.example.com/handle
+  # require-resource-labels: label keys that must be present on every resource of the kinds in
+  # kyverno-cluster-policies.blanketResourceKinds (Deployment/StatefulSet/DaemonSet/Service/
+  # ConfigMap/... -- see that helper's own comment for the full list and why it's not every kind).
+  # A separate key from requiredNamespaceLabels above -- namespaces and workload manifests may need
+  # different required keys.
+  requiredResourceLabels:
+    - app.kubernetes.io/name
+    - app.kubernetes.io/managed-by
+    - metadata.example.com/team
+  # require-resource-annotations: annotation keys that must be present on the same kind list as
+  # requiredResourceLabels above.
+  requiredResourceAnnotations:
+    - metadata.example.com/repository
   # restrict-image-registries: image reference prefixes allowed (e.g. "ghcr.io/therealgambo/").
   allowedRegistries: []
   # disallow-custom-dns-config: dnsConfig.nameservers values allowed.
-  allowedNameservers: []
+  allowedNameservers:
+    - 169.254.20.10
   # restrict-rbacdefinition-clusterrole (Category F, opt-in): rbac-manager RBACDefinition
   # clusterRole values allowed.
   rbacDefinitionAllowedClusterRoles: []
@@ -107,14 +129,13 @@ config:
 #         kinds: []                       # rare: exclude one specific autogen'd controller kind
 #                                          # (e.g. CronJob) from just this policy
 #
-# Enforce ids (default Enforce): disallow-latest-tag, restrict-dns-policy,
-# disallow-custom-dns-config, require-emptydir-sizelimit, restrict-priorityclass,
-# disallow-rbac-escalation-verbs, disallow-clusteradmin-binding
-#
-# Audit ids (default Audit): require-labels, disallow-reserved-annotation-prefixes,
-# restrict-image-registries, disallow-host-aliases, require-resource-requests-limits,
-# disallow-wildcard-rbac, require-explicit-automount, protect-kyverno-resources,
-# disallow-webhook-tampering
+# Enforce ids (default Enforce -- every id in this chart except the Disabled/opt-in ones below):
+# require-labels, require-resource-labels, require-resource-annotations,
+# disallow-reserved-annotation-prefixes, disallow-latest-tag, restrict-image-registries,
+# restrict-dns-policy, disallow-custom-dns-config, disallow-host-aliases,
+# require-emptydir-sizelimit, restrict-priorityclass, require-resource-requests-limits,
+# disallow-rbac-escalation-verbs, disallow-wildcard-rbac, disallow-clusteradmin-binding,
+# require-explicit-automount, protect-kyverno-resources, disallow-webhook-tampering
 #
 # Disabled/opt-in ids (default off, policies.<id>.enabled: true to opt in): restrict-crd-creation,
 # restrict-rbacdefinition-clusterrole, restrict-argocd-application-project,

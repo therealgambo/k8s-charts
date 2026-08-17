@@ -5,10 +5,12 @@ controller's ServiceAccount, e.g. argo-cd's application-controller) -- otherwise
 already compromised some identity in the cluster could simply turn off every other control in this
 chart (or kyverno-pod-policies) by editing/deleting its ClusterPolicy, or carve themselves a
 PolicyException. Skipped entirely (celPreconditions) when config.gitopsIdentities is empty, same
-"no-op until configured" shape as the allow-list policies elsewhere in this chart. Audit by
-default even once configured -- getting the identity list wrong in Enforce mode would lock out
-legitimate GitOps reconciliation, so this is reviewed before promoting, not blocked outright.
-`request.userInfo` confirmed available in classic ClusterPolicy CEL by reading Kyverno's own
+"no-op until configured" shape as the allow-list policies elsewhere in this chart -- so Enforce by
+default (chart-wide policy, see README) is still a no-op until that list is populated. Double-check
+config.gitopsIdentities is complete before or immediately after it's first populated -- getting it
+wrong in Enforce mode would lock out legitimate GitOps reconciliation. Set
+policies.protect-kyverno-resources.validationFailureAction to `Audit` per-cluster if you'd rather
+review before promoting. `request.userInfo` confirmed available in classic ClusterPolicy CEL by reading Kyverno's own
 pkg/cel/engine/request.go (builds `request` from the standard admission/v1.AdmissionRequest type,
 which carries UserInfo) -- kyverno.io docs 404'd when fetched directly, so this was confirmed
 against source, not assumed. No kyverno/policies reference for this one -- it's specific to this
@@ -46,7 +48,7 @@ spec:
         - name: has-gitops-identities
           expression: {{ printf "%s.size() > 0" (.Values.config.gitopsIdentities | default list | toJson) | quote }}
       validate:
-        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Audit" "root" $) }}
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
         cel:
           variables:
             - name: gitopsIdentities

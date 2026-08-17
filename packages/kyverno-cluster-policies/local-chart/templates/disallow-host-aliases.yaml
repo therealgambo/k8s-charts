@@ -1,10 +1,11 @@
 {{/*
 DNS hygiene: no `hostAliases` entries -- lets a Pod locally override hostname resolution for
-specific names, effectively a pod-local MITM/DNS-spoof of anything it talks to by name. Audit by
-default: some legitimate uses exist (local overrides during a migration), so this starts as
-visibility-only. No direct kyverno/policies CEL equivalent found -- derived directly from the Pod
-spec schema; null-coalesced per the documented CEL gotcha (see README) since hostAliases is a
-list-typed optional field.
+specific names, effectively a pod-local MITM/DNS-spoof of anything it talks to by name. Enforce by
+default (chart-wide policy, see README) even though some legitimate uses exist (local overrides
+during a migration) -- set policies.disallow-host-aliases.validationFailureAction to `Audit`
+per-cluster if that applies to you. No direct kyverno/policies CEL equivalent found -- derived
+directly from the Pod spec schema; null-coalesced per the documented CEL gotcha (see README) since
+hostAliases is a list-typed optional field.
 */}}
 {{- $id := "disallow-host-aliases" }}
 {{- if ne .Values.enabled false }}
@@ -34,7 +35,7 @@ spec:
       exclude:
         {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
       validate:
-        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Audit" "root" $) }}
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
         cel:
           variables:
             - name: hostAliases

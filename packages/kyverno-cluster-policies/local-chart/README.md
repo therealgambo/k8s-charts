@@ -25,17 +25,23 @@ kyverno-pod-policies ties its tiers to the Kubernetes Pod Security Standards' ow
 restricted split. That vocabulary doesn't map onto this chart's much broader scope, so every policy
 here instead carries one of:
 
-- **Enforce (default)** -- high-confidence, low false-positive controls, safe to block on
-  immediately.
-- **Audit (default)** -- needs per-org tuning (an empty `config.*` allow-list below) or is likely
-  to surface real existing violations across this fleet, so it starts as visibility-only.
+- **Enforce (default)** -- every policy in this chart, except the Category F (opt-in) ids below,
+  blocks on admission by default. Config-dependent policies (an empty `config.*` allow-list below)
+  stay a safe no-op via `celPreconditions` until their list is populated -- see "Config-dependent
+  policies" below. A few non-config-dependent ids (`disallow-wildcard-rbac`,
+  `require-explicit-automount`) **will** surface real existing violations across this fleet
+  immediately -- see each policy's own template comment. Soften any individual id back to
+  visibility-only with `policies.<id>.validationFailureAction: Audit`, or every id at once with the
+  global `validationFailureAction` override.
 - **Disabled (default)** -- opt-in only (Category F). Targets an optional cluster component
   (rbac-manager, argo-cd, kargo, karpenter) that may not even be installed. Unlike every other
   policy here, "not set" means **off** for these -- set `policies.<id>.enabled: true` explicitly to
   turn one on. See "Opt-in (Disabled) policies" below.
 
-Same override mechanism as kyverno-pod-policies, in the same precedence order: global
-`validationFailureAction` > `policies.<id>.validationFailureAction` > tier default.
+`Audit` remains a valid `validationFailureAction` value everywhere -- it's just no longer any
+policy's *default* -- so per-cluster or per-policy downgrades stay a one-line override, same
+precedence order as kyverno-pod-policies: global `validationFailureAction` >
+`policies.<id>.validationFailureAction` > tier default.
 
 ## The policies
 
@@ -47,15 +53,50 @@ value (if any) it needs populated to mean anything.
 
 | id | kind | rule name(s) | Blocks/requires | Tier |
 |---|---|---|---|---|
-| `require-labels` | Namespace | `check-required-labels` | Missing keys from `config.requiredNamespaceLabels` | Audit |
-| `disallow-reserved-annotation-prefixes` | Pod (autogen) | `reserved-annotation-prefix` | End users setting `kyverno.io/`-prefixed annotations | Audit |
+| `require-labels` | Namespace | `check-required-labels` | Missing keys from `config.requiredNamespaceLabels` | Enforce |
+| `require-resource-labels` | [blanket kind list](#blanket-label-and-annotation-enforcement) | `check-required-resource-labels` | Missing keys from `config.requiredResourceLabels` | Enforce |
+| `require-resource-annotations` | [blanket kind list](#blanket-label-and-annotation-enforcement) | `check-required-resource-annotations` | Missing keys from `config.requiredResourceAnnotations` | Enforce |
+| `disallow-reserved-annotation-prefixes` | Pod (autogen) | `reserved-annotation-prefix` | End users setting `kyverno.io/`-prefixed annotations | Enforce |
+
+#### Blanket label and annotation enforcement
+
+`require-labels` only ever looked at `Namespace` objects. `require-resource-labels` and
+`require-resource-annotations` extend the same required-key check to every other manifest kind a
+Helm chart in this fleet actually renders:
+
+```
+Deployment, StatefulSet, DaemonSet, ReplicaSet, Job, CronJob, Pod, Service, ConfigMap, Secret,
+Ingress, ServiceAccount, PersistentVolumeClaim, Role, RoleBinding, ClusterRole, ClusterRoleBinding,
+NetworkPolicy
+```
+
+(the exact list lives in one place, `kyverno-cluster-policies.blanketResourceKinds` in
+`_helpers.tpl`, so the two policies can never drift apart on scope). Deliberately **not**
+`kind: "*"` -- a true wildcard would also catch Kubernetes-internal/system-managed objects (`Lease`,
+`Endpoints`, `EndpointSlice`, `Event`, `ControllerRevision`, `CSIStorageCapacity`, ...) that carry no
+custom labels by convention and were never meant to be governed by org label/annotation policy;
+enforcing there risks blocking things like leader-election `Lease`s, not just chart manifests. If
+your fleet renders a kind that isn't in that list, it's simply not covered by these two policies --
+`_helpers.tpl`'s own comment is the place to extend the list, not a per-cluster override (there
+isn't one; unlike `exclude.kinds`, this is scope, not a carve-out).
+
+`Namespace` is deliberately excluded from the blanket list too -- that's what `require-labels`
+already owns, with its own `config.requiredNamespaceLabels` key. The two blanket policies use their
+own separate keys (`config.requiredResourceLabels` / `config.requiredResourceAnnotations`) rather
+than reusing `requiredNamespaceLabels`, since a Namespace and a Secret may legitimately need
+different required keys -- populate both the same way if you want identical enforcement everywhere.
+
+Both are Enforce by default and, like `require-labels`, need no `celPreconditions` skip-when-empty
+guard -- `.all()` over an empty required-keys list is vacuously true, so an unpopulated
+`config.requiredResourceLabels`/`config.requiredResourceAnnotations` is a safe no-op from day one,
+same as `require-labels` itself.
 
 ### B. Supply chain
 
 | id | kind | rule name(s) | Blocks/requires | Tier |
 |---|---|---|---|---|
 | `disallow-latest-tag` | Pod (autogen) | `require-and-validate-image-tag` | `:latest` tag, or no tag at all | Enforce |
-| `restrict-image-registries` | Pod (autogen) | `validate-registries` | Image outside `config.allowedRegistries` (empty ⇒ inert, see below) | Audit |
+| `restrict-image-registries` | Pod (autogen) | `validate-registries` | Image outside `config.allowedRegistries` (empty ⇒ inert, see below) | Enforce |
 
 ### C. DNS hygiene
 
@@ -66,7 +107,7 @@ L3/L4 Cilium enforcement, not a duplicate of it.
 |---|---|---|---|---|
 | `restrict-dns-policy` | Pod (autogen) | `restrict-dns-policy` | `dnsPolicy: Default`/`None` | Enforce |
 | `disallow-custom-dns-config` | Pod (autogen) | `disallow-custom-nameservers` | `dnsConfig.nameservers` outside `config.allowedNameservers` (empty ⇒ inert, see below) | Enforce |
-| `disallow-host-aliases` | Pod (autogen) | `disallow-host-aliases` | Any `hostAliases` entry | Audit |
+| `disallow-host-aliases` | Pod (autogen) | `disallow-host-aliases` | Any `hostAliases` entry | Enforce |
 
 ### D. Resource and DoS protection
 
@@ -74,16 +115,16 @@ L3/L4 Cilium enforcement, not a duplicate of it.
 |---|---|---|---|---|
 | `require-emptydir-sizelimit` | Pod (autogen) | `require-emptydir-sizelimit` | `emptyDir` volume with no `sizeLimit` | Enforce |
 | `restrict-priorityclass` | Pod (autogen) | `restrict-priorityclass` | `system-cluster-critical`/`system-node-critical` priorityClassName | Enforce |
-| `require-resource-requests-limits` | Pod (autogen) | `validate-resources` | Missing cpu/memory requests+limits | Audit |
+| `require-resource-requests-limits` | Pod (autogen) | `validate-resources` | Missing cpu/memory requests+limits | Enforce |
 
 ### E. RBAC privilege-escalation prevention
 
 | id | kind | rule name(s) | Blocks/requires | Tier |
 |---|---|---|---|---|
 | `disallow-rbac-escalation-verbs` | Role, ClusterRole | `escalate` | `bind`/`escalate`/`impersonate` verbs on roles/clusterroles resources | Enforce |
-| `disallow-wildcard-rbac` | Role, ClusterRole | `wildcard-verbs`, `wildcard-resources`, `wildcard-apigroups` | `*` in verbs/resources/apiGroups | Audit |
+| `disallow-wildcard-rbac` | Role, ClusterRole | `wildcard-verbs`, `wildcard-resources`, `wildcard-apigroups` | `*` in verbs/resources/apiGroups | Enforce |
 | `disallow-clusteradmin-binding` | RoleBinding, ClusterRoleBinding | `clusteradmin-default-sa-binding` | Binding `cluster-admin` to a namespace's `default` ServiceAccount | Enforce |
-| `require-explicit-automount` | Pod (autogen) | `require-explicit-automount` | `automountServiceAccountToken` left unset | Audit |
+| `require-explicit-automount` | Pod (autogen) | `require-explicit-automount` | `automountServiceAccountToken` left unset | Enforce |
 
 ### F. CRD confused-deputy / lateral movement (opt-in, disabled by default)
 
@@ -117,8 +158,8 @@ wouldn't be meaningful there.
 
 | id | kind | rule name(s) | Blocks/requires | Tier |
 |---|---|---|---|---|
-| `protect-kyverno-resources` | ClusterPolicy, PolicyException | `restrict-changes` | Modification by an identity outside `config.gitopsIdentities` (empty ⇒ inert, see below) | Audit |
-| `disallow-webhook-tampering` | ValidatingWebhookConfiguration, MutatingWebhookConfiguration | `restrict-changes` | Same, non-GitOps modification | Audit |
+| `protect-kyverno-resources` | ClusterPolicy, PolicyException | `restrict-changes` | Modification by an identity outside `config.gitopsIdentities` (empty ⇒ inert, see below) | Enforce |
+| `disallow-webhook-tampering` | ValidatingWebhookConfiguration, MutatingWebhookConfiguration | `restrict-changes` | Same, non-GitOps modification | Enforce |
 
 **`request.userInfo` availability**: classic `kyverno.io/v1 ClusterPolicy` CEL isn't as
 well-documented for this as the newer `ValidatingPolicy` CRD -- confirmed by reading Kyverno's own
@@ -148,8 +189,9 @@ block) that defaults to empty. For allow-list-shaped checks (`restrict-image-reg
 `restrict-crd-creation`), an empty list would otherwise mean "nothing is allowed" -- flagging every
 single resource. Each of those instead uses a `celPreconditions` guard that skips the rule entirely
 when its list is empty, so "not configured yet" reads as "not opted in yet" (no PolicyReport noise)
-rather than "block everything". `require-labels` doesn't need this guard -- `.all()` over an empty
-*required*-keys list is vacuously true on its own.
+rather than "block everything". `require-labels`, `require-resource-labels`, and
+`require-resource-annotations` don't need this guard -- they're *required*-keys checks, not
+allow-lists, and `.all()` over an empty required-keys list is vacuously true on its own.
 
 ## The CEL null-vs-absent gotcha, and how every policy here avoids it
 
@@ -216,7 +258,7 @@ rationale of why each layer exists and what it can't catch. Summary:
   autogen-vs-non-autogen rule-name expansion, and that a `config.*` list actually lands in the
   right CEL variable as a JSON-encoded string.
 - **`kyverno-test/`** (Kyverno CLI test, `make kyverno-test PACKAGE=kyverno-cluster-policies`) --
-  rule *logic*: a known-good/known-bad fixture pair per rule name (46 assertions total), plus
+  rule *logic*: a known-good/known-bad fixture pair per rule name (48 assertions total), plus
   dedicated present-but-null regression fixtures for the gotcha above. Renders with this chart's own
   `ci.values.yaml` layered on top of `values.yaml` (see that file's own comment) so every
   `config.*`-dependent and Category F policy is actually exercised, not silently skipped --
@@ -291,9 +333,14 @@ helm install kyverno-cluster-policies oci://ghcr.io/therealgambo/k8s-charts/kyve
   --namespace kyverno-cluster-policies --create-namespace
 ```
 
-Then populate `config.*` for whichever Audit-tier and opt-in policies you want to promote toward
-`Enforce`, and set `features.policyExceptions` on the `kyverno` release (see above) if `exceptions:`
-is used.
+Every policy here is `Enforce` by default (see "Enforced by default, tiered" above) -- review the
+config-independent ids most likely to surface real fleet violations immediately
+(`disallow-wildcard-rbac`, `require-explicit-automount`; see each template's own comment) before or
+right after install, and downgrade any of them to `Audit` per-cluster while triaging if needed. Then
+populate `config.*` for the config-dependent policies (allow-lists like `allowedRegistries`,
+required-key lists like `requiredResourceLabels`) and opt in whichever Category F policies apply to
+your cluster, and set `features.policyExceptions` on the `kyverno` release (see above) if
+`exceptions:` is used.
 
 ## Worked examples
 
@@ -316,7 +363,19 @@ doesn't run kargo or karpenter.
 </details>
 
 <details>
-<summary>Promote restrict-image-registries to Enforce once the allow-list is populated</summary>
+<summary>Populate restrict-image-registries' allow-list (it's already Enforce by default)</summary>
+
+`restrict-image-registries` is Enforce by default like every other policy here, but its
+`celPreconditions` guard keeps it a no-op until `config.allowedRegistries` is populated -- no
+`policies.<id>.validationFailureAction` override needed, just set the list:
+
+```yaml
+config:
+  allowedRegistries:
+    - ghcr.io/therealgambo/
+```
+
+Want to review matches before it starts blocking? Downgrade just this one policy:
 
 ```yaml
 config:
@@ -324,7 +383,7 @@ config:
     - ghcr.io/therealgambo/
 policies:
   restrict-image-registries:
-    validationFailureAction: Enforce
+    validationFailureAction: Audit
 ```
 
 </details>

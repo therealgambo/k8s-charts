@@ -46,6 +46,14 @@
           "type": "array",
           "items": { "type": "string" }
         },
+        "requiredResourceLabels": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "requiredResourceAnnotations": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
         "allowedRegistries": {
           "type": "array",
           "items": { "type": "string" }

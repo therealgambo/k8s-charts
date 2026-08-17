@@ -29,6 +29,65 @@ metadata:
   name: labels-null-fail
   labels: null
 
+###### require-resource-labels / check-required-resource-labels
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: resource-labels-pass
+  namespace: workloads
+  labels:
+    team: platform
+data: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: resource-labels-fail
+  namespace: workloads
+  labels: {}
+data: {}
+---
+# Regression fixture: an explicit `labels: null` (present-but-null, not absent/omitted) must not
+# crash the dynamic-key optional lookup -- same class of CEL null-vs-absent gotcha as require-labels'
+# own regression fixture, checked here for a non-Namespace kind out of the blanket kind list.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: resource-labels-null-fail
+  namespace: workloads
+  labels: null
+data: {}
+
+###### require-resource-annotations / check-required-resource-annotations
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: resource-annotations-pass
+  namespace: workloads
+  annotations:
+    example.com/owner: platform-team
+type: Opaque
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: resource-annotations-fail
+  namespace: workloads
+  annotations: {}
+type: Opaque
+---
+# Regression fixture: an explicit `annotations: null` must not crash the dynamic-key optional
+# lookup -- same class of CEL gotcha, checked here for the annotations map instead of labels.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: resource-annotations-null-fail
+  namespace: workloads
+  annotations: null
+type: Opaque
+
 ###### disallow-reserved-annotation-prefixes / reserved-annotation-prefix
 ---
 apiVersion: v1

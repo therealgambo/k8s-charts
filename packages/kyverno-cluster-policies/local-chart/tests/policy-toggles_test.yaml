@@ -4,6 +4,8 @@ release:
 templates:
   - disallow-latest-tag.yaml
   - require-labels.yaml
+  - require-resource-labels.yaml
+  - require-resource-annotations.yaml
   - restrict-image-registries.yaml
   - restrict-rbacdefinition-clusterrole.yaml
   - restrict-crd-creation.yaml
@@ -31,12 +33,12 @@ tests:
           path: spec.rules[0].exclude.any[0].resources.namespaces
           value: [kube-node-lease, kube-public, kyverno-cluster-policies]
 
-  - it: renders an Audit-tier policy with failureAction Audit by default
+  - it: renders require-labels with failureAction Enforce by default (chart-wide default, no more Audit tier)
     template: require-labels.yaml
     asserts:
       - equal:
           path: spec.rules[0].validate.failureAction
-          value: Audit
+          value: Enforce
 
   - it: a non-Pod-kind policy (Namespace) does not carry Pod-controller kinds in its match
     template: require-labels.yaml
@@ -44,6 +46,46 @@ tests:
       - equal:
           path: spec.rules[0].match.any[0].resources.kinds
           value: [Namespace]
+
+  - it: require-resource-labels matches the curated blanket kind list, not kind ["*"] and not Namespace
+    template: require-resource-labels.yaml
+    asserts:
+      - equal:
+          path: spec.rules[0].validate.failureAction
+          value: Enforce
+      - equal:
+          path: spec.rules[0].match.any[0].resources.kinds
+          value: [Deployment, StatefulSet, DaemonSet, ReplicaSet, Job, CronJob, Pod, Service, ConfigMap, Secret, Ingress, ServiceAccount, PersistentVolumeClaim, Role, RoleBinding, ClusterRole, ClusterRoleBinding, NetworkPolicy]
+
+  - it: config.requiredResourceLabels renders into the require-resource-labels CEL variable as a JSON list string
+    template: require-resource-labels.yaml
+    set:
+      config:
+        requiredResourceLabels: [team, cost-center]
+    asserts:
+      - equal:
+          path: spec.rules[0].validate.cel.variables[0].expression
+          value: '["team","cost-center"]'
+
+  - it: require-resource-annotations matches the same curated blanket kind list as require-resource-labels, Enforce by default
+    template: require-resource-annotations.yaml
+    asserts:
+      - equal:
+          path: spec.rules[0].validate.failureAction
+          value: Enforce
+      - equal:
+          path: spec.rules[0].match.any[0].resources.kinds
+          value: [Deployment, StatefulSet, DaemonSet, ReplicaSet, Job, CronJob, Pod, Service, ConfigMap, Secret, Ingress, ServiceAccount, PersistentVolumeClaim, Role, RoleBinding, ClusterRole, ClusterRoleBinding, NetworkPolicy]
+
+  - it: config.requiredResourceAnnotations renders into the require-resource-annotations CEL variable as a JSON list string
+    template: require-resource-annotations.yaml
+    set:
+      config:
+        requiredResourceAnnotations: [example.com/owner]
+    asserts:
+      - equal:
+          path: spec.rules[0].validate.cel.variables[0].expression
+          value: '["example.com/owner"]'
 
   - it: policies.<id>.enabled false skips that policy only
     template: disallow-latest-tag.yaml
@@ -55,16 +97,16 @@ tests:
       - hasDocuments:
           count: 0
 
-  - it: per-policy validationFailureAction override wins over the tier default
+  - it: per-policy validationFailureAction override wins over the Enforce tier default
     template: require-labels.yaml
     set:
       policies:
         require-labels:
-          validationFailureAction: Enforce
+          validationFailureAction: Audit
     asserts:
       - equal:
           path: spec.rules[0].validate.failureAction
-          value: Enforce
+          value: Audit
 
   - it: the global validationFailureAction override wins over a per-policy override
     template: require-labels.yaml

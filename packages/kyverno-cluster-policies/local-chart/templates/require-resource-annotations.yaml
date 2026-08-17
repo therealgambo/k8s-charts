@@ -1,0 +1,51 @@
+{{/*
+Organizational governance: every resource of the kinds in
+kyverno-cluster-policies.blanketResourceKinds must carry the annotation keys in
+config.requiredResourceAnnotations -- the annotation counterpart to require-resource-labels (see
+that template's comment for why the kind list isn't `kind: "*"`). Same
+`object.metadata.?annotations[?k].orValue('')` CEL shape as require-labels/require-resource-labels,
+applied to metadata.annotations instead of metadata.labels. Empty
+config.requiredResourceAnnotations (the default) makes this a vacuous no-op -- no celPreconditions
+guard needed, same reasoning as require-labels.
+*/}}
+{{- $id := "require-resource-annotations" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-cluster-policies.policyEnabled" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-cluster-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Require Resource Annotations
+    policies.kyverno.io/category: Organizational Governance
+    policies.kyverno.io/subject: Deployment, StatefulSet, DaemonSet, ReplicaSet, Job, CronJob, Pod, Service, ConfigMap, Secret, Ingress, ServiceAccount, PersistentVolumeClaim, Role, RoleBinding, ClusterRole, ClusterRoleBinding, NetworkPolicy
+    policies.kyverno.io/description: >-
+      Every resource of the matched kinds must carry every annotation key configured in
+      config.requiredResourceAnnotations -- the annotation counterpart to require-resource-labels.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: check-required-resource-annotations
+      match:
+        any:
+          - resources: { kinds: {{ include "kyverno-cluster-policies.blanketResourceKinds" . }}, operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
+        cel:
+          variables:
+            - name: requiredAnnotations
+              expression: {{ .Values.config.requiredResourceAnnotations | default list | toJson | quote }}
+          expressions:
+            - expression: >-
+                variables.requiredAnnotations.all(k, object.metadata.?annotations[?k].orValue('') != '')
+              message: >-
+                This resource is missing one or more required annotations. See
+                config.requiredResourceAnnotations for the full list.
+{{- end }}
+{{- end }}

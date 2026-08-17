@@ -9,6 +9,8 @@
 # this package.
 config:
   requiredNamespaceLabels: [team]
+  requiredResourceLabels: [team]
+  requiredResourceAnnotations: [example.com/owner]
   allowedRegistries: [ghcr.io/therealgambo/]
   allowedNameservers: [169.254.25.10]
   rbacDefinitionAllowedClusterRoles: [view]

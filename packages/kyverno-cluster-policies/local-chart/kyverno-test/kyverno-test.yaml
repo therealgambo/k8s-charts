@@ -48,6 +48,28 @@ results:
     resources: [labels-fail, labels-null-fail]
     result: fail
 
+  - policy: require-resource-labels
+    rule: check-required-resource-labels
+    kind: ConfigMap
+    resources: [resource-labels-pass]
+    result: pass
+  - policy: require-resource-labels
+    rule: check-required-resource-labels
+    kind: ConfigMap
+    resources: [resource-labels-fail, resource-labels-null-fail]
+    result: fail
+
+  - policy: require-resource-annotations
+    rule: check-required-resource-annotations
+    kind: Secret
+    resources: [resource-annotations-pass]
+    result: pass
+  - policy: require-resource-annotations
+    rule: check-required-resource-annotations
+    kind: Secret
+    resources: [resource-annotations-fail, resource-annotations-null-fail]
+    result: fail
+
   - policy: disallow-reserved-annotation-prefixes
     rule: reserved-annotation-prefix
     kind: Pod

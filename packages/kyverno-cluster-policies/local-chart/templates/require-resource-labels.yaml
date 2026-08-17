@@ -1,0 +1,55 @@
+{{/*
+Organizational governance: every resource of the kinds in
+kyverno-cluster-policies.blanketResourceKinds must carry the label keys in
+config.requiredResourceLabels (e.g. team ownership, cost-center) -- extends require-labels'
+Namespace-only enforcement to the workload/manifest kinds a Helm chart in this fleet actually
+renders, without reaching Kubernetes-internal/system-managed objects (see that helper's own
+comment for why this isn't `kind: "*"`). Same `object.metadata.?labels[?k].orValue('')` CEL shape
+as require-labels (see that template's comment for the dynamic-key optional-chaining gotcha this
+form avoids -- `.?[k]` is NOT valid CEL), just applied to a configurable kind list and its own
+config key instead of Namespace. Empty config.requiredResourceLabels (the default) makes this a
+vacuous no-op -- `.all()` over an empty list is always true -- no celPreconditions guard needed,
+same reasoning as require-labels.
+*/}}
+{{- $id := "require-resource-labels" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-cluster-policies.policyEnabled" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-cluster-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Require Resource Labels
+    policies.kyverno.io/category: Organizational Governance
+    policies.kyverno.io/subject: Deployment, StatefulSet, DaemonSet, ReplicaSet, Job, CronJob, Pod, Service, ConfigMap, Secret, Ingress, ServiceAccount, PersistentVolumeClaim, Role, RoleBinding, ClusterRole, ClusterRoleBinding, NetworkPolicy
+    policies.kyverno.io/description: >-
+      Every resource of the matched kinds must carry every label key configured in
+      config.requiredResourceLabels (e.g. team ownership, cost-center) -- the blanket,
+      non-Namespace-scoped counterpart to require-labels.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: check-required-resource-labels
+      match:
+        any:
+          - resources: { kinds: {{ include "kyverno-cluster-policies.blanketResourceKinds" . }}, operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
+        cel:
+          variables:
+            - name: requiredLabels
+              expression: {{ .Values.config.requiredResourceLabels | default list | toJson | quote }}
+          expressions:
+            - expression: >-
+                variables.requiredLabels.all(k, object.metadata.?labels[?k].orValue('') != '')
+              message: >-
+                This resource is missing one or more required labels. See
+                config.requiredResourceLabels for the full list.
+{{- end }}
+{{- end }}

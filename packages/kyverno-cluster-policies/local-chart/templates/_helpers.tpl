@@ -113,6 +113,22 @@ Params: dict "id" <policy id> "root" $
 {{- end -}}
 
 {{/*
+Curated kind list for the "blanket" resource-level label/annotation policies
+(require-resource-labels, require-resource-annotations): every kind a Helm chart in this fleet
+typically renders, deliberately NOT `kind: "*"` -- a true wildcard would also catch Kubernetes-
+internal/system-managed objects (Lease, Endpoints, EndpointSlice, Event, ControllerRevision,
+CSIStorageCapacity, ...) that carry no custom labels by convention and were never meant to be
+governed by org label/annotation policy; enforcing there risks blocking things like leader-election
+Leases, not just chart manifests. Namespace is deliberately excluded too -- already covered by
+require-labels' own config.requiredNamespaceLabels, which is intentionally a separate config key
+(namespaces and workload manifests may need different required keys). Kept as one shared helper so
+the two policies can never drift apart on scope.
+*/}}
+{{- define "kyverno-cluster-policies.blanketResourceKinds" -}}
+[Deployment, StatefulSet, DaemonSet, ReplicaSet, Job, CronJob, Pod, Service, ConfigMap, Secret, Ingress, ServiceAccount, PersistentVolumeClaim, Role, RoleBinding, ClusterRole, ClusterRoleBinding, NetworkPolicy]
+{{- end -}}
+
+{{/*
 Static registry: policy id -> { autogen: bool, rules: [base rule name(s)] }, NOT including the
 "autogen-"/"autogen-cronjob-" copies Kyverno's autogen feature generates for Pod-controller kinds --
 those are only relevant when autogen: true (i.e. the policy's `match` is `kind: Pod`). Kept here as
@@ -124,6 +140,8 @@ CustomResourceDefinition/webhook-config/operator-CRD kinds that Kyverno never au
 */}}
 {{- define "kyverno-cluster-policies.policyRuleNames" -}}
 require-labels: {autogen: false, rules: [check-required-labels]}
+require-resource-labels: {autogen: false, rules: [check-required-resource-labels]}
+require-resource-annotations: {autogen: false, rules: [check-required-resource-annotations]}
 disallow-reserved-annotation-prefixes: {autogen: true, rules: [reserved-annotation-prefix]}
 disallow-latest-tag: {autogen: true, rules: [require-and-validate-image-tag]}
 restrict-image-registries: {autogen: true, rules: [validate-registries]}

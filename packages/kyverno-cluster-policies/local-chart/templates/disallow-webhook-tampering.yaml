@@ -3,8 +3,9 @@ Policy-engine self-protection: ValidatingWebhookConfiguration/MutatingWebhookCon
 should only be created/updated/deleted by an identity in config.gitopsIdentities -- an attacker
 able to tamper with these can shadow or race Kyverno's own admission webhook, or install a
 malicious one, bypassing every control here entirely without touching a single ClusterPolicy. Same
-skip-when-unconfigured and Audit-by-default reasoning as protect-kyverno-resources -- see that
-template's comment for the request.userInfo verification note. No kyverno/policies reference for
+skip-when-unconfigured (celPreconditions, no-op until config.gitopsIdentities is populated) and
+Enforce-by-default reasoning as protect-kyverno-resources -- see that template's comment for the
+request.userInfo verification note. No kyverno/policies reference for
 this specific identity-based shape; kyverno/policies' other/restrict-clusterrole-mutating-
 validating-admission-webhooks takes a complementary RBAC-level approach (restricting which
 ClusterRoles may grant write access to these kinds at all) worth adding alongside this one in a
@@ -44,7 +45,7 @@ spec:
         - name: has-gitops-identities
           expression: {{ printf "%s.size() > 0" (.Values.config.gitopsIdentities | default list | toJson) | quote }}
       validate:
-        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Audit" "root" $) }}
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
         cel:
           variables:
             - name: gitopsIdentities
