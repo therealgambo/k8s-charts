@@ -76,7 +76,7 @@ commonAnnotations: {}
 config:
   # require-labels: Namespace label keys that must be present.
   requiredNamespaceLabels:
-    - pager.example.com/handle
+    - pager.example.com/key
   # require-resource-labels: label keys that must be present on every resource of the kinds in
   # kyverno-cluster-policies.blanketResourceKinds (Deployment/StatefulSet/DaemonSet/Service/
   # ConfigMap/... -- see that helper's own comment for the full list and why it's not every kind).

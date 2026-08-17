@@ -1,0 +1,10 @@
+--- charts-original/templates/service.yaml
++++ charts/templates/service.yaml
+@@ -6,6 +6,7 @@
+   labels:
+     {{- include "kube-state-metrics.labels" . | indent 4 }}
+   annotations:
++    {{- include "kube-state-metrics.patchedAnnotations" . | indent 4 }}
+     {{- if .Values.prometheusScrape }}
+     prometheus.io/scrape: '{{ .Values.prometheusScrape }}'
+     {{- end }}

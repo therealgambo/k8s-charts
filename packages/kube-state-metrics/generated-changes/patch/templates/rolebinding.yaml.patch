@@ -1,0 +1,11 @@
+--- charts-original/templates/rolebinding.yaml
++++ charts/templates/rolebinding.yaml
+@@ -6,6 +6,8 @@
+ metadata:
+   labels:
+     {{- include "kube-state-metrics.labels" $ | indent 4 }}
++  annotations:
++    {{- include "kube-state-metrics.patchedAnnotations" $ | indent 4 }}
+   name: {{ template "kube-state-metrics.fullname" $ }}
+   namespace: {{ . }}
+ roleRef:

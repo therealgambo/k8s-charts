@@ -1,0 +1,11 @@
+--- charts-original/templates/verticalpodautoscaler.yaml
++++ charts/templates/verticalpodautoscaler.yaml
+@@ -6,6 +6,8 @@
+   namespace: {{ template "kube-state-metrics.namespace" . }}
+   labels:
+     {{- include "kube-state-metrics.labels" . | indent 4 }}
++  annotations:
++    {{- include "kube-state-metrics.patchedAnnotations" . | indent 4 }}
+ spec:
+   {{- with .Values.verticalPodAutoscaler.recommenders }}
+   recommenders:
