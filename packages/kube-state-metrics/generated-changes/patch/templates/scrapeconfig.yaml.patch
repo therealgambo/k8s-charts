@@ -1,0 +1,13 @@
+--- charts-original/templates/scrapeconfig.yaml
++++ charts/templates/scrapeconfig.yaml
+@@ -9,8 +9,9 @@
+   {{- with .Values.prometheus.scrapeconfig.additionalLabels }}
+     {{- tpl (toYaml . | nindent 4) $ }}
+   {{- end }}
+-  {{- with .Values.prometheus.scrapeconfig.annotations }}
+   annotations:
++    {{- include "kube-state-metrics.patchedAnnotations" . | indent 4 }}
++  {{- with .Values.prometheus.scrapeconfig.annotations }}
+     {{- tpl (toYaml . | nindent 4) $ }}
+   {{- end }}
+ spec:

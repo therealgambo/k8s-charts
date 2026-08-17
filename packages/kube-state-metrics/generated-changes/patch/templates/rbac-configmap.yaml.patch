@@ -1,0 +1,13 @@
+--- charts-original/templates/rbac-configmap.yaml
++++ charts/templates/rbac-configmap.yaml
+@@ -6,8 +6,9 @@
+   namespace: {{ template "kube-state-metrics.namespace" . }}
+   labels:
+     {{- include "kube-state-metrics.labels" . | indent 4 }}
+-  {{- if .Values.annotations }}
+   annotations:
++    {{- include "kube-state-metrics.patchedAnnotations" . | indent 4 }}
++  {{- if .Values.annotations }}
+     {{ toYaml .Values.annotations | nindent 4 }}
+   {{- end }}
+ data:

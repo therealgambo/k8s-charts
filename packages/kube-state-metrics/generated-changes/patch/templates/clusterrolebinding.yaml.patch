@@ -1,0 +1,11 @@
+--- charts-original/templates/clusterrolebinding.yaml
++++ charts/templates/clusterrolebinding.yaml
+@@ -4,6 +4,8 @@
+ metadata:
+   labels:
+     {{- include "kube-state-metrics.labels" . | indent 4 }}
++  annotations:
++    {{- include "kube-state-metrics.patchedAnnotations" . | indent 4 }}
+   name: {{ template "kube-state-metrics.fullname" . }}
+ roleRef:
+   apiGroup: rbac.authorization.k8s.io

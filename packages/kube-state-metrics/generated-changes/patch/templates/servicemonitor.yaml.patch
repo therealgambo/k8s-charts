@@ -1,0 +1,13 @@
+--- charts-original/templates/servicemonitor.yaml
++++ charts/templates/servicemonitor.yaml
+@@ -9,8 +9,9 @@
+   {{- with .Values.prometheus.monitor.additionalLabels }}
+     {{- tpl (toYaml . | nindent 4) $ }}
+   {{- end }}
+-  {{- with .Values.prometheus.monitor.annotations }}
+   annotations:
++    {{- include "kube-state-metrics.patchedAnnotations" . | indent 4 }}
++  {{- with .Values.prometheus.monitor.annotations }}
+     {{- tpl (toYaml . | nindent 4) $ }}
+   {{- end }}
+ spec:
