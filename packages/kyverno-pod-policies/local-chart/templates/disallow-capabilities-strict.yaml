@@ -34,14 +34,19 @@ spec:
         failureAction: {{ include "kyverno-pod-policies.failureAction" (dict "id" $id "tierDefault" "Audit" "root" $) }}
         cel:
           variables:
+            - name: initContainers
+              expression: object.spec.?initContainers.orValue([])
+            - name: ephemeralContainers
+              expression: object.spec.?ephemeralContainers.orValue([])
             - name: allContainers
               expression: >-
-                object.spec.containers + object.spec.?initContainers.orValue([]) +
-                object.spec.?ephemeralContainers.orValue([])
+                object.spec.containers +
+                (variables.initContainers == null ? [] : variables.initContainers) +
+                (variables.ephemeralContainers == null ? [] : variables.ephemeralContainers)
           expressions:
             - expression: >-
-                variables.allContainers.all(container,
-                  container.?securityContext.?capabilities.?drop.orValue([]).exists(cap, cap == 'ALL'))
+                variables.allContainers.map(container, container.?securityContext.?capabilities.?drop.orValue([]))
+                  .all(drop, (drop == null ? [] : drop).exists(cap, cap == 'ALL'))
               message: "Every container must drop the ALL capability."
     - name: adding-capabilities-strict
       match:
@@ -53,14 +58,19 @@ spec:
         failureAction: {{ include "kyverno-pod-policies.failureAction" (dict "id" $id "tierDefault" "Audit" "root" $) }}
         cel:
           variables:
+            - name: initContainers
+              expression: object.spec.?initContainers.orValue([])
+            - name: ephemeralContainers
+              expression: object.spec.?ephemeralContainers.orValue([])
             - name: allContainers
               expression: >-
-                object.spec.containers + object.spec.?initContainers.orValue([]) +
-                object.spec.?ephemeralContainers.orValue([])
+                object.spec.containers +
+                (variables.initContainers == null ? [] : variables.initContainers) +
+                (variables.ephemeralContainers == null ? [] : variables.ephemeralContainers)
           expressions:
             - expression: >-
-                variables.allContainers.all(container,
-                  container.?securityContext.?capabilities.?add.orValue([]).all(capability,
+                variables.allContainers.map(container, container.?securityContext.?capabilities.?add.orValue([]))
+                  .all(add, (add == null ? [] : add).all(capability,
                     capability == 'NET_BIND_SERVICE'))
               message: "Only the NET_BIND_SERVICE capability may be added."
 {{- end }}

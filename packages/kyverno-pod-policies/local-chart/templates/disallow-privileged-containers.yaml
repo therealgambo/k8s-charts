@@ -32,10 +32,15 @@ spec:
         failureAction: {{ include "kyverno-pod-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
         cel:
           variables:
+            - name: initContainers
+              expression: object.spec.?initContainers.orValue([])
+            - name: ephemeralContainers
+              expression: object.spec.?ephemeralContainers.orValue([])
             - name: allContainers
               expression: >-
-                object.spec.containers + object.spec.?initContainers.orValue([]) +
-                object.spec.?ephemeralContainers.orValue([])
+                object.spec.containers +
+                (variables.initContainers == null ? [] : variables.initContainers) +
+                (variables.ephemeralContainers == null ? [] : variables.ephemeralContainers)
           expressions:
             - expression: >-
                 variables.allContainers.all(container,
