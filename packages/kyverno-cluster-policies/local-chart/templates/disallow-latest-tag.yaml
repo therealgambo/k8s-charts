@@ -1,0 +1,44 @@
+{{/*
+Supply chain: every container image must specify a tag, and it must not be `:latest` -- a mutable
+tag makes deployments non-reproducible and can change unexpectedly. Verbatim logic from
+kyverno/policies best-practices-cel/disallow-latest-tag (containers is a required Pod spec field,
+no null-handling concern).
+https://github.com/kyverno/policies/blob/main/best-practices-cel/disallow-latest-tag/disallow-latest-tag.yaml
+*/}}
+{{- $id := "disallow-latest-tag" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-cluster-policies.policyEnabled" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-cluster-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Disallow Latest Tag
+    policies.kyverno.io/category: Supply Chain
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      The ':latest' tag is mutable and can lead to unexpected errors if the image changes. This
+      policy validates that every container image specifies a tag, and that it is not `latest`.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: require-and-validate-image-tag
+      match:
+        any:
+          - resources: { kinds: [Pod], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
+        cel:
+          expressions:
+            - expression: "object.spec.containers.all(container, container.image.contains(':'))"
+              message: "An image tag is required."
+            - expression: "object.spec.containers.all(container, !container.image.endsWith(':latest'))"
+              message: "Using a mutable image tag e.g. 'latest' is not allowed."
+{{- end }}
+{{- end }}

@@ -1,0 +1,616 @@
+# Pass/fail fixtures for kyverno-test.yaml, one pair per rule (see that file's header for why the
+# 3 identity-gated rules only get a "fail" fixture). Namespaced fixtures deliberately live in the
+# `workloads` namespace, never `default`/kube-node-lease/kube-public -- see kyverno-pod-policies'
+# own kyverno-test/resources.yaml comment for why (every policy's exclude block would otherwise
+# silently swallow them). Config-dependent rules (registries/nameservers/labels/RBAC allow-lists/
+# gitops identities) are exercised against the values ci.values.yaml sets -- see that file.
+
+###### require-labels / check-required-labels
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: labels-pass
+  labels:
+    team: platform
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: labels-fail
+  labels: {}
+---
+# Regression fixture: an explicit `labels: null` (present-but-null, not absent/omitted) must not
+# crash the dynamic-key optional lookup -- same class of CEL null-vs-absent gotcha as the
+# list-typed fields elsewhere, checked here for a map-typed field instead.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: labels-null-fail
+  labels: null
+
+###### require-resource-labels / check-required-resource-labels
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: resource-labels-pass
+  namespace: workloads
+  labels:
+    team: platform
+data: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: resource-labels-fail
+  namespace: workloads
+  labels: {}
+data: {}
+---
+# Regression fixture: an explicit `labels: null` (present-but-null, not absent/omitted) must not
+# crash the dynamic-key optional lookup -- same class of CEL null-vs-absent gotcha as require-labels'
+# own regression fixture, checked here for a non-Namespace kind out of the blanket kind list.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: resource-labels-null-fail
+  namespace: workloads
+  labels: null
+data: {}
+
+###### require-resource-annotations / check-required-resource-annotations
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: resource-annotations-pass
+  namespace: workloads
+  annotations:
+    example.com/owner: platform-team
+type: Opaque
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: resource-annotations-fail
+  namespace: workloads
+  annotations: {}
+type: Opaque
+---
+# Regression fixture: an explicit `annotations: null` must not crash the dynamic-key optional
+# lookup -- same class of CEL gotcha, checked here for the annotations map instead of labels.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: resource-annotations-null-fail
+  namespace: workloads
+  annotations: null
+type: Opaque
+
+###### disallow-reserved-annotation-prefixes / reserved-annotation-prefix
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: reserved-annotation-pass
+  namespace: workloads
+  annotations:
+    corp.org/team: platform
+spec:
+  containers:
+    - name: app
+      image: dummyimagename:v1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: reserved-annotation-fail
+  namespace: workloads
+  annotations:
+    kyverno.io/spoofed: "true"
+spec:
+  containers:
+    - name: app
+      image: dummyimagename:v1
+
+###### disallow-latest-tag / require-and-validate-image-tag
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: latest-tag-pass
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename:v1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: latest-tag-fail
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename:latest
+
+###### restrict-image-registries / validate-registries
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: registries-pass
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: ghcr.io/therealgambo/app:v1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: registries-fail
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: docker.io/library/nginx:v1
+---
+# Regression fixture: an explicit `initContainers: null` (present-but-null, not absent) must not
+# crash the rule's null-coalesce -- see the documented CEL null-vs-absent gotcha in the README.
+# This Pod's only real container is allowed, so it must still PASS despite the explicit null.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: registries-null-initcontainers-pass
+  namespace: workloads
+spec:
+  initContainers: null
+  containers:
+    - name: app
+      image: ghcr.io/therealgambo/app:v1
+
+###### restrict-dns-policy / restrict-dns-policy
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dns-policy-pass
+  namespace: workloads
+spec:
+  dnsPolicy: ClusterFirst
+  containers:
+    - name: app
+      image: dummyimagename:v1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dns-policy-fail
+  namespace: workloads
+spec:
+  dnsPolicy: Default
+  containers:
+    - name: app
+      image: dummyimagename:v1
+
+###### disallow-custom-dns-config / disallow-custom-nameservers
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dns-config-pass
+  namespace: workloads
+spec:
+  dnsConfig:
+    nameservers: ["169.254.25.10"]
+  containers:
+    - name: app
+      image: dummyimagename:v1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dns-config-fail
+  namespace: workloads
+spec:
+  dnsConfig:
+    nameservers: ["8.8.8.8"]
+  containers:
+    - name: app
+      image: dummyimagename:v1
+
+###### disallow-host-aliases / disallow-host-aliases
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-aliases-pass
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename:v1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-aliases-fail
+  namespace: workloads
+spec:
+  hostAliases:
+    - ip: "10.0.0.1"
+      hostnames: ["internal.example.com"]
+  containers:
+    - name: app
+      image: dummyimagename:v1
+
+###### require-emptydir-sizelimit / require-emptydir-sizelimit
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: emptydir-sizelimit-pass
+  namespace: workloads
+spec:
+  volumes:
+    - name: scratch
+      emptyDir:
+        sizeLimit: 100Mi
+  containers:
+    - name: app
+      image: dummyimagename:v1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: emptydir-sizelimit-fail
+  namespace: workloads
+spec:
+  volumes:
+    - name: scratch
+      emptyDir: {}
+  containers:
+    - name: app
+      image: dummyimagename:v1
+---
+# Regression fixture: a Pod with no emptyDir volume at all must not be flagged (celPreconditions
+# skip it), and an explicit `volumes: null` must not crash that precondition -- same documented
+# CEL gotcha as above, applied to the precondition expression itself this time.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: emptydir-sizelimit-no-volumes-skip
+  namespace: workloads
+spec:
+  volumes: null
+  containers:
+    - name: app
+      image: dummyimagename:v1
+
+###### restrict-priorityclass / restrict-priorityclass
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: priorityclass-pass
+  namespace: workloads
+spec:
+  priorityClassName: normal-priority
+  containers:
+    - name: app
+      image: dummyimagename:v1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: priorityclass-fail
+  namespace: workloads
+spec:
+  priorityClassName: system-cluster-critical
+  containers:
+    - name: app
+      image: dummyimagename:v1
+
+###### require-resource-requests-limits / validate-resources
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: requests-limits-pass
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename:v1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          memory: 256Mi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: requests-limits-fail
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename:v1
+
+###### disallow-rbac-escalation-verbs / escalate
+#
+# metadata.namespace below is a kyverno-test-CLI-only workaround, not a real field a live
+# ClusterRole/ClusterRoleBinding/etc. would ever carry: this offline test harness appears to key
+# its own exclude-namespace matching off whatever `metadata.namespace` a fixture carries even for
+# cluster-scoped kinds, and defaults an UNSET one to "default" -- which collides with this chart's
+# `excludeNamespaces` (Release.Namespace defaults to "default" too, see values.yaml). A real
+# AdmissionReview for a cluster-scoped object has no namespace at all, so a real cluster never hits
+# this; setting `workloads` here only works around the CLI's own offline behavior.
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: escalation-verbs-pass
+  namespace: workloads
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: escalation-verbs-fail
+  namespace: workloads
+rules:
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterroles"]
+    verbs: ["escalate"]
+
+###### disallow-wildcard-rbac / wildcard-verbs, wildcard-resources, wildcard-apigroups
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: wildcard-rbac-pass
+  namespace: workloads
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: wildcard-verbs-fail
+  namespace: workloads
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: wildcard-resources-fail
+  namespace: workloads
+rules:
+  - apiGroups: [""]
+    resources: ["*"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: wildcard-apigroups-fail
+  namespace: workloads
+rules:
+  - apiGroups: ["*"]
+    resources: ["pods"]
+    verbs: ["get"]
+
+###### disallow-clusteradmin-binding / clusteradmin-default-sa-binding
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: clusteradmin-binding-pass
+  namespace: workloads
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: workloads
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: clusteradmin-binding-fail
+  namespace: workloads
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: workloads
+
+###### require-explicit-automount / require-explicit-automount
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: automount-pass
+  namespace: workloads
+spec:
+  automountServiceAccountToken: false
+  containers:
+    - name: app
+      image: dummyimagename:v1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: automount-fail
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename:v1
+
+###### protect-kyverno-resources / restrict-changes -- fail only, see kyverno-test.yaml header
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: protect-kyverno-resources-fail
+  namespace: workloads
+spec:
+  rules:
+    - name: dummy
+      match:
+        any:
+          - resources: { kinds: [Pod] }
+      validate:
+        cel:
+          expressions:
+            - expression: "true"
+              message: "dummy"
+
+###### disallow-webhook-tampering / restrict-changes -- fail only, see kyverno-test.yaml header
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: webhook-tampering-fail
+  namespace: workloads
+webhooks: []
+
+###### restrict-rbacdefinition-clusterrole / restrict-clusterrole (Category F, opt-in)
+---
+apiVersion: rbacmanager.reactiveops.io/v1beta1
+kind: RBACDefinition
+metadata:
+  name: rbacdefinition-pass
+  namespace: workloads
+rbacBindings:
+  - name: viewers
+    subjects:
+      - kind: Group
+        name: platform-team
+    clusterRoleBindings:
+      - clusterRole: view
+---
+apiVersion: rbacmanager.reactiveops.io/v1beta1
+kind: RBACDefinition
+metadata:
+  name: rbacdefinition-fail
+  namespace: workloads
+rbacBindings:
+  - name: admins
+    subjects:
+      - kind: Group
+        name: everyone
+    clusterRoleBindings:
+      - clusterRole: cluster-admin
+
+###### restrict-argocd-application-project / require-scoped-project (Category F, opt-in)
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: application-pass
+  namespace: argo-cd
+spec:
+  project: platform-team
+  source:
+    repoURL: https://github.com/therealgambo/k8s-charts
+    path: packages/example
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: example
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: application-fail
+  namespace: argo-cd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/therealgambo/k8s-charts
+    path: packages/example
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: example
+
+###### restrict-kargo-promotion-scope / restrict-promotion-target (Category F, opt-in)
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Promotion
+metadata:
+  name: promotion-pass
+  namespace: workloads
+spec:
+  stage: staging
+  freight: some-freight-id
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Promotion
+metadata:
+  name: promotion-fail
+  namespace: workloads
+spec:
+  stage: production
+  freight: some-freight-id
+
+###### restrict-karpenter-nodeclass-profile / restrict-instance-profile (Category F, opt-in)
+---
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: nodeclass-pass
+  namespace: workloads
+spec:
+  role: approved-node-profile
+  amiFamily: AL2023
+---
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: nodeclass-fail
+  namespace: workloads
+spec:
+  role: shadow-admin-profile
+  amiFamily: AL2023
+
+###### restrict-crd-creation / restrict-creation -- fail only, see kyverno-test.yaml header
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: widgets.example.com-fail
+  namespace: workloads
+spec:
+  group: example.com
+  scope: Namespaced
+  names:
+    plural: widgets
+    singular: widget
+    kind: Widget
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object

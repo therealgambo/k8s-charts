@@ -1,0 +1,55 @@
+{{/*
+Organizational governance: every Namespace must carry the label keys in config.requiredNamespaceLabels
+(e.g. team ownership, cost-center -- feeds kube-state-metrics/grafana chargeback dashboards).
+Empty config.requiredNamespaceLabels (the default) makes this a vacuous no-op -- `.all()` over an
+empty list is always true -- rather than a false positive flood; populate it per org before
+expecting this to report anything. Adapted from kyverno/policies best-practices-cel/require-labels
+(Pod-scoped there; templated to a configurable key list and Namespace scope here), keeping its
+exact `object.metadata.?labels[?key].orValue('')` chaining -- `key` there is a literal; a first
+draft here tried `.?[k]` (dot-question immediately before the bracket) for a dynamic key, which is
+not a valid CEL optional-chaining form and silently evaluated as a mismatch on every namespace
+(caught by kyverno-test, not by inspection) -- `.?labels[?k]` (bracket-optional-index as its own
+step, after the dot-optional field select) is the correct, working form for a dynamic key.
+https://github.com/kyverno/policies/blob/main/best-practices-cel/require-labels/require-labels.yaml
+*/}}
+{{- $id := "require-labels" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-cluster-policies.policyEnabled" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-cluster-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Require Namespace Labels
+    policies.kyverno.io/category: Organizational Governance
+    policies.kyverno.io/subject: Namespace
+    policies.kyverno.io/description: >-
+      Namespaces must carry every label key configured in config.requiredNamespaceLabels (e.g.
+      team ownership, cost-center) so ownership/chargeback tooling can rely on it being present.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: check-required-labels
+      match:
+        any:
+          - resources: { kinds: [Namespace], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
+        cel:
+          variables:
+            - name: requiredLabels
+              expression: {{ .Values.config.requiredNamespaceLabels | default list | toJson | quote }}
+          expressions:
+            - expression: >-
+                variables.requiredLabels.all(k, object.metadata.?labels[?k].orValue('') != '')
+              message: >-
+                This Namespace is missing one or more required labels. See
+                config.requiredNamespaceLabels for the full list.
+{{- end }}
+{{- end }}

@@ -1,0 +1,50 @@
+{{/*
+CRD confused-deputy prevention (Category F, opt-in/disabled by default): a kargo Promotion's
+`spec.stage` names the Stage (in the same namespace as the Promotion) it promotes Freight into --
+in a multi-environment project, that's exactly the boundary that should stop a lower-trust stage's
+automation from promoting straight into e.g. a "prod" stage. Field path confirmed against
+akuity/kargo's real Go types (api/v1alpha1/promotion_types.go: `Stage string
+json:"stage"`, required, same-namespace by API contract). Requires
+https://github.com/therealgambo/k8s-charts/tree/main/packages/kargo installed -- rendered but
+inert (kind never matches) otherwise, and disabled by default regardless.
+https://github.com/akuity/kargo/blob/main/api/v1alpha1/promotion_types.go
+*/}}
+{{- $id := "restrict-kargo-promotion-scope" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-cluster-policies.policyEnabledOptIn" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-cluster-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Restrict Kargo Promotion Scope
+    policies.kyverno.io/category: CRD Confused Deputy (opt-in)
+    policies.kyverno.io/subject: Promotion
+    policies.kyverno.io/description: >-
+      Opt-in. Validates a kargo Promotion's spec.stage against config.kargoAllowedTargets --
+      stops automation scoped to a lower-trust stage from promoting Freight straight into a
+      higher-trust one (e.g. prod) it shouldn't be able to reach directly.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: restrict-promotion-target
+      match:
+        any:
+          - resources: { kinds: [kargo.akuity.io/v1alpha1/Promotion], operations: [CREATE] }
+      exclude:
+        {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
+        cel:
+          variables:
+            - name: allowedTargets
+              expression: {{ .Values.config.kargoAllowedTargets | default list | toJson | quote }}
+          expressions:
+            - expression: "object.spec.stage in variables.allowedTargets"
+              message: "spec.stage must be in config.kargoAllowedTargets."
+{{- end }}
+{{- end }}

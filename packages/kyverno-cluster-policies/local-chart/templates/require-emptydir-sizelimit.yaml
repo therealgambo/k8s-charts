@@ -1,0 +1,55 @@
+{{/*
+Resource/DoS protection: every emptyDir volume must set sizeLimit -- an unbounded emptyDir can
+fill node ephemeral-storage, or (medium: Memory) OOM the node directly, bypassing container memory
+cgroup limits entirely. celPreconditions skips Pods with no emptyDir volume at all, mirroring
+kyverno/policies other-cel/require-emptydir-requests-limits' "has-emptydir-volume" precondition --
+but with the extra null-coalesce that reference policy lacks, guarding the documented CEL
+null-vs-absent gotcha (see README) for an explicit `volumes: null` in a real rendered chart.
+https://github.com/kyverno/policies/blob/main/other-cel/require-emptydir-requests-limits/require-emptydir-requests-limits.yaml
+*/}}
+{{- $id := "require-emptydir-sizelimit" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-cluster-policies.policyEnabled" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-cluster-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Require emptyDir sizeLimit
+    policies.kyverno.io/category: Resource and DoS Protection
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Every emptyDir volume must set sizeLimit -- an unbounded emptyDir can fill node
+      ephemeral-storage, or (medium: Memory) OOM the node directly, bypassing container memory
+      cgroup limits entirely.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: require-emptydir-sizelimit
+      match:
+        any:
+          - resources: { kinds: [Pod], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      celPreconditions:
+        - name: has-emptydir-volume
+          expression: >-
+            (object.spec.?volumes.orValue([]) == null ? [] : object.spec.?volumes.orValue([]))
+              .exists(volume, has(volume.emptyDir))
+      validate:
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
+        cel:
+          variables:
+            - name: volumes
+              expression: "object.spec.?volumes.orValue([])"
+          expressions:
+            - expression: >-
+                (variables.volumes == null ? [] : variables.volumes).all(volume,
+                  !has(volume.emptyDir) || volume.emptyDir.?sizeLimit.hasValue())
+              message: "Every emptyDir volume must set sizeLimit."
+{{- end }}
+{{- end }}

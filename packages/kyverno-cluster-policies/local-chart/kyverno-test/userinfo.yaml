@@ -1,0 +1,13 @@
+# Injected as the simulated admission request's requester for the whole kyverno-test.yaml run
+# (Kyverno CLI's `userinfo:` is a single, whole-Test-run setting -- there is no per-resource
+# override). Deliberately NOT in ci.values.yaml's config.gitopsIdentities, so every fixture for the
+# 3 identity-gated rules (protect-kyverno-resources, disallow-webhook-tampering,
+# restrict-crd-creation) is evaluated as an unauthorized identity -- see kyverno-test.yaml's header
+# comment for what this does and doesn't prove.
+apiVersion: cli.kyverno.io/v1alpha1
+kind: UserInfo
+metadata:
+  name: kyverno-cluster-policies-test-identity
+userInfo:
+  username: system:serviceaccount:default:attacker
+  groups: ["system:serviceaccounts", "system:serviceaccounts:default"]

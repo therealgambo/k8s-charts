@@ -1,0 +1,36 @@
+# Values layer picked up automatically by `make template`/`make kyverno-test` (see the root
+# Makefile's `template` target: values.yaml -> base.values.yaml -> ci.values.yaml ->
+# $(ENV).values.yaml, each optional). Populates every config/ allow-list and opts every Category F
+# (disabled-by-default) policy in so kyverno-test's fixtures can actually exercise their CEL logic
+# -- the chart's real shipped defaults (empty config lists, Category F off) are still what
+# `values.yaml` alone renders, and what scripts/kyverno-policy-check.sh's fleet-wide gate uses
+# (it renders this chart directly via `helm template`, not `make template`, so it never picks this
+# file up -- see that script's own comments). ONLY affects `make template`/`make kyverno-test` for
+# this package.
+config:
+  requiredNamespaceLabels: [team]
+  requiredResourceLabels: [team]
+  requiredResourceAnnotations: [example.com/owner]
+  allowedRegistries: [ghcr.io/therealgambo/]
+  allowedNameservers: [169.254.25.10]
+  rbacDefinitionAllowedClusterRoles: [view]
+  kargoAllowedTargets: [staging]
+  karpenterAllowedInstanceProfiles: [approved-node-profile]
+  # Deliberately a DIFFERENT identity than kyverno-test/userinfo.yaml's username -- every
+  # identity-gated fixture (protect-kyverno-resources, disallow-webhook-tampering,
+  # restrict-crd-creation) is evaluated as that non-matching identity, so this proves the "wrong
+  # identity is blocked" direction. See kyverno-test/kyverno-test.yaml's header comment for why the
+  # "right identity is allowed" direction isn't separately fixture-tested here.
+  gitopsIdentities: [system:serviceaccount:argo-cd:argocd-application-controller]
+
+policies:
+  restrict-rbacdefinition-clusterrole:
+    enabled: true
+  restrict-argocd-application-project:
+    enabled: true
+  restrict-kargo-promotion-scope:
+    enabled: true
+  restrict-karpenter-nodeclass-profile:
+    enabled: true
+  restrict-crd-creation:
+    enabled: true

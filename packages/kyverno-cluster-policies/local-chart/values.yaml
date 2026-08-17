@@ -1,0 +1,181 @@
+# kyverno-cluster-policies
+#
+# Renders classic kyverno.io/v1 ClusterPolicy resources, one CEL-based `validate.cel` rule (or a
+# couple of closely-related rules) per organizational-governance / cluster-security control that
+# sits OUTSIDE the Kubernetes Pod Security Standards -- see the companion `kyverno-pod-policies`
+# chart for pod securityContext controls, which this chart deliberately does not duplicate. This is
+# a SINGLETON chart -- install it once, cluster-wide, do NOT add it as a dependency of another
+# chart (contrast packages/network-policies, which every workload chart depends on individually).
+#
+# Every policy targeting `kind: Pod` relies on Kyverno's autogen feature (on by default, do not
+# hand-write per-controller rules) to also cover Deployment/StatefulSet/DaemonSet/ReplicaSet/Job/
+# CronJob pod templates -- same as kyverno-pod-policies. Several policies here target other kinds
+# entirely (Namespace, Role/ClusterRole/RoleBinding/ClusterRoleBinding, CustomResourceDefinition,
+# ValidatingWebhookConfiguration/MutatingWebhookConfiguration, and a handful of this fleet's own
+# operator CRDs) -- autogen does not apply to those, they're matched directly.
+#
+# Controls are tiered, but NOT with kyverno-pod-policies' baseline/restricted vocabulary -- that's
+# specifically a Pod Security Standards term this chart's broader scope doesn't map onto. Instead:
+#   - Enforce (default) -- every policy in this chart, EXCEPT the Category F (opt-in) ids below,
+#                           blocks on admission by default. Config-dependent policies (an empty
+#                           config/ list below) stay a safe no-op via celPreconditions until their
+#                           list is populated -- see "Config-dependent policies" in the README. A
+#                           few non-config-dependent ids (disallow-wildcard-rbac,
+#                           require-explicit-automount) WILL surface real fleet violations
+#                           immediately -- see each template's own comment. Soften any individual
+#                           id back to visibility-only with policies.<id>.validationFailureAction:
+#                           Audit, or every id at once with the global validationFailureAction
+#                           override below.
+#   - Disabled (default) -- opt-in only. Targets an optional cluster component (rbac-manager,
+#                           argo-cd, kargo, karpenter) that may not even be installed -- these
+#                           policies render nothing at all unless explicitly
+#                           `policies.<id>.enabled: true`, unlike every other policy here where
+#                           "not set" means "on". See README "Opt-in (Disabled) policies".
+#
+# Every policy's action is overridable per-policy via `policies.<id>.validationFailureAction`, and
+# there's a single global `validationFailureAction` knob that -- when set -- forces EVERY policy to
+# that action regardless of tier or per-policy setting.
+#
+# See README.md for the full policy list, field reference and worked examples.
+
+# -- Master switch. false renders nothing at all, including PolicyExceptions.
+enabled: true
+
+# -- GLOBAL override: forces every policy's validationFailureAction to this value regardless of
+# tier default or any policies.<id>.validationFailureAction. "" (default) applies no override.
+validationFailureAction: ""
+
+# -- spec.background on every ClusterPolicy: continuous re-scan of existing resources into
+# PolicyReport. No per-policy override -- a control worth enforcing on admission is worth
+# reporting on existing resources too.
+background: true
+
+# -- Namespaces excluded from EVERY policy's exclude.any[].resources.namespaces, on top of
+# policies.<id>.exclude.namespaces (below) and this release's own namespace (always excluded, not
+# listed here). Deliberately SHORT, same reasoning as kyverno-pod-policies -- see that chart's
+# README "Scoping exclusions: selector, not whole-namespace" for why kube-system/kyverno aren't
+# blanket-excluded here either; use a selector-scoped `exceptions` entry for those instead. Has no
+# effect on cluster-scoped kinds (ClusterRole, ClusterRoleBinding, CustomResourceDefinition,
+# webhook configs, this fleet's cluster-scoped operator CRDs) -- there's no namespace to filter on.
+excludeNamespaces:
+  - kube-node-lease
+  - kube-public
+
+commonLabels: {}
+commonAnnotations: {}
+
+# =============================================================================================
+# Org-specific parameter lists several policies below validate against. Every list defaults to
+# EMPTY -- nothing baked in here, same "no default allow-list" philosophy as excludeNamespaces
+# above. An empty list generally means the associated policy has nothing to allow yet (effectively
+# a no-op, or "block everything" for a disallow-shaped check with no exemptions) -- see each
+# policy's own template comment and the README's per-policy table for exactly what an empty list
+# means for that specific rule. Populate per-cluster before promoting a policy that depends on one
+# from Audit to Enforce.
+# =============================================================================================
+config:
+  # require-labels: Namespace label keys that must be present.
+  requiredNamespaceLabels:
+    - pager.example.com/handle
+  # require-resource-labels: label keys that must be present on every resource of the kinds in
+  # kyverno-cluster-policies.blanketResourceKinds (Deployment/StatefulSet/DaemonSet/Service/
+  # ConfigMap/... -- see that helper's own comment for the full list and why it's not every kind).
+  # A separate key from requiredNamespaceLabels above -- namespaces and workload manifests may need
+  # different required keys.
+  requiredResourceLabels:
+    - app.kubernetes.io/name
+    - app.kubernetes.io/managed-by
+    - metadata.example.com/team
+  # require-resource-annotations: annotation keys that must be present on the same kind list as
+  # requiredResourceLabels above.
+  requiredResourceAnnotations:
+    - metadata.example.com/repository
+  # restrict-image-registries: image reference prefixes allowed (e.g. "ghcr.io/therealgambo/").
+  allowedRegistries: []
+  # disallow-custom-dns-config: dnsConfig.nameservers values allowed.
+  allowedNameservers:
+    - 169.254.20.10
+  # restrict-rbacdefinition-clusterrole (Category F, opt-in): rbac-manager RBACDefinition
+  # clusterRole values allowed.
+  rbacDefinitionAllowedClusterRoles: []
+  # restrict-kargo-promotion-scope (Category F, opt-in): kargo Promotion targets allowed.
+  kargoAllowedTargets: []
+  # restrict-karpenter-nodeclass-profile (Category F, opt-in): karpenter EC2NodeClass
+  # instanceProfile/role values allowed.
+  karpenterAllowedInstanceProfiles: []
+  # restrict-crd-creation (Category F, opt-in) / protect-kyverno-resources / disallow-webhook-
+  # tampering (Category G): request.userInfo.username values allowed to perform the guarded action
+  # (typically your GitOps controller's identity, e.g. the argo-cd application-controller SA).
+  gitopsIdentities: []
+
+# =============================================================================================
+# One key per policy id, matching both its templates/<id>.yaml file name and its ClusterPolicy's
+# metadata.name -- see README.md for the full table of ids, what each one blocks, and its default
+# tier/action.
+#
+#   policies:
+#     <id>:
+#       enabled: true                     # optional. For every policy EXCEPT the Category F
+#                                          # (opt-in) ids below, default true -- set false to turn
+#                                          # one off. For Category F ids, default FALSE -- set
+#                                          # true to opt in.
+#       validationFailureAction: ""       # optional per-policy override, "" = use this policy's
+#                                          # tier default (Enforce/Audit) unless the global
+#                                          # override above is set. No effect on Category F ids,
+#                                          # which have no tier (Enforce once opted in).
+#       exclude:
+#         namespaces: []                  # ADDED to the chart-wide excludeNamespaces above. No
+#                                          # effect on cluster-scoped kinds.
+#         kinds: []                       # rare: exclude one specific autogen'd controller kind
+#                                          # (e.g. CronJob) from just this policy
+#
+# Enforce ids (default Enforce -- every id in this chart except the Disabled/opt-in ones below):
+# require-labels, require-resource-labels, require-resource-annotations,
+# disallow-reserved-annotation-prefixes, disallow-latest-tag, restrict-image-registries,
+# restrict-dns-policy, disallow-custom-dns-config, disallow-host-aliases,
+# require-emptydir-sizelimit, restrict-priorityclass, require-resource-requests-limits,
+# disallow-rbac-escalation-verbs, disallow-wildcard-rbac, disallow-clusteradmin-binding,
+# require-explicit-automount, protect-kyverno-resources, disallow-webhook-tampering
+#
+# Disabled/opt-in ids (default off, policies.<id>.enabled: true to opt in): restrict-crd-creation,
+# restrict-rbacdefinition-clusterrole, restrict-argocd-application-project,
+# restrict-kargo-promotion-scope, restrict-karpenter-nodeclass-profile
+# =============================================================================================
+
+policies: {}
+# policies:
+#   restrict-image-registries:
+#     validationFailureAction: Enforce   # promote once config.allowedRegistries is populated
+#   restrict-rbacdefinition-clusterrole:
+#     enabled: true                      # opt in -- this cluster runs rbac-manager
+
+# =============================================================================================
+# One key per exception, short/unique/DNS-label-safe -- renders one kyverno.io/v2 PolicyException
+# named after the key, in this release's namespace. Requires
+# features.policyExceptions.enabled: true on the companion packages/kyverno chart, with .namespace
+# pointed at wherever THIS chart is released -- see README. NOTE: as of writing, that companion
+# feature is not yet enabled at all (blocked on an unrelated tooling issue, tracked against the
+# kyverno-pod-policies chart) -- exceptions here are inert until that lands.
+#
+#   exceptions:
+#     <name>:
+#       enabled: true
+#       policies: []          # required -- policy ids (from `policies` above) this exempts.
+#                              # Rule names (incl. autogen-/autogen-cronjob- variants, only for
+#                              # ids that target Pod-controller kinds) are resolved automatically --
+#                              # see README, don't hand-write Kyverno rule names.
+#       match:
+#         kinds: []            # default [Pod, Deployment, StatefulSet, DaemonSet, Job, CronJob,
+#                               # ReplicaSet] -- override for a non-Pod-kind policy id, e.g.
+#                               # [ClusterRole] for disallow-rbac-escalation-verbs.
+#         namespaces: []
+#         names: []            # wildcards ('*', '?') allowed, per Kyverno
+#         selector:             # matchLabels/matchExpressions -- PREFER this over a namespace-wide
+#           matchLabels: {}     # excludeNamespaces entry, see kyverno-pod-policies README
+#           matchExpressions: [] # "Scoping exclusions: selector, not whole-namespace".
+#       conditions: {}         # optional passthrough -> spec.conditions (JMESPath any/all)
+#       labels: {}
+#       annotations: {}
+# =============================================================================================
+
+exceptions: {}

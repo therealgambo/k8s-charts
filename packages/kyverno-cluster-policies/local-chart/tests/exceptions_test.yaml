@@ -1,0 +1,122 @@
+suite: exceptions
+release:
+  namespace: kyverno-cluster-policies
+templates:
+  - exceptions.yaml
+tests:
+  - it: renders one PolicyException with autogen rule names expanded (autogen id) and selector passed through
+    set:
+      exceptions:
+        allow-latest-in-ci:
+          policies: [disallow-latest-tag]
+          match:
+            namespaces: [ci]
+            selector:
+              matchLabels:
+                app.kubernetes.io/name: smoke-test
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PolicyException
+      - isAPIVersion:
+          of: kyverno.io/v2
+      - equal:
+          path: metadata.name
+          value: allow-latest-in-ci
+      - equal:
+          path: metadata.namespace
+          value: kyverno-cluster-policies
+      - equal:
+          path: spec.exceptions[0]
+          value:
+            policyName: disallow-latest-tag
+            ruleNames: [require-and-validate-image-tag, autogen-require-and-validate-image-tag, autogen-cronjob-require-and-validate-image-tag]
+      - equal:
+          path: spec.match.any[0].resources.namespaces
+          value: [ci]
+      - equal:
+          path: spec.match.any[0].resources.selector
+          value:
+            matchLabels:
+              app.kubernetes.io/name: smoke-test
+
+  - it: a non-autogen policy id (Role/ClusterRole kind) does NOT get autogen-/autogen-cronjob- rule name siblings
+    set:
+      exceptions:
+        rbac-carveout:
+          policies: [disallow-rbac-escalation-verbs]
+          match:
+            kinds: [ClusterRole]
+            names: ["some-operator-role"]
+    asserts:
+      - equal:
+          path: spec.exceptions[0]
+          value:
+            policyName: disallow-rbac-escalation-verbs
+            ruleNames: [escalate]
+      - equal:
+          path: spec.match.any[0].resources.kinds
+          value: [ClusterRole]
+      - equal:
+          path: spec.match.any[0].resources.names
+          value: ["some-operator-role"]
+
+  - it: multiple policies expand into multiple spec.exceptions entries
+    set:
+      exceptions:
+        multi:
+          policies: [disallow-latest-tag, restrict-image-registries]
+          match:
+            namespaces: [kube-system]
+    asserts:
+      - lengthEqual:
+          path: spec.exceptions
+          count: 2
+
+  - it: a policy with multiple rule names (disallow-wildcard-rbac) expands all of them, none autogen'd
+    set:
+      exceptions:
+        wildcard-carveout:
+          policies: [disallow-wildcard-rbac]
+          match:
+            kinds: [ClusterRole]
+    asserts:
+      - equal:
+          path: spec.exceptions[0].ruleNames
+          value: [wildcard-verbs, wildcard-resources, wildcard-apigroups]
+
+  - it: defaults match.kinds to the full controller kind list when match.kinds is unset
+    set:
+      exceptions:
+        defaults:
+          policies: [disallow-latest-tag]
+    asserts:
+      - equal:
+          path: spec.match.any[0].resources.kinds
+          value: [Pod, Deployment, StatefulSet, DaemonSet, Job, CronJob, ReplicaSet]
+
+  - it: enabled=false on one exception renders nothing
+    set:
+      exceptions:
+        disabled-one:
+          enabled: false
+          policies: [disallow-latest-tag]
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # `policies` being required and non-empty is enforced declaratively by values.schema.json
+  # (`exceptions.<name>.policies` has `minItems: 1` and is `required`) -- Helm rejects a values set
+  # missing it before any template even renders, so there's no `fail()` render path left to
+  # exercise here; the in-template `if not $exc.policies` guard in exceptions.yaml is defense in
+  # depth for anyone bypassing schema validation, not something helm-unittest can reach.
+
+  - it: an unknown policy id in `policies` fails the render with a clear error
+    set:
+      exceptions:
+        broken:
+          policies: [not-a-real-policy]
+    asserts:
+      - failedTemplate:
+          errorMessage: 'exceptions: unknown policy id "not-a-real-policy" (see policies: in values.yaml)'

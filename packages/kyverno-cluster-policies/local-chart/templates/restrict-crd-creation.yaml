@@ -1,0 +1,51 @@
+{{/*
+CRD confused-deputy prevention (Category F, opt-in/disabled by default): a new CustomResourceDefinition
+can ship its own conversion webhook and defines an entirely new admission surface -- restricting
+creation to an identity in config.gitopsIdentities means new CRDs only ever arrive through
+reviewed GitOps, not an ad hoc `kubectl apply`. Uses the same request.userInfo binding as
+protect-kyverno-resources/disallow-webhook-tampering (see protect-kyverno-resources.yaml's comment
+for the verification note) -- grouped into Category F rather than G since, unlike those two, this
+is opt-in (identity-based CRD gating is a bigger behavior change to a cluster's workflow than
+protecting Kyverno's own resources, so it defaults off pending deliberate adoption).
+*/}}
+{{- $id := "restrict-crd-creation" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-cluster-policies.policyEnabledOptIn" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-cluster-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Restrict CustomResourceDefinition Creation
+    policies.kyverno.io/category: CRD Confused Deputy (opt-in)
+    policies.kyverno.io/subject: CustomResourceDefinition
+    policies.kyverno.io/description: >-
+      Opt-in. Only an identity in config.gitopsIdentities may create a new
+      CustomResourceDefinition -- a new CRD can ship its own conversion webhook and defines an
+      entirely new admission surface, so it should only ever arrive through reviewed GitOps.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: false
+  rules:
+    - name: restrict-creation
+      match:
+        any:
+          - resources: { kinds: [CustomResourceDefinition], operations: [CREATE] }
+      exclude:
+        {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
+        cel:
+          variables:
+            - name: gitopsIdentities
+              expression: {{ .Values.config.gitopsIdentities | default list | toJson | quote }}
+          expressions:
+            - expression: "request.userInfo.username in variables.gitopsIdentities"
+              message: >-
+                Only a GitOps identity in config.gitopsIdentities may create a
+                CustomResourceDefinition.
+{{- end }}
+{{- end }}

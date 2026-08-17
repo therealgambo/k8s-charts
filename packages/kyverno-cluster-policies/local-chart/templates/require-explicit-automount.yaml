@@ -1,0 +1,49 @@
+{{/*
+RBAC privilege-escalation prevention: automountServiceAccountToken must be explicitly set (true or
+false) rather than left to the implicit default (true) -- shrinks the credential an attacker gets
+on container compromise, and forces a deliberate choice per workload. Enforce by default (chart-wide
+policy, see README) -- most of this fleet's existing workloads haven't made that choice yet, so
+expect real fleet violations here until every workload sets the field explicitly; set
+policies.require-explicit-automount.validationFailureAction to `Audit` per-cluster to soften this
+back to visibility-only while triaging. Pod-kind counterpart to
+kyverno/policies other-cel/restrict-sa-automount-sa-token, which instead targets the ServiceAccount
+kind and requires it be `false` there -- this one only requires the Pod-level field be *set*, not
+any particular value, since plenty of workloads genuinely need API access.
+https://github.com/kyverno/policies/blob/main/other-cel/restrict-sa-automount-sa-token/restrict-sa-automount-sa-token.yaml
+*/}}
+{{- $id := "require-explicit-automount" }}
+{{- if ne .Values.enabled false }}
+{{- if eq (include "kyverno-cluster-policies.policyEnabled" (dict "id" $id "root" $)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $id }}
+  labels:
+    {{- include "kyverno-cluster-policies.labels" $ | nindent 4 }}
+    {{- with .Values.commonLabels }}{{- toYaml . | nindent 4 }}{{- end }}
+  annotations:
+    policies.kyverno.io/title: Require Explicit automountServiceAccountToken
+    policies.kyverno.io/category: RBAC Privilege Escalation
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      automountServiceAccountToken must be explicitly set (true or false) rather than left to the
+      implicit default (true) -- forces a deliberate choice per workload and shrinks the
+      credential an attacker gets on container compromise for pods that don't need API access.
+    {{- with .Values.commonAnnotations }}{{- toYaml . | nindent 4 }}{{- end }}
+spec:
+  background: {{ .Values.background | default true }}
+  rules:
+    - name: require-explicit-automount
+      match:
+        any:
+          - resources: { kinds: [Pod], operations: [CREATE, UPDATE] }
+      exclude:
+        {{- include "kyverno-cluster-policies.exclude" (dict "id" $id "root" $) | nindent 8 }}
+      validate:
+        failureAction: {{ include "kyverno-cluster-policies.failureAction" (dict "id" $id "tierDefault" "Enforce" "root" $) }}
+        cel:
+          expressions:
+            - expression: "object.spec.?automountServiceAccountToken.hasValue()"
+              message: "automountServiceAccountToken must be explicitly set to true or false."
+{{- end }}
+{{- end }}
