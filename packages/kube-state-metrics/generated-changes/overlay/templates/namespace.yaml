@@ -6,4 +6,4 @@ metadata:
     pager.example.com/key: pagerduty-demo
   annotations:
     {{- include "kube-state-metrics.patchedAnnotations" . | indent 4 }}
-name: {{ template "kube-state-metrics.namespace" . }}
+  name: {{ template "kube-state-metrics.namespace" . }}
