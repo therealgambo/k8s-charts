@@ -487,3 +487,85 @@ spec:
       nfs:
         server: 10.0.0.1
         path: /export
+
+###### null-safety regression: a field that's explicitly `null` (rendered by a chart's own
+###### `{{- with }}`/`{{- if }}` guard leaving the key present with nothing under it -- a common,
+###### valid Helm pattern) is NOT the same as an absent field to CEL's `.?field.orValue([])`
+###### chain: absent short-circuits to the default, present-but-null does not, and iterating the
+###### resulting null blows up the whole rule with "expected iterable type" instead of evaluating
+###### it. One fixture per distinct field shape below, shared across every policy/rule pair whose
+###### CEL touches that field -- see kyverno-test.yaml.
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: all-containers-null-pass
+  namespace: workloads
+spec:
+  initContainers: null
+  ephemeralContainers: null
+  containers:
+    - name: app
+      image: dummyimagename
+      securityContext:
+        allowPrivilegeEscalation: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: volumes-null-pass
+  namespace: workloads
+spec:
+  volumes: null
+  containers:
+    - name: app
+      image: dummyimagename
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sysctls-null-pass
+  namespace: workloads
+spec:
+  securityContext:
+    sysctls: null
+  containers:
+    - name: app
+      image: dummyimagename
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: capabilities-add-null-pass
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      securityContext:
+        capabilities:
+          add: null
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: capabilities-drop-null-fail
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      securityContext:
+        capabilities:
+          drop: null
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-ports-null-pass
+  namespace: workloads
+spec:
+  containers:
+    - name: app
+      image: dummyimagename
+      ports: null

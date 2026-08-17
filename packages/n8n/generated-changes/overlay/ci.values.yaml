@@ -1,0 +1,3 @@
+secretRefs:
+  env:
+    N8N_ENCRYPTION_KEY: foobar

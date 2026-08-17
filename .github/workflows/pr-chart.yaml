@@ -1,13 +1,13 @@
 name: PR chart
 
 # Builds every package a PR touches and pushes it to a *separate* GHCR
-# package tree — oci://ghcr.io/<owner>/<repo>-pr/<chart-name> — under a
+# package tree — oci://ghcr.io/<owner>/test-pr/<chart-name> — under a
 # mutable tag derived from the PR number (0.0.0-pr<N>). Re-pushing on later
 # commits to the same PR overwrites that one tag, so consumers can always
 # `helm pull` the latest state of a PR's chart for isolated testing.
 #
 # This is deliberately a different OCI repo than release-charts.yaml
-# publishes to (k8s-charts vs k8s-charts-pr): production tags are always
+# publishes to (k8s-charts vs test-pr): production tags are always
 # real upstream versions and can never collide with 0.0.0-pr*, but keeping
 # PR builds in their own package tree means they can have their own
 # visibility/retention settings and never show up next to a production
@@ -44,7 +44,11 @@ jobs:
         id: detect
         run: |
           set -euo pipefail
-          list="$(./scripts/changed-packages.sh "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")"
+          # See validate-charts.yaml's detect-packages step: base.sha can go
+          # stale relative to the base branch's current tip, so recompute a
+          # fresh merge-base instead of trusting the event payload.
+          base="$(git merge-base "origin/${{ github.event.pull_request.base.ref }}" "${{ github.sha }}")"
+          list="$(./scripts/changed-packages.sh "${base}" "${{ github.sha }}")"
           packages="$(jq -R -s -c 'split("\n") | map(select(length > 0))' <<< "${list}")"
           echo "packages=${packages}" >> "$GITHUB_OUTPUT"
           echo "Packages to build: ${packages}"
@@ -91,9 +95,9 @@ jobs:
       - name: Compute PR-scoped version and OCI repo
         id: vars
         run: |
-          repo_lower="$(tr '[:upper:]' '[:lower:]' <<< '${{ github.repository }}')"
+          owner_lower="$(cut -d/ -f1 <<< '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
           echo "pr_version=0.0.0-pr${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
-          echo "pr_repo=oci://ghcr.io/${repo_lower}-pr" >> "$GITHUB_OUTPUT"
+          echo "pr_repo=oci://ghcr.io/${owner_lower}/test-pr" >> "$GITHUB_OUTPUT"
 
       # helm push derives the OCI tag from the chart's own Chart.yaml
       # version, so a mutable PR-scoped tag means repackaging the built
@@ -127,8 +131,7 @@ jobs:
             echo "pushing ${repackaged} (from ${archive}) to ${pr_repo} as ${pr_version}"
             helm push "${repackaged}" "${pr_repo}"
 
-            repo_lower="$(tr '[:upper:]' '[:lower:]' <<< '${{ github.repository }}')"
-            echo "\`${chart_name}\`: \`helm pull oci://ghcr.io/${repo_lower}-pr/${chart_name} --version ${pr_version}\`" \
+            echo "\`${chart_name}\`: \`helm pull ${pr_repo}/${chart_name} --version ${pr_version}\`" \
               >> "pr-chart-refs/${{ matrix.package }}-${chart_name}.txt"
 
             rm -rf "${workdir}" "${outdir}"

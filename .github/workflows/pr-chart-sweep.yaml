@@ -1,0 +1,170 @@
+name: Sweep stale PR charts
+
+# Safety-net reconciliation for test-pr: deletes any 0.0.0-pr<N> chart
+# version whose originating PR is no longer open (merged, closed, or
+# nonexistent) — regardless of whether pr-chart-cleanup.yaml already
+# handled it. This is what actually cleans up a PR that was closed
+# *without* merging: pr-chart-cleanup.yaml only fires on a push to main
+# (i.e. only on a merge), by design — see its header comment for why it
+# isn't triggered by PR activity directly. This workflow also acts as a
+# backstop if that push-triggered cleanup ever fails partway.
+#
+# Runs on a schedule / workflow_dispatch only — like pr-chart-cleanup.yaml,
+# deliberately never triggered by pull_request, so the workflow file that
+# executes (and gets PACKAGES_DELETE_TOKEN) is always whatever's committed
+# to main, never something a PR branch controls.
+#
+# Token use: every GHCR *packages* REST call (listing packages, listing
+# versions, deleting a version) needs PACKAGES_DELETE_TOKEN — GITHUB_TOKEN
+# isn't just under-scoped for those on a personal-account-owned repo, it's
+# the wrong token type entirely and GitHub rejects it outright (HTTP 400,
+# not a scope-related 403). GITHUB_TOKEN is only used for the one genuinely
+# repo-scoped call in here: checking a PR's open/closed state.
+on:
+  schedule:
+    - cron: "17 4 * * *" # once daily; time picked arbitrarily to dodge the top-of-hour rush
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pull-requests: read
+  packages: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  # Lists every GHCR container package under the test-pr tree, rather
+  # than walking packages/ locally — so a package folder that's since been
+  # renamed or removed doesn't leave its old PR tags un-sweepable.
+  detect-packages:
+    runs-on: ubuntu-latest
+    # Needs PACKAGES_DELETE_TOKEN just to list packages (see header comment),
+    # so this job needs the "main" environment too, same as sweep below.
+    environment: main
+    outputs:
+      packages: ${{ steps.detect.outputs.packages }}
+    steps:
+      - name: List test-pr GHCR packages
+        id: detect
+        env:
+          GH_TOKEN: ${{ secrets.PACKAGES_DELETE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "::error::PACKAGES_DELETE_TOKEN secret is not set — see the 'PR charts' section of the README for one-time setup."
+            exit 1
+          fi
+
+          owner="$(cut -d/ -f1 <<< '${{ github.repository }}')"
+          prefix="test-pr/"
+
+          raw_packages="$(gh api "users/${owner}/packages?package_type=container&per_page=100" --paginate)"
+          packages="$(jq -c --arg prefix "${prefix}" '[.[] | select(.name | startswith($prefix)) | .name]' <<< "${raw_packages}")"
+
+          echo "packages=$(jq -c . <<< "${packages}")" >> "$GITHUB_OUTPUT"
+          echo "test-pr packages found: ${packages}"
+
+  sweep:
+    name: sweep (${{ matrix.package_name }})
+    needs: detect-packages
+    if: needs.detect-packages.outputs.packages != '[]'
+    runs-on: ubuntu-latest
+    # Same "main"-only environment as pr-chart-cleanup.yaml's cleanup job —
+    # a no-op today (schedule/workflow_dispatch already only ever run this
+    # from main), but a guardrail against PACKAGES_DELETE_TOKEN ever ending
+    # up reachable from a pull_request-triggered job. See that job's comment
+    # for the full reasoning.
+    environment: main
+    strategy:
+      fail-fast: false
+      matrix:
+        package_name: ${{ fromJSON(needs.detect-packages.outputs.packages) }}
+    steps:
+      - name: Delete versions whose PR is no longer open
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DELETE_TOKEN: ${{ secrets.PACKAGES_DELETE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${DELETE_TOKEN}" ]]; then
+            echo "::error::PACKAGES_DELETE_TOKEN secret is not set — see the 'PR charts' section of the README for one-time setup."
+            exit 1
+          fi
+
+          owner="$(cut -d/ -f1 <<< '${{ github.repository }}')"
+          encoded="$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${{ matrix.package_name }}")"
+
+          versions_json="$(GH_TOKEN="${DELETE_TOKEN}" gh api "users/${owner}/packages/container/${encoded}/versions?per_page=100" --paginate)"
+
+          mapfile -t candidates < <(
+            jq -r '.[] | .id as $id | (.metadata.container.tags[]? // empty) | select(test("^0\\.0\\.0-pr[0-9]+$")) | "\($id)\t\(.)"' <<< "${versions_json}"
+          )
+
+          if [[ "${#candidates[@]}" -eq 0 ]]; then
+            echo "no 0.0.0-pr* versions under ${{ matrix.package_name }} — nothing to sweep"
+          fi
+
+          # Sort candidates into "stale" (PR closed/missing, wants deleting)
+          # vs. "still open" (must be kept) before deleting anything. A -pr
+          # package only ever holds 0.0.0-pr* tags (see pr-chart.yaml), so
+          # if none of them are still open, `stale` is every tagged version
+          # the package has.
+          stale=()
+          any_open=0
+          for entry in "${candidates[@]}"; do
+            id="${entry%%$'\t'*}"
+            tag="${entry##*$'\t'}"
+            pr="${tag#0.0.0-pr}"
+
+            state="$(gh api "repos/${{ github.repository }}/pulls/${pr}" --jq '.state' 2>/dev/null || echo "missing")"
+            if [[ "${state}" == "open" ]]; then
+              echo "keeping ${{ matrix.package_name }}:${tag} — PR #${pr} still open"
+              any_open=1
+              continue
+            fi
+
+            echo "${{ matrix.package_name }}:${tag} (PR #${pr} state=${state}) is stale"
+            stale+=("${id}"$'\t'"${tag}")
+          done
+
+          if [[ "${#stale[@]}" -gt 0 && "${any_open}" -eq 0 ]]; then
+            # Deleting every remaining tagged version one by one would hit
+            # GHCR's "cannot delete the last tagged version of a package"
+            # rejection (HTTP 400) on the final one, so delete the package
+            # itself instead.
+            echo "${{ matrix.package_name }} has no open PRs left — deleting the package"
+            if ! out="$(GH_TOKEN="${DELETE_TOKEN}" gh api --method DELETE "users/${owner}/packages/container/${encoded}" 2>&1)"; then
+              if grep -qi '404' <<< "${out}"; then
+                echo "${{ matrix.package_name }} already gone"
+              else
+                echo "::error::failed to delete package ${{ matrix.package_name }}: ${out}"
+                exit 1
+              fi
+            fi
+            exit 0
+          fi
+
+          for entry in "${stale[@]}"; do
+            id="${entry%%$'\t'*}"
+            tag="${entry##*$'\t'}"
+            echo "deleting ${{ matrix.package_name }}:${tag} — version id ${id}"
+            GH_TOKEN="${DELETE_TOKEN}" gh api --method DELETE "users/${owner}/packages/container/${encoded}/versions/${id}"
+          done
+
+          # Covers both "just emptied it above" and "already empty from a
+          # previous run that didn't clean up the package shell" — per_page=1
+          # is enough to answer "any versions remain at all".
+          remaining="$(GH_TOKEN="${DELETE_TOKEN}" gh api "users/${owner}/packages/container/${encoded}/versions?per_page=1" --jq 'length' 2>/dev/null || echo "unknown")"
+          if [[ "${remaining}" == "0" ]]; then
+            echo "${{ matrix.package_name }} has no versions left — deleting the package"
+            if ! out="$(GH_TOKEN="${DELETE_TOKEN}" gh api --method DELETE "users/${owner}/packages/container/${encoded}" 2>&1)"; then
+              if grep -qi '404' <<< "${out}"; then
+                echo "${{ matrix.package_name }} already gone"
+              else
+                echo "::error::failed to delete empty package ${{ matrix.package_name }}: ${out}"
+                exit 1
+              fi
+            fi
+          fi

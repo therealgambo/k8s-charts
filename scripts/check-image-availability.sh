@@ -29,9 +29,11 @@ set -euo pipefail
 # just as real a bug as the image not existing at all. The one response treated as transient
 # rather than a verdict is TOOMANYREQUESTS (registries -- Docker Hub especially -- rate-limit
 # anonymous pulls, and GitHub Actions' shared runner IPs are a well-known target for that): retried
-# a couple of times with backoff before giving up and failing loud, same as everything else. A
-# run that fails purely on rate-limiting rather than a real missing image is a known possible
-# flake -- re-run the job.
+# several times with growing backoff (15s/30s/45s/60s, ~2.5m worst case per image) before giving
+# up and failing loud, same as everything else -- long enough to usually outlast a shared IP's
+# rate-limit window without dragging out a run that's failing for a real reason (those never
+# retry at all). A run that fails purely on rate-limiting rather than a real missing image is a
+# known possible flake -- re-run the job.
 #
 # Usage: ./scripts/check-image-availability.sh <package> [env]
 #
@@ -84,7 +86,7 @@ fi
 echo "Checking ${#images[@]} referenced image(s)..."
 echo
 
-max_attempts=3
+max_attempts=5
 failed=0
 
 # Not run under `set -e` for this loop's body: a `crane manifest` failure is an expected,
@@ -104,7 +106,7 @@ for image in "${images[@]}"; do
         fi
 
         if [[ "${error}" == *TOOMANYREQUESTS* && "${attempt}" -lt "${max_attempts}" ]]; then
-            backoff=$(( attempt * 5 ))
+            backoff=$(( attempt * 15 ))
             echo "  retry ${image} (rate-limited, attempt ${attempt}/${max_attempts}, waiting ${backoff}s)"
             sleep "${backoff}"
             attempt=$(( attempt + 1 ))
