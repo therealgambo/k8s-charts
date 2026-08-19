@@ -50,9 +50,6 @@ fi
 target_chart="$(./scripts/chart-dir.sh "${name}")"
 test -d "${target_chart}" || { echo "error: ${target_chart} not found -- run 'make prepare PACKAGE=${name}' first" >&2; exit 1; }
 
-pod_policies_chart="$(./scripts/chart-dir.sh kyverno-pod-policies)"
-cluster_policies_chart="$(./scripts/chart-dir.sh kyverno-cluster-policies)"
-
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "${tmpdir}"' EXIT
 
@@ -62,24 +59,21 @@ trap 'rm -rf "${tmpdir}"' EXIT
 # "default"). Every ClusterPolicy in both charts defensively excludes its OWN release
 # namespace (see each chart's own excludeNamespaces helper in _helpers.tpl) -- if any two of the
 # three renders shared a namespace, every target resource would be silently excluded from that
-# ruleset instead of actually evaluated. Rendered directly via `helm template`, NOT `make
-# template` -- deliberately bypasses each chart's own `ci.values.yaml` (which exists only to
-# exercise config-dependent/opt-in policies for that chart's own kyverno-test, a testing-only
-# configuration this check has no business evaluating) and `ENV.values.yaml` (per-environment,
-# not meaningful for a check that must give the same answer in every environment). `base.values.
-# yaml` IS layered in, same as `make template` would -- that's deliberately where real, live
-# `exceptions:` entries live (never in values.yaml's shipped default, see the comment above
-# `exceptions:` in each chart's values.yaml), so skipping it here would make this check blind to
-# every legitimate exception the moment one exists.
-pod_policies_values=(); cluster_policies_values=()
-[[ -f "${pod_policies_chart}/base.values.yaml" ]] && pod_policies_values+=(-f "${pod_policies_chart}/base.values.yaml")
-[[ -f "${cluster_policies_chart}/base.values.yaml" ]] && cluster_policies_values+=(-f "${cluster_policies_chart}/base.values.yaml")
-helm template kyverno-pod-policies "${pod_policies_chart}" "${pod_policies_values[@]}" \
-    --namespace kyverno-pod-policies > "${tmpdir}/pod-policies.yaml"
-helm template kyverno-cluster-policies "${cluster_policies_chart}" "${cluster_policies_values[@]}" \
-    --namespace kyverno-cluster-policies > "${tmpdir}/cluster-policies.yaml"
-
-# Same values layering `make template` uses -- reuse it directly rather than re-implement it here.
+# ruleset instead of actually evaluated.
+#
+# All three renders go through `make template` -- the one authoritative entry point for rendering
+# a chart in this repo -- rather than reimplementing its values layering here. That's safe to do
+# unconditionally for the policy charts themselves too: `ci.values.yaml` never carries anything but
+# whatever's needed for `helm template` to succeed in CI (see docs/values-layering.md), and each
+# chart's own `kyverno-test`-only config/opt-in-policy overrides live in a separate
+# `kyverno-test/values.yaml` that only `make kyverno-test` layers in (see the root Makefile) -- so
+# nothing test-fixture-only ever leaks into this fleet-wide gate. `base.values.yaml` IS layered in,
+# same as always -- that's deliberately where real, live `exceptions:` entries live (never in
+# values.yaml's shipped default, see the comment above `exceptions:` in each chart's values.yaml),
+# so skipping it here would make this check blind to every legitimate exception the moment one
+# exists.
+make --no-print-directory template PACKAGE=kyverno-pod-policies > "${tmpdir}/pod-policies.yaml"
+make --no-print-directory template PACKAGE=kyverno-cluster-policies > "${tmpdir}/cluster-policies.yaml"
 make --no-print-directory template PACKAGE="${name}" ENV="${env}" > "${tmpdir}/target.yaml"
 
 # `kyverno apply` below only ever reports on resources it was actually GIVEN -- a policy whose

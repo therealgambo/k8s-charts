@@ -32,7 +32,14 @@ direction — extending the ruleset, not complying with it).
 `make kyverno-test` is the opposite direction: it proves a *policy chart's
 own* CEL rule logic against curated fixtures in its `kyverno-test/` dir —
 `make kyverno-policy-check` instead points the (already-proven) rulesets at
-every *other* chart to catch real violations before merge.
+every *other* chart to catch real violations before merge. A policy chart's
+fixtures often need config-dependent or Category F (opt-in) policies turned
+on to actually exercise their CEL — that's what a `<chart-dir>/kyverno-test/
+values.yaml`, if present, is for (layered on top of the normal
+`make template` stack via `EXTRA_VALUES`, scoped to `make kyverno-test`
+only — see [values layering](values-layering.md)). It's never picked up by
+`make kyverno-policy-check` or any other renderer of the chart, so a
+fixture-only policy toggle can never leak into the fleet-wide gate.
 
 Both `kyverno-*` make targets require the `kyverno` CLI
 (`scripts/pull-kyverno.sh`).

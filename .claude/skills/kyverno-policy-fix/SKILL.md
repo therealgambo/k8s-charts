@@ -102,10 +102,10 @@ EOF
 .claude/skills/kyverno-policy-fix/verify.sh <name> --with /tmp/candidate.values.yaml
 ```
 
-This re-renders with the candidate layered on top of the real `values.yaml -> base.values.yaml ->
-ci.values.yaml -> <ENV>.values.yaml` stack (same order `make template` uses) and prints CLEARED /
-STILL FAILING / NEWLY FAILING sections — confirm the change fixes what you expect and doesn't
-regress anything else. Only once confirmed, move exactly that content into
+This re-renders via `make template` (the candidate file passed as `EXTRA_VALUES`, layered on top of
+the real `values.yaml -> base.values.yaml -> ci.values.yaml -> <ENV>.values.yaml` stack) and prints
+CLEARED / STILL FAILING / NEWLY FAILING sections — confirm the change fixes what you expect and
+doesn't regress anything else. Only once confirmed, move exactly that content into
 `packages/<name>/charts/base.values.yaml` (create the file if `make prepare` didn't leave one),
 then `make patch PACKAGE=<name>` to capture it into `generated-changes/`.
 

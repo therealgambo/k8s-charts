@@ -16,7 +16,7 @@ all and are written directly in this repo (see
 
 ```
 make prepare PACKAGE=<name>              # pull upstream into packages/<name>/charts and apply existing patches
-make template PACKAGE=<name> [ENV=staging]  # render the prepared chart (values.yaml -> base.values.yaml -> ci.values.yaml -> $(ENV).values.yaml layered)
+make template PACKAGE=<name> [ENV=staging] [EXTRA_VALUES=path]  # render the prepared chart (values.yaml -> base.values.yaml -> ci.values.yaml -> $(ENV).values.yaml -> EXTRA_VALUES layered) -- the one authoritative entry point for rendering a chart in this repo, every check/skill goes through it
 make patch PACKAGE=<name>                # diff local edits against upstream and (re)generate generated-changes/
 make charts PACKAGE=<name>               # archive the finalized chart into assets/ and charts/, updating index.yaml
 make clean PACKAGE=<name>                # remove local working state so the repo is PR-ready
