@@ -5,15 +5,17 @@
 # `make kyverno-test PACKAGE=kyverno-cluster-policies`.
 #
 # `policies.rendered.yaml` is generated fresh by `make kyverno-test` immediately before this runs
-# (gitignored, never committed) -- rendered with values.yaml + this chart's own `ci.values.yaml`
-# layered on top (see that file), which populates every config/ allow-list and opts every Category
-# F (disabled-by-default) policy in so their CEL is actually exercised here. The chart's real
-# shipped DEFAULTS (empty config lists, Category F off) are proven separately by
-# tests/policy-toggles_test.yaml (helm-unittest) -- this file is about rule *logic*, not defaults.
+# (gitignored, never committed) -- rendered with values.yaml + this chart's own
+# `kyverno-test/values.yaml` layered on top last (see that file; wired in via `make template`'s
+# EXTRA_VALUES, see the root Makefile's `kyverno-test` target), which populates every config/
+# allow-list and opts every Category F (disabled-by-default) policy in so their CEL is actually
+# exercised here. The chart's real shipped DEFAULTS (empty config lists, Category F off) are
+# proven separately by tests/policy-toggles_test.yaml (helm-unittest) -- this file is about rule
+# *logic*, not defaults.
 #
 # `userinfo.yaml` injects a single simulated requester for the WHOLE run (the Kyverno CLI's
 # `userinfo:` field is one setting for the entire Test object, not per-resource) -- deliberately an
-# identity NOT in ci.values.yaml's config.gitopsIdentities. That means every fixture for the 3
+# identity NOT in kyverno-test/values.yaml's config.gitopsIdentities. That means every fixture for the 3
 # identity-gated rules (protect-kyverno-resources, disallow-webhook-tampering,
 # restrict-crd-creation) below only has a "fail" case, proving the security-relevant "wrong
 # identity is blocked" direction; the complementary "right identity is allowed" direction isn't
@@ -259,7 +261,7 @@ results:
     resources: [webhook-tampering-fail]
     result: fail
 
-  # --- F. CRD confused-deputy (opt-in, enabled via ci.values.yaml for this test run) ---
+  # --- F. CRD confused-deputy (opt-in, enabled via kyverno-test/values.yaml for this test run) ---
   - policy: restrict-rbacdefinition-clusterrole
     rule: restrict-clusterrole
     kind: RBACDefinition

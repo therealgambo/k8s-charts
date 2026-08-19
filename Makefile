@@ -17,6 +17,7 @@ endif
 PACKAGE ?=
 ENV ?= staging
 BASE_REF ?= origin/main
+EXTRA_VALUES ?=
 
 .DEFAULT_GOAL := help
 
@@ -29,14 +30,21 @@ prepare: guard-package pull-scripts ## Pull the upstream chart(s) into packages/
 # each skipped if it doesn't exist in the prepared chart:
 #   1. values.yaml        - the chart's own defaults (implicit, always applied by helm)
 #   2. base.values.yaml   - local changes to values.yaml made here, values.yaml shouldn't be modified!
-#   3. $(ENV).values.yaml - environment-specific overrides (test/staging/production)
+#   3. ci.values.yaml     - whatever's needed for `helm template` to succeed in CI (dummy secrets,
+#                           required-value stand-ins, ...) -- never real config, see docs/values-layering.md
+#   4. $(ENV).values.yaml - environment-specific overrides (test/staging/production)
+# EXTRA_VALUES, if set, is layered last -- the authoritative way for a caller that needs one more
+# -f on top of the stack above (e.g. a candidate values change under test, or a values file scoped
+# to a specific consumer of this chart's render) to get it, instead of reimplementing this layering
+# by hand. This is the one entry point every renderer of a chart in this repo should go through --
+# see scripts/kyverno-policy-check.sh and .claude/skills/kyverno-policy-fix/verify.sh.
 #
-# Rendered into --namespace $(PACKAGE) rather than helm's "default" fallback, so a package's
-# rendered namespace is always the same, predictable value (its own package name) instead of
-# depending on whether the caller happened to pass one -- scripts/kyverno-policy-check.sh in
-# particular relies on this to write namespace-scoped kyverno.io/v2 PolicyException match blocks
+# Named and namespaced as $(PACKAGE) rather than helm's "release-name"/"default" fallbacks, so a
+# package's rendered output is always the same, predictable identity instead of depending on
+# whether the caller happened to pass one -- scripts/kyverno-policy-check.sh in particular relies
+# on the namespace for this to write namespace-scoped kyverno.io/v2 PolicyException match blocks
 # against a target package's rendered resources.
-template: guard-package ## Render a package's chart dir with values.yaml -> base.values.yaml -> [ENV].values.yaml layered, into --namespace $(PACKAGE) (run 'make prepare' first; make template PACKAGE=name [ENV=staging])
+template: guard-package ## Render a package's chart dir with values.yaml -> base.values.yaml -> ci.values.yaml -> [ENV].values.yaml -> [EXTRA_VALUES] layered, as release/namespace $(PACKAGE) (run 'make prepare' first; make template PACKAGE=name [ENV=staging] [EXTRA_VALUES=path])
 	@chart="$$(./scripts/chart-dir.sh $(PACKAGE))"; \
 	test -d "$$chart" || { echo "error: $$chart not found — run 'make prepare PACKAGE=$(PACKAGE)' first" >&2; exit 1; }; \
 	values=(); \
@@ -44,7 +52,8 @@ template: guard-package ## Render a package's chart dir with values.yaml -> base
 	[[ -f "$$chart/base.values.yaml" ]] && values+=(-f "$$chart/base.values.yaml"); \
 	[[ -f "$$chart/ci.values.yaml" ]] && values+=(-f "$$chart/ci.values.yaml"); \
 	[[ -f "$$chart/$(ENV).values.yaml" ]] && values+=(-f "$$chart/$(ENV).values.yaml"); \
-	helm template "$$chart" "$${values[@]}" --namespace $(PACKAGE)
+	[[ -n "$(EXTRA_VALUES)" ]] && values+=(-f "$(EXTRA_VALUES)"); \
+	helm template $(PACKAGE) "$$chart" "$${values[@]}" --namespace $(PACKAGE)
 
 patch: guard-package pull-scripts ## Diff local edits against upstream and (re)generate the patch files
 	@$(BINARY) $@ --package="$(PACKAGE)"
@@ -75,7 +84,9 @@ kyverno-test: guard-package ## Run `kyverno test` against a package's kyverno-te
 	@chart="$$(./scripts/chart-dir.sh $(PACKAGE))"; \
 	test -d "$$chart" || { echo "error: $$chart not found — run 'make prepare PACKAGE=$(PACKAGE)' first" >&2; exit 1; }; \
 	if [[ -d "$$chart/kyverno-test" ]]; then \
-		$(MAKE) --no-print-directory template PACKAGE=$(PACKAGE) ENV=$(ENV) > "$$chart/kyverno-test/policies.rendered.yaml"; \
+		extra=(); \
+		[[ -f "$$chart/kyverno-test/values.yaml" ]] && extra=(EXTRA_VALUES="$$chart/kyverno-test/values.yaml"); \
+		$(MAKE) --no-print-directory template PACKAGE=$(PACKAGE) ENV=$(ENV) "$${extra[@]}" > "$$chart/kyverno-test/policies.rendered.yaml"; \
 		bin/kyverno test "$$chart/kyverno-test"; \
 	else \
 		echo "no kyverno-test/ dir in $$chart, skipping"; \

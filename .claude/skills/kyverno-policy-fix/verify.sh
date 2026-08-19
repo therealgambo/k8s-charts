@@ -8,12 +8,12 @@ set -euo pipefail
 #   1. Failures grouped and counted by policy id, so a long flat `kyverno apply` transcript turns
 #      into "which ids do I actually need to fix, and how many resources does each touch".
 #   2. --with <values-file>: test a CANDIDATE values change (e.g. a would-be base.values.yaml
-#      addition) without writing it into the repo. Renders the target chart TWICE -- once with the
-#      normal values.yaml -> base.values.yaml -> ci.values.yaml -> ENV.values.yaml stack (same
-#      order `make template` uses, see Makefile), once with the candidate file layered on top of
-#      that -- and diffs the two violation lists into CLEARED / STILL FAILING / NEWLY FAILING
-#      sections, so you can confirm a fix actually fixes what you think it does (and doesn't
-#      regress anything else) before touching packages/<name>/charts/base.values.yaml for real.
+#      addition) without writing it into the repo. Renders the target chart TWICE via
+#      `make template` -- once with its normal stack, once with the candidate file layered on top
+#      via EXTRA_VALUES (see docs/values-layering.md) -- and diffs the two violation lists into
+#      CLEARED / STILL FAILING / NEWLY FAILING sections, so you can confirm a fix actually fixes
+#      what you think it does (and doesn't regress anything else) before touching
+#      packages/<name>/charts/base.values.yaml for real.
 #
 # See the kyverno-policy-fix skill's SKILL.md for how this fits into the overall workflow.
 #
@@ -42,34 +42,20 @@ done
 target_chart="$(./scripts/chart-dir.sh "${name}")"
 test -d "${target_chart}" || { echo "error: ${target_chart} not found -- run 'make prepare PACKAGE=${name}' first" >&2; exit 1; }
 
-pod_policies_chart="$(./scripts/chart-dir.sh kyverno-pod-policies)"
-cluster_policies_chart="$(./scripts/chart-dir.sh kyverno-cluster-policies)"
-
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "${tmpdir}"' EXIT
 
-# base.values.yaml (if present) is where real, live `exceptions:` entries live for these two
-# charts -- never values.yaml's shipped default, see the comment above `exceptions:` in each
-# chart's values.yaml -- so it's layered in here too, matching scripts/kyverno-policy-check.sh.
-pod_policies_values=(); cluster_policies_values=()
-[[ -f "${pod_policies_chart}/base.values.yaml" ]] && pod_policies_values+=(-f "${pod_policies_chart}/base.values.yaml")
-[[ -f "${cluster_policies_chart}/base.values.yaml" ]] && cluster_policies_values+=(-f "${cluster_policies_chart}/base.values.yaml")
-helm template kyverno-pod-policies "${pod_policies_chart}" "${pod_policies_values[@]}" \
-    --namespace kyverno-pod-policies > "${tmpdir}/pod-policies.yaml"
-helm template kyverno-cluster-policies "${cluster_policies_chart}" "${cluster_policies_values[@]}" \
-    --namespace kyverno-cluster-policies > "${tmpdir}/cluster-policies.yaml"
+# All renders go through `make template` -- the one authoritative entry point for rendering a
+# chart in this repo -- matching scripts/kyverno-policy-check.sh exactly, including base.values.
+# yaml (where real, live `exceptions:` entries live for these two charts -- never values.yaml's
+# shipped default, see the comment above `exceptions:` in each chart's values.yaml).
+make --no-print-directory template PACKAGE=kyverno-pod-policies > "${tmpdir}/pod-policies.yaml"
+make --no-print-directory template PACKAGE=kyverno-cluster-policies > "${tmpdir}/cluster-policies.yaml"
 
-# Reimplements the value-file stack `make template` uses rather than shelling out to it, since
-# that target has no way to layer one more -f on top for --with.
 render() {
     local out="$1"; shift
-    local values=()
-    [[ -f "${target_chart}/values.yaml" ]] && values+=(-f "${target_chart}/values.yaml")
-    [[ -f "${target_chart}/base.values.yaml" ]] && values+=(-f "${target_chart}/base.values.yaml")
-    [[ -f "${target_chart}/ci.values.yaml" ]] && values+=(-f "${target_chart}/ci.values.yaml")
-    [[ -f "${target_chart}/${env}.values.yaml" ]] && values+=(-f "${target_chart}/${env}.values.yaml")
-    for f in "$@"; do values+=(-f "$f"); done
-    helm template "${target_chart}" "${values[@]}" > "${out}"
+    local extra="${1:-}"
+    make --no-print-directory template PACKAGE="${name}" ENV="${env}" EXTRA_VALUES="${extra}" > "${out}"
 }
 
 summarize() {

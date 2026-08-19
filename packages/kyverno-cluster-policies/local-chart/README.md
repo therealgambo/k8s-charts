@@ -260,10 +260,12 @@ rationale of why each layer exists and what it can't catch. Summary:
 - **`kyverno-test/`** (Kyverno CLI test, `make kyverno-test PACKAGE=kyverno-cluster-policies`) --
   rule *logic*: a known-good/known-bad fixture pair per rule name (48 assertions total), plus
   dedicated present-but-null regression fixtures for the gotcha above. Renders with this chart's own
-  `ci.values.yaml` layered on top of `values.yaml` (see that file's own comment) so every
-  `config.*`-dependent and Category F policy is actually exercised, not silently skipped --
-  `ci.values.yaml` only affects `make template`/`make kyverno-test` for this package, never the
-  fleet-wide check below, which renders this chart's real shipped defaults directly.
+  `kyverno-test/values.yaml` layered on top of the normal `make template` stack (see that file's own
+  comment, and the root Makefile's `kyverno-test` target) so every `config.*`-dependent and
+  Category F policy is actually exercised, not silently skipped -- `kyverno-test/values.yaml` only
+  affects `make kyverno-test` for this package, never the fleet-wide check below, which renders
+  this chart via the same `make template` every other package uses, picking up this chart's real
+  shipped defaults.
   - The 3 identity-gated rules (`protect-kyverno-resources`, `disallow-webhook-tampering`,
     `restrict-crd-creation`) only get a "fail" fixture: the Kyverno CLI's `userinfo:` setting is one
     value for the *entire* Test run, not per-resource, so there's no way to inject both an

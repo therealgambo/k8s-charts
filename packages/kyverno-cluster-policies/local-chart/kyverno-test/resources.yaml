@@ -3,7 +3,7 @@
 # `workloads` namespace, never `default`/kube-node-lease/kube-public -- see kyverno-pod-policies'
 # own kyverno-test/resources.yaml comment for why (every policy's exclude block would otherwise
 # silently swallow them). Config-dependent rules (registries/nameservers/labels/RBAC allow-lists/
-# gitops identities) are exercised against the values ci.values.yaml sets -- see that file.
+# gitops identities) are exercised against the values kyverno-test/values.yaml sets -- see that file.
 
 ###### require-labels / check-required-labels
 ---
