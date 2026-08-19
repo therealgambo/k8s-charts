@@ -1,0 +1,21 @@
+# Local overrides on top of values.yaml -- see ../../../README.md#values-file-ordering, and the
+# comment above `exceptions:` in values.yaml for why real, live exceptions live here rather than
+# in that file's shipped default.
+
+exceptions:
+  # packages/aws-ebs-csi-driver's controller Deployment and both node DaemonSets ship
+  # system-cluster-critical/system-node-critical priorityClassName by upstream default -- a CSI
+  # controller/node plugin losing to node-pressure eviction takes volume mounts down with it, so
+  # this is a real "node-critical system workload", not an unreviewed default. Scoped by
+  # namespace + label + name -- `make template` always renders a package into --namespace
+  # <package name> (see Makefile), so aws-ebs-csi-driver's own package name is a reliable
+  # namespace filter here, not just a label/name belt-and-suspenders.
+  aws-ebs-csi-driver:
+    policies: [restrict-priorityclass]
+    match:
+      kinds: [Deployment, DaemonSet]
+      namespaces: [aws-ebs-csi-driver]
+      names: [ebs-csi-controller, ebs-csi-node, ebs-csi-node-windows]
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: aws-ebs-csi-driver

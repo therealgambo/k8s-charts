@@ -1,0 +1,26 @@
+# Local overrides on top of values.yaml -- see ../../../README.md#values-file-ordering, and the
+# comment above `exceptions:` in values.yaml for why real, live exceptions live here rather than
+# in that file's shipped default.
+
+exceptions:
+  # packages/aws-ebs-csi-driver's node DaemonSets (Linux + Windows) genuinely need to run
+  # privileged and mount kubelet/plugin hostPaths to bind the registration/driver sockets and
+  # format/mount block devices -- that's the job of a CSI node plugin, not a misconfiguration.
+  # Scoped by namespace + label + name -- `make template` always renders a package into
+  # --namespace <package name> (see Makefile), so aws-ebs-csi-driver's own package name is a
+  # reliable namespace filter here, not just a label/name belt-and-suspenders. Restricted-tier
+  # fallout from the same root cause (require-run-as-nonroot,
+  # require-run-as-non-root-user, restrict-seccomp-strict, restrict-volume-types) is intentionally
+  # left OUT of this exception -- those are Audit-tier (report-only, never block), so there's
+  # nothing to exempt; leaving them un-exempted keeps them visible in PolicyReport rather than
+  # silently suppressed, same as the kube-system-node-agents/kyverno-controller examples in
+  # values.yaml only exempt their Enforce-tier ids too.
+  aws-ebs-csi-driver-node:
+    policies: [disallow-host-path, disallow-privileged-containers]
+    match:
+      kinds: [DaemonSet]
+      namespaces: [aws-ebs-csi-driver]
+      names: [ebs-csi-node, ebs-csi-node-windows]
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: aws-ebs-csi-driver
