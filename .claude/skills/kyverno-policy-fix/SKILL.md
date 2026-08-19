@@ -1,6 +1,7 @@
 ---
 name: kyverno-policy-fix
 description: Fix (or just investigate) Kyverno policy violations reported by `make kyverno-policy-check PACKAGE=<name>` for a packages/<name> chart in this k8s-charts repo — missing required resource labels/annotations, pod-security hardening (dropped capabilities, privilege escalation, runAsNonRoot, seccompProfile, restricted volume types, hostPath), missing emptyDir sizeLimit, automountServiceAccountToken, disallowed priorityClassName, and similar kyverno-pod-policies/kyverno-cluster-policies findings. Use when the user asks to fix Kyverno violations, make a chart pass `kyverno-policy-check`, bring a package into policy compliance, references kyverno-cluster-policies/kyverno-pod-policies failures on a specific package, or runs `/kyverno-policy-fix <package>`.
+model: claude-haiku-4-5-20251001
 ---
 
 # /kyverno-policy-fix — bring a packages/<name> chart into Kyverno compliance

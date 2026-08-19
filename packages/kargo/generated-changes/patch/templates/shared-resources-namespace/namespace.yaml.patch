@@ -1,0 +1,17 @@
+--- charts-original/templates/shared-resources-namespace/namespace.yaml
++++ charts/templates/shared-resources-namespace/namespace.yaml
+@@ -5,7 +5,13 @@
+   name: {{ quote .Values.global.sharedResources.namespace }}
+   labels:
+     {{- include "kargo.labels" . | nindent 4 }}
+-  {{- with (mergeOverwrite (deepCopy .Values.global.labels) .Values.global.sharedResources.extraNamespaceLabels) }}
++    # require-labels (kyverno-policy-fix): pager.example.com/key is Namespace-scoped and not
++    # covered by kargo.labels/global.labels, so it's added directly here.
++    pager.example.com/key: pagerduty-demo
++  # kargo.labels above already renders global.labels/extraNamespaceLabels -- re-merging it here
++  # too was a latent duplicate-key bug that only surfaces once that value is actually set
++  # (kyverno-policy-fix).
++  {{- with .Values.global.sharedResources.extraNamespaceLabels }}
+     {{- range $key, $value := . }}
+     {{ $key }}: {{ $value | quote }}
+     {{- end }}

@@ -1,0 +1,22 @@
+--- charts-original/templates/garbage-collector/cron-job.yaml
++++ charts/templates/garbage-collector/cron-job.yaml
+@@ -8,7 +8,10 @@
+   labels:
+     {{- include "kargo.labels" . | nindent 4 }}
+     {{- include "kargo.garbageCollector.labels" . | nindent 4 }}
+-  {{- with (mergeOverwrite (deepCopy .Values.global.labels) .Values.garbageCollector.labels) }}
++  # kargo.labels above already renders global.labels/extraNamespaceLabels -- re-merging it here
++  # too was a latent duplicate-key bug that only surfaces once that value is actually set
++  # (kyverno-policy-fix).
++  {{- with .Values.garbageCollector.labels }}
+     {{- range $key, $value := . }}
+     {{ $key }}: {{ $value | quote }}
+     {{- end }}
+@@ -52,6 +55,7 @@
+           {{- end }}
+         spec:
+           serviceAccountName: kargo-garbage-collector
++          automountServiceAccountToken: {{ .Values.garbageCollector.automountServiceAccountToken }}
+           {{- with .Values.garbageCollector.affinity | default .Values.global.affinity }}
+           affinity:
+             {{- toYaml . | nindent 12 }}
