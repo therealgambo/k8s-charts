@@ -19,7 +19,12 @@ Get `<name>` from `$ARGUMENTS` or the failing CI job/PR. If `packages/<name>/pac
 already been bumped to the new upstream `url`/`version` (e.g. you're resolving this ahead of
 updatecli, or its PR only got as far as the failing `make` step), bump it now the same way
 updatecli would — see [updatecli/README.md](../../../updatecli/README.md)'s "What a manifest does"
-target stage — then reproduce locally:
+target stage — **including resetting `packageVersion` to `01`** (the
+`common.packageBuildVersion` target in `updatecli/updatecli.d/_common.yaml` does this
+automatically; a real upstream version change always resets `packageVersion`, never just bumps it
+— see [packages/README.md](../../../packages/README.md)). If updatecli already opened the PR
+you're fixing, this is almost certainly already done — just confirm it, don't second-guess it. Then
+reproduce locally:
 
 ```
 make prepare PACKAGE=<name>
@@ -150,6 +155,7 @@ Then confirm the result actually works, not just that the diff looks plausible:
 make template PACKAGE=<name> | kubeconform -strict -summary -ignore-missing-schemas
 make unittest PACKAGE=<name>
 make kyverno-policy-check PACKAGE=<name>
+make check-package-version PACKAGE=<name>
 make clean PACKAGE=<name>
 ```
 

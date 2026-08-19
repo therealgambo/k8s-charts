@@ -11,6 +11,7 @@ on:
       - "scripts/pull-crane.sh"
       - "scripts/kyverno-policy-check.sh"
       - "scripts/check-image-availability.sh"
+      - "scripts/check-package-version-bump.sh"
       - "scripts/version"
       - "Makefile"
       - ".github/workflows/validate-charts.yaml"
@@ -31,6 +32,10 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       packages: ${{ steps.detect.outputs.packages }}
+      # Only meaningful for pull_request (see below) -- the merge-base package-version-bump
+      # diffs each changed package's package.yaml/generated-changes against. Empty on
+      # workflow_dispatch, which has no PR to diff against.
+      base_sha: ${{ steps.detect.outputs.base_sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,12 +55,39 @@ jobs:
             # instead, so only packages this PR actually touches show up.
             base="$(git merge-base "origin/${{ github.event.pull_request.base.ref }}" "${{ github.sha }}")"
             list="$(./scripts/changed-packages.sh "${base}" "${{ github.sha }}")"
+            echo "base_sha=${base}" >> "$GITHUB_OUTPUT"
           else
             list="$(./scripts/changed-packages.sh --all)"
+            echo "base_sha=" >> "$GITHUB_OUTPUT"
           fi
           packages="$(jq -R -s -c 'split("\n") | map(select(length > 0))' <<< "${list}")"
           echo "packages=${packages}" >> "$GITHUB_OUTPUT"
           echo "Packages to validate: ${packages}"
+
+  # Enforces the packageVersion convention from packages/README.md: it resets to 01 when a
+  # package's upstream url/commit changes, and otherwise strictly increases whenever anything
+  # else about the package changes (a hand-edited generated-changes/ patch, a values-file tweak,
+  # ...) so two different patch sets never publish under the same chart version. See
+  # scripts/check-package-version-bump.sh for the full rule and its known gaps.
+  #
+  # PR-only: this is fundamentally a diff against a base, which workflow_dispatch doesn't have.
+  package-version-bump:
+    name: packageVersion bump (${{ matrix.package }})
+    needs: detect-packages
+    if: github.event_name == 'pull_request' && needs.detect-packages.outputs.packages != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.detect-packages.outputs.packages) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check packageVersion
+        run: ./scripts/check-package-version-bump.sh "${{ needs.detect-packages.outputs.base_sha }}" "${{ matrix.package }}" "${{ github.sha }}"
 
   # Structural validation: catches broken YAML/Go-template syntax in a
   # patched chart. Deliberately not --strict — that also fails on cosmetic
@@ -335,12 +367,13 @@ jobs:
   summary:
     name: Summary
     if: always()
-    needs: [detect-packages, helm-lint, kubeconform, image-availability, helm-unittest, kyverno-test, kyverno-policy-check]
+    needs: [detect-packages, package-version-bump, helm-lint, kubeconform, image-availability, helm-unittest, kyverno-test, kyverno-policy-check]
     runs-on: ubuntu-latest
     steps:
       - name: Check matrix results
         run: |
           echo "detect-packages:      ${{ needs.detect-packages.result }}"
+          echo "package-version-bump: ${{ needs.package-version-bump.result }}"
           echo "helm-lint:            ${{ needs.helm-lint.result }}"
           echo "kubeconform:          ${{ needs.kubeconform.result }}"
           echo "image-availability:   ${{ needs.image-availability.result }}"
@@ -355,7 +388,7 @@ jobs:
             failed=1
           fi
 
-          for result in "${{ needs.helm-lint.result }}" "${{ needs.kubeconform.result }}" "${{ needs.image-availability.result }}" "${{ needs.helm-unittest.result }}" "${{ needs.kyverno-test.result }}" "${{ needs.kyverno-policy-check.result }}"; do
+          for result in "${{ needs.package-version-bump.result }}" "${{ needs.helm-lint.result }}" "${{ needs.kubeconform.result }}" "${{ needs.image-availability.result }}" "${{ needs.helm-unittest.result }}" "${{ needs.kyverno-test.result }}" "${{ needs.kyverno-policy-check.result }}"; do
             if [[ "${result}" != "success" && "${result}" != "skipped" ]]; then
               echo "::error::a validation job did not succeed (result: ${result})"
               failed=1

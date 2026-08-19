@@ -244,3 +244,17 @@ make patch PACKAGE=<name>
 make kyverno-policy-check PACKAGE=<name>
 make template PACKAGE=<name> | kubeconform -strict -summary -ignore-missing-schemas
 ```
+
+## Step 7 — bump packageVersion (skip for `url: local`)
+
+Any fix above that touched a forked package (steps 3/4/4a/5 — `base.values.yaml`,
+`generated-changes/`, or `packages/<name>/package.yaml`'s `exceptions:`-adjacent fields) changed
+that package's patch set without an upstream release behind it. Per
+[packages/README.md](../../../packages/README.md), bump `packageVersion` in `package.yaml` by one
+(zero-padded, e.g. `01` → `02`) so the next `make charts` publishes a distinct, immutable version —
+two different patch sets must never share a `packageVersion`. Skip this for `url: local` packages
+(no upstream to version against). Confirm with:
+
+```
+make check-package-version PACKAGE=<name>
+```

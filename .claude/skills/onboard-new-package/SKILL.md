@@ -73,8 +73,13 @@ matching `updatecli/updatecli.d/<name>.yaml` manifest, then validate it per that
 ## Step 6 — final check and cleanup
 
 ```
+make check-package-version PACKAGE=<name>
 make clean PACKAGE=<name>
 ```
+
+(`check-package-version` no-ops for a genuinely new package — see
+[packages/README.md](../../../packages/README.md) — it only matters from here on, whenever this
+package's patch set changes again without an upstream bump.)
 
 Confirm `git status` shows only `packages/<name>/package.yaml`,
 `packages/<name>/generated-changes/`, and `updatecli/updatecli.d/<name>.yaml` — never
