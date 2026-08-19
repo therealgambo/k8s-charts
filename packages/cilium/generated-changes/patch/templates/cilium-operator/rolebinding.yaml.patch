@@ -1,0 +1,78 @@
+--- charts-original/templates/cilium-operator/rolebinding.yaml
++++ charts/templates/cilium-operator/rolebinding.yaml
+@@ -9,14 +9,16 @@
+   namespace: {{ .Values.ingressController.secretsNamespace.name | quote }}
+   labels:
+     app.kubernetes.io/part-of: cilium
++    app.kubernetes.io/name: cilium-operator
+     helm.sh/chart: {{ include "cilium.chart" . }}
+     {{- with .Values.commonLabels }}
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+-  {{- with .Values.operator.annotations }}
+   annotations:
++    {{- include "cilium.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.operator.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ roleRef:
+   apiGroup: rbac.authorization.k8s.io
+   kind: Role
+@@ -36,14 +38,16 @@
+   namespace: {{ .Values.gatewayAPI.secretsNamespace.name | quote }}
+   labels:
+     app.kubernetes.io/part-of: cilium
++    app.kubernetes.io/name: cilium-operator
+     helm.sh/chart: {{ include "cilium.chart" . }}
+     {{- with .Values.commonLabels }}
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+-  {{- with .Values.operator.annotations }}
+   annotations:
++    {{- include "cilium.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.operator.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ roleRef:
+   apiGroup: rbac.authorization.k8s.io
+   kind: Role
+@@ -63,14 +67,16 @@
+   namespace: {{ .Values.tls.secretsNamespace.name | quote }}
+   labels:
+     app.kubernetes.io/part-of: cilium
++    app.kubernetes.io/name: cilium-operator
+     helm.sh/chart: {{ include "cilium.chart" . }}
+     {{- with .Values.commonLabels }}
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+-  {{- with .Values.operator.annotations }}
+   annotations:
++    {{- include "cilium.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.operator.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ roleRef:
+   apiGroup: rbac.authorization.k8s.io
+   kind: Role
+@@ -90,14 +96,16 @@
+   namespace: {{ include "cilium.namespace" . }}
+   labels:
+     app.kubernetes.io/part-of: cilium
++    app.kubernetes.io/name: cilium-operator
+     helm.sh/chart: {{ include "cilium.chart" . }}
+     {{- with .Values.commonLabels }}
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+-  {{- with .Values.operator.annotations }}
+   annotations:
++    {{- include "cilium.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.operator.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ roleRef:
+   apiGroup: rbac.authorization.k8s.io
+   kind: Role

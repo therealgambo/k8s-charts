@@ -1,0 +1,77 @@
+# Local overrides on top of values.yaml -- see ../../../README.md#values-file-ordering, and the
+# comment above `exceptions:` in values.yaml for why real, live exceptions live here rather than
+# in that file's shipped default.
+
+exceptions:
+  # packages/cilium's agent/envoy DaemonSets and operator Deployment ship
+  # system-node-critical/system-cluster-critical priorityClassName by upstream default -- Cilium
+  # is the cluster's CNI, so losing it to node-pressure eviction takes pod networking down
+  # cluster-wide, not just one workload. That's a real "node-critical system workload", not an
+  # unreviewed default. Scoped by namespace + label + name -- `make template` always renders a
+  # package into --namespace <package name> (see Makefile), so cilium's own package name is a
+  # reliable namespace filter here, not just a label/name belt-and-suspenders.
+  cilium:
+    policies: [restrict-priorityclass]
+    match:
+      kinds: [DaemonSet, Deployment]
+      namespaces: [cilium]
+      names: [cilium, cilium-envoy, cilium-operator]
+      selector:
+        matchLabels:
+          app.kubernetes.io/part-of: cilium
+
+  # packages/aws-ebs-csi-driver's controller Deployment and both node DaemonSets ship
+  # system-cluster-critical/system-node-critical priorityClassName by upstream default -- a CSI
+  # controller/node plugin losing to node-pressure eviction takes volume mounts down with it, so
+  # this is a real "node-critical system workload", not an unreviewed default. Scoped by
+  # namespace + label + name -- `make template` always renders a package into --namespace
+  # <package name> (see Makefile), so aws-ebs-csi-driver's own package name is a reliable
+  # namespace filter here, not just a label/name belt-and-suspenders.
+  aws-ebs-csi-driver:
+    policies: [restrict-priorityclass]
+    match:
+      kinds: [Deployment, DaemonSet]
+      namespaces: [aws-ebs-csi-driver]
+      names: [ebs-csi-controller, ebs-csi-node, ebs-csi-node-windows]
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: aws-ebs-csi-driver
+
+  # packages/argo-cd's application-controller ClusterRole ships wildcard apiGroups/resources/verbs
+  # by upstream default -- Argo CD's application controller is a generic GitOps reconciler that
+  # has to be able to sync arbitrary Kubernetes resource types users declare in their
+  # Applications, so it genuinely needs cluster-wide access to any kind, not just a fixed set --
+  # narrowing the rule would break syncing anything outside that fixed set, not just silence the
+  # check. That verb wildcard is what disallow-rbac-escalation-verbs' `escalate` rule also flags
+  # (verbs: ['*'] implicitly includes bind/escalate/impersonate). Scoped to kinds: [ClusterRole]
+  # since the default `exceptions:` kind list targets Pod-controller kinds, this policy targets
+  # Role/ClusterRole -- and to ClusterRole specifically (not Role) since that's the kind these two
+  # resources actually are. Deliberately NO `namespaces:` filter -- ClusterRole is cluster-scoped
+  # (no namespace of its own), and confirmed empirically that adding one here makes the exception
+  # never match at all (kyverno apply kept reporting the same failures) rather than being a no-op;
+  # name + selector carry the scoping instead.
+  argo-cd-application-controller:
+    policies: [disallow-wildcard-rbac, disallow-rbac-escalation-verbs]
+    match:
+      kinds: [ClusterRole]
+      names: [release-name-argocd-application-controller]
+      selector:
+        matchLabels:
+          app.kubernetes.io/part-of: argocd
+
+  # packages/argo-cd's server ClusterRole ships wildcard apiGroups/resources by upstream default
+  # -- the UI's live-resource-view/delete/patch features need to operate on any Kubernetes
+  # resource kind a user's Applications might contain, same "generic GitOps tool" reasoning as
+  # application-controller above. Only disallow-wildcard-rbac applies here: unlike
+  # application-controller, this ClusterRole's verbs are a fixed list (delete/get/patch, plus a
+  # few narrowly-scoped rules below it), never '*', so disallow-rbac-escalation-verbs' `escalate`
+  # rule doesn't fire on it and isn't exempted. No `namespaces:` filter, same reason as
+  # application-controller above.
+  argo-cd-server:
+    policies: [disallow-wildcard-rbac]
+    match:
+      kinds: [ClusterRole]
+      names: [release-name-argocd-server]
+      selector:
+        matchLabels:
+          app.kubernetes.io/part-of: argocd

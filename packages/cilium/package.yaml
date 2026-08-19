@@ -1,2 +1,2 @@
-url: https://github.com/cilium/charts/raw/refs/heads/master/cilium-1.20.0.tgz
-packageVersion: 02
+url: https://github.com/cilium/charts/raw/refs/heads/master/cilium-1.20.1.tgz
+packageVersion: 01

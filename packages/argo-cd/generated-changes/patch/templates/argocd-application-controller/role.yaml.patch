@@ -1,0 +1,11 @@
+--- charts-original/templates/argocd-application-controller/role.yaml
++++ charts/templates/argocd-application-controller/role.yaml
+@@ -1,6 +1,8 @@
+ apiVersion: rbac.authorization.k8s.io/v1
+ kind: Role
+ metadata:
++  annotations:
++    {{- include "argo-cd.patchedAnnotations" . | indent 4 }}
+   name: {{ template "argo-cd.controller.fullname" . }}
+   namespace: {{ include  "argo-cd.namespace" . }}
+   labels:

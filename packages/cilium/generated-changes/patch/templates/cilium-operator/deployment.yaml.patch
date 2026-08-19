@@ -1,0 +1,16 @@
+--- charts-original/templates/cilium-operator/deployment.yaml
++++ charts/templates/cilium-operator/deployment.yaml
+@@ -5,10 +5,11 @@
+ metadata:
+   name: cilium-operator
+   namespace: {{ include "cilium.namespace" . }}
+-  {{- with .Values.operator.annotations }}
+   annotations:
++    {{- include "cilium.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.operator.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+   labels:
+     io.cilium/app: operator
+     name: cilium-operator

@@ -1,0 +1,19 @@
+--- charts-original/templates/cilium-operator/clusterrole.yaml
++++ charts/templates/cilium-operator/clusterrole.yaml
+@@ -4,12 +4,14 @@
+ kind: ClusterRole
+ metadata:
+   name: cilium-operator
+-  {{- with .Values.operator.annotations }}
+   annotations:
++    {{- include "cilium.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.operator.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+   labels:
+     app.kubernetes.io/part-of: cilium
++    app.kubernetes.io/name: cilium-operator
+     helm.sh/chart: {{ include "cilium.chart" . }}
+     {{- with .Values.commonLabels }}
+     {{- toYaml . | nindent 4 }}

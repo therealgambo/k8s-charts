@@ -1,0 +1,16 @@
+--- charts-original/templates/hubble/peer-service.yaml
++++ charts/templates/hubble/peer-service.yaml
+@@ -4,10 +4,11 @@
+ metadata:
+   name: hubble-peer
+   namespace: {{ include "cilium.namespace" . }}
+-  {{- with .Values.hubble.annotations }}
+   annotations:
++    {{- include "cilium.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.hubble.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+   labels:
+     k8s-app: cilium
+     app.kubernetes.io/part-of: cilium

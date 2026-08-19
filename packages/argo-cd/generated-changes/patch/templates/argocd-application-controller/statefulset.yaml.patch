@@ -1,0 +1,18 @@
+--- charts-original/templates/argocd-application-controller/statefulset.yaml
++++ charts/templates/argocd-application-controller/statefulset.yaml
+@@ -2,12 +2,13 @@
+ apiVersion: apps/v1
+ kind: StatefulSet
+ metadata:
+-  {{- with (mergeOverwrite (deepCopy .Values.global.statefulsetAnnotations) .Values.controller.statefulsetAnnotations) }}
+   annotations:
++    {{- include "argo-cd.patchedAnnotations" . | indent 4 }}
++    {{- with (mergeOverwrite (deepCopy .Values.global.statefulsetAnnotations) .Values.controller.statefulsetAnnotations) }}
+     {{- range $key, $value := . }}
+     {{ $key }}: {{ $value | quote }}
+     {{- end }}
+-  {{- end }}
++    {{- end }}
+   name: {{ template "argo-cd.controller.fullname" . }}
+   namespace: {{ include  "argo-cd.namespace" . }}
+   labels:

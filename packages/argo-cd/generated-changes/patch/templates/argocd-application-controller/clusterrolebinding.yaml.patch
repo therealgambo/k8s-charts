@@ -1,0 +1,11 @@
+--- charts-original/templates/argocd-application-controller/clusterrolebinding.yaml
++++ charts/templates/argocd-application-controller/clusterrolebinding.yaml
+@@ -2,6 +2,8 @@
+ apiVersion: rbac.authorization.k8s.io/v1
+ kind: ClusterRoleBinding
+ metadata:
++  annotations:
++    {{- include "argo-cd.patchedAnnotations" . | indent 4 }}
+   name: {{ include "argo-cd.controller.fullname" . }}
+   labels:
+     {{- include "argo-cd.labels" (dict "context" . "component" .Values.controller.name "name" .Values.controller.name) | nindent 4 }}

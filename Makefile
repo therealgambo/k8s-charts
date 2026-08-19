@@ -29,7 +29,13 @@ prepare: guard-package pull-scripts ## Pull the upstream chart(s) into packages/
 #   1. values.yaml        - the chart's own defaults (implicit, always applied by helm)
 #   2. base.values.yaml   - local changes to values.yaml made here, values.yaml shouldn't be modified!
 #   3. $(ENV).values.yaml - environment-specific overrides (test/staging/production)
-template: guard-package ## Render a package's chart dir with values.yaml -> base.values.yaml -> [ENV].values.yaml layered (run 'make prepare' first; make template PACKAGE=name [ENV=staging])
+#
+# Rendered into --namespace $(PACKAGE) rather than helm's "default" fallback, so a package's
+# rendered namespace is always the same, predictable value (its own package name) instead of
+# depending on whether the caller happened to pass one -- scripts/kyverno-policy-check.sh in
+# particular relies on this to write namespace-scoped kyverno.io/v2 PolicyException match blocks
+# against a target package's rendered resources.
+template: guard-package ## Render a package's chart dir with values.yaml -> base.values.yaml -> [ENV].values.yaml layered, into --namespace $(PACKAGE) (run 'make prepare' first; make template PACKAGE=name [ENV=staging])
 	@chart="$$(./scripts/chart-dir.sh $(PACKAGE))"; \
 	test -d "$$chart" || { echo "error: $$chart not found — run 'make prepare PACKAGE=$(PACKAGE)' first" >&2; exit 1; }; \
 	values=(); \
@@ -37,7 +43,7 @@ template: guard-package ## Render a package's chart dir with values.yaml -> base
 	[[ -f "$$chart/base.values.yaml" ]] && values+=(-f "$$chart/base.values.yaml"); \
 	[[ -f "$$chart/ci.values.yaml" ]] && values+=(-f "$$chart/ci.values.yaml"); \
 	[[ -f "$$chart/$(ENV).values.yaml" ]] && values+=(-f "$$chart/$(ENV).values.yaml"); \
-	helm template "$$chart" "$${values[@]}"
+	helm template "$$chart" "$${values[@]}" --namespace $(PACKAGE)
 
 patch: guard-package pull-scripts ## Diff local edits against upstream and (re)generate the patch files
 	@$(BINARY) $@ --package="$(PACKAGE)"

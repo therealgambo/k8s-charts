@@ -1,0 +1,16 @@
+--- charts-original/templates/hubble-ui/deployment.yaml
++++ charts/templates/hubble-ui/deployment.yaml
+@@ -4,10 +4,11 @@
+ metadata:
+   name: hubble-ui
+   namespace: {{ include "cilium.namespace" . }}
+-  {{- with .Values.hubble.ui.annotations }}
+   annotations:
++    {{- include "cilium.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.hubble.ui.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+   labels:
+     k8s-app: hubble-ui
+     app.kubernetes.io/name: hubble-ui
