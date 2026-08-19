@@ -48,10 +48,16 @@ cluster_policies_chart="$(./scripts/chart-dir.sh kyverno-cluster-policies)"
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "${tmpdir}"' EXIT
 
-helm template kyverno-pod-policies "${pod_policies_chart}" --namespace kyverno-pod-policies \
-    > "${tmpdir}/pod-policies.yaml"
-helm template kyverno-cluster-policies "${cluster_policies_chart}" --namespace kyverno-cluster-policies \
-    > "${tmpdir}/cluster-policies.yaml"
+# base.values.yaml (if present) is where real, live `exceptions:` entries live for these two
+# charts -- never values.yaml's shipped default, see the comment above `exceptions:` in each
+# chart's values.yaml -- so it's layered in here too, matching scripts/kyverno-policy-check.sh.
+pod_policies_values=(); cluster_policies_values=()
+[[ -f "${pod_policies_chart}/base.values.yaml" ]] && pod_policies_values+=(-f "${pod_policies_chart}/base.values.yaml")
+[[ -f "${cluster_policies_chart}/base.values.yaml" ]] && cluster_policies_values+=(-f "${cluster_policies_chart}/base.values.yaml")
+helm template kyverno-pod-policies "${pod_policies_chart}" "${pod_policies_values[@]}" \
+    --namespace kyverno-pod-policies > "${tmpdir}/pod-policies.yaml"
+helm template kyverno-cluster-policies "${cluster_policies_chart}" "${cluster_policies_values[@]}" \
+    --namespace kyverno-cluster-policies > "${tmpdir}/cluster-policies.yaml"
 
 # Reimplements the value-file stack `make template` uses rather than shelling out to it, since
 # that target has no way to layer one more -f on top for --with.

@@ -14,7 +14,9 @@ set -euo pipefail
 # via `kyverno apply --audit-warn`. No separate allow-list here -- the only way to suppress a
 # violation is a real, reviewed kyverno.io/v2 PolicyException committed to
 # kyverno-pod-policies/kyverno-cluster-policies' own `exceptions:` values (see each chart's
-# values.yaml), the same object that (once packages/kyverno's policyExceptions feature ships)
+# base.values.yaml -- NOT values.yaml, whose shipped default deliberately stays `{}`, see the
+# comment above `exceptions:` there), the same object that (once packages/kyverno's
+# policyExceptions feature ships)
 # governs real admission too -- there is no check-only escape hatch a target package can flip on
 # its own. --exceptions-within-policies below makes `kyverno apply` actually honor those
 # PolicyExceptions, since they render as part of the same pod-policies.yaml/cluster-policies.yaml
@@ -61,13 +63,21 @@ trap 'rm -rf "${tmpdir}"' EXIT
 # namespace (see each chart's own excludeNamespaces helper in _helpers.tpl) -- if any two of the
 # three renders shared a namespace, every target resource would be silently excluded from that
 # ruleset instead of actually evaluated. Rendered directly via `helm template`, NOT `make
-# template` -- deliberately bypasses kyverno-cluster-policies' own `ci.values.yaml` (which exists
-# only to exercise config-dependent/opt-in policies for that chart's own kyverno-test), so this
-# check always evaluates the two rulesets' real shipped defaults, not a testing-only configuration.
-helm template kyverno-pod-policies "${pod_policies_chart}" --namespace kyverno-pod-policies \
-    > "${tmpdir}/pod-policies.yaml"
-helm template kyverno-cluster-policies "${cluster_policies_chart}" --namespace kyverno-cluster-policies \
-    > "${tmpdir}/cluster-policies.yaml"
+# template` -- deliberately bypasses each chart's own `ci.values.yaml` (which exists only to
+# exercise config-dependent/opt-in policies for that chart's own kyverno-test, a testing-only
+# configuration this check has no business evaluating) and `ENV.values.yaml` (per-environment,
+# not meaningful for a check that must give the same answer in every environment). `base.values.
+# yaml` IS layered in, same as `make template` would -- that's deliberately where real, live
+# `exceptions:` entries live (never in values.yaml's shipped default, see the comment above
+# `exceptions:` in each chart's values.yaml), so skipping it here would make this check blind to
+# every legitimate exception the moment one exists.
+pod_policies_values=(); cluster_policies_values=()
+[[ -f "${pod_policies_chart}/base.values.yaml" ]] && pod_policies_values+=(-f "${pod_policies_chart}/base.values.yaml")
+[[ -f "${cluster_policies_chart}/base.values.yaml" ]] && cluster_policies_values+=(-f "${cluster_policies_chart}/base.values.yaml")
+helm template kyverno-pod-policies "${pod_policies_chart}" "${pod_policies_values[@]}" \
+    --namespace kyverno-pod-policies > "${tmpdir}/pod-policies.yaml"
+helm template kyverno-cluster-policies "${cluster_policies_chart}" "${cluster_policies_values[@]}" \
+    --namespace kyverno-cluster-policies > "${tmpdir}/cluster-policies.yaml"
 
 # Same values layering `make template` uses -- reuse it directly rather than re-implement it here.
 make --no-print-directory template PACKAGE="${name}" ENV="${env}" > "${tmpdir}/target.yaml"

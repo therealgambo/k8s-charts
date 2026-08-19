@@ -160,8 +160,15 @@ policies: {}
 #     do not suppress anything at real admission time until that lands.
 #   - scripts/kyverno-policy-check.sh (the required CI check, `make kyverno-policy-check`): passes
 #     -e/--exceptions-within-policies to `kyverno apply` specifically so exceptions declared here
-#     ARE honored locally/in CI, independent of the live-cluster gate above -- verified against
-#     packages/aws-ebs-csi-driver's node/controller exception below.
+#     ARE honored locally/in CI, independent of the live-cluster gate above.
+#
+# Real, live exceptions belong in this chart's OWN base.values.yaml, NOT here in values.yaml --
+# see the equivalent comment in packages/kyverno-pod-policies/local-chart/values.yaml for why
+# (shipped-default scope-creep, and helm-unittest's `set:` merging into a non-empty default here
+# breaks every tests/exceptions_test.yaml document-count/index assertion -- this chart's own
+# `helm unittest` job failed exactly that way the one time a live exception briefly lived here).
+# scripts/kyverno-policy-check.sh layers base.values.yaml into its render of this chart for
+# exactly this reason, same as `make template` does for every other package.
 #
 #   exceptions:
 #     <name>:
@@ -184,20 +191,4 @@ policies: {}
 #       annotations: {}
 # =============================================================================================
 
-exceptions:
-  # packages/aws-ebs-csi-driver's controller Deployment and both node DaemonSets ship
-  # system-cluster-critical/system-node-critical priorityClassName by upstream default -- a CSI
-  # controller/node plugin losing to node-pressure eviction takes volume mounts down with it, so
-  # this is a real "node-critical system workload", not an unreviewed default. Scoped by
-  # namespace + label + name -- `make template` always renders a package into --namespace
-  # <package name> (see Makefile), so aws-ebs-csi-driver's own package name is a reliable
-  # namespace filter here, not just a label/name belt-and-suspenders.
-  aws-ebs-csi-driver:
-    policies: [restrict-priorityclass]
-    match:
-      kinds: [Deployment, DaemonSet]
-      namespaces: [aws-ebs-csi-driver]
-      names: [ebs-csi-controller, ebs-csi-node, ebs-csi-node-windows]
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: aws-ebs-csi-driver
+exceptions: {}

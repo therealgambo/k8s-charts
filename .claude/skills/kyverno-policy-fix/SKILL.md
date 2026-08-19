@@ -11,24 +11,33 @@ value keys to set: every upstream chart wires labels, annotations, pod/container
 its own `values.yaml` differently, or sometimes not at all. Treat each package as a discovery
 exercise and work through the steps below in order — don't skip straight to editing templates.
 
-**Golden rule: `packages/<name>/charts/values.yaml` is never edited to fix a violation.** It's
-re-derived from upstream by every `make prepare` and diffed against pristine upstream by `make
-patch` — an edit there becomes part of that diff and has to be re-reconciled on every future
-upstream bump. `packages/<name>/charts/base.values.yaml` is the layer this repo carved out
-specifically for local overrides on top of upstream defaults (see
-[README.md](../../../README.md#values-file-ordering)) — that's the only values file this skill
-ever writes to.
+**Golden rule: `packages/<name>/package.yaml`'s `url` field decides which values file gets
+edited — it's not a blanket "always `base.values.yaml`".**
+- `url: local` — a from-scratch chart with no upstream (e.g. `kyverno-pod-policies`,
+  `kyverno-cluster-policies`, `network-policies`; `workingDir: local-chart`, no
+  `generated-changes/`). `local-chart/values.yaml` is this package's own hand-authored source, not
+  build output — editing it directly is fine, since there's no upstream to diff against and so no
+  patch to conflict. (One documented exception to this — see step 5's `exceptions:` bullet.)
+- any other `url` — a forked upstream chart (e.g. `aws-ebs-csi-driver`, `kube-state-metrics`).
+  **Never** edit `packages/<name>/charts/values.yaml`: it's re-derived from upstream by every
+  `make prepare` and diffed against pristine upstream by `make patch`, so an edit there becomes
+  part of that diff and has to be hand-reconciled the next time upstream also touches that region
+  of `values.yaml`. `packages/<name>/charts/base.values.yaml` is the layer this repo carved out
+  specifically for local overrides on top of upstream defaults (see
+  [README.md](../../../README.md#values-file-ordering)) — write there instead.
 
 ## Step 0 — figure out the package
 
 Parse `$ARGUMENTS` for a package name (e.g. `aws-ebs-csi-driver`). If none was given, ask, or
 infer it from whatever the user was just running `make kyverno-policy-check` against.
 
-Confirm it's a forked package (`packages/<name>/charts` + `generated-changes/`, produced by `make
-patch`) — steps 4/4a below assume that layout. `local-chart` packages (no upstream to diff
-against — e.g. `packages/network-policies`, `packages/kyverno-pod-policies`,
-`packages/kyverno-cluster-policies` itself) have no `generated-changes/` indirection: apply the
-same discovery/decision logic, but edit `local-chart/templates/` directly instead.
+Check `packages/<name>/package.yaml`'s `url` field (see the Golden rule above) to know which kind
+of package this is — it decides both the values-file rule and the template-editing path:
+- `url: local` → edit `local-chart/templates/` and (per the Golden rule) `local-chart/values.yaml`
+  directly. No `generated-changes/` indirection, so no `make patch` step at the end either.
+- any other `url` → a forked package (`packages/<name>/charts` + `generated-changes/`, produced by
+  `make patch`) — steps 4/4a below assume that layout, and every edit needs `make patch
+  PACKAGE=<name>` afterward to capture it.
 
 ## Step 1 — get the baseline violation list
 
@@ -46,8 +55,8 @@ runs this same check unconditionally on every changed package, no allow-list.
 
 ## Step 2 — per violated id, find out whether the flagged field is already values-driven
 
-Read `packages/<name>/charts/values.yaml` (and `values.schema.json`, if present) for a plausible
-knob — common shapes to look for:
+Read `packages/<name>/charts/values.yaml` (`local-chart/values.yaml` for a `url: local` package —
+see Step 0) and `values.schema.json`, if present, for a plausible knob — common shapes to look for:
 - `commonLabels`/`customLabels`/`podLabels`/`extraLabels` and
   `commonAnnotations`/`podAnnotations`/`extraAnnotations` for the label/annotation policies.
 - `securityContext`/`podSecurityContext`/`containerSecurityContext` for the pod-hardening ones.
@@ -76,7 +85,11 @@ grep -rn "Values\.<candidateKey>" packages/<name>/charts/templates/
   .Values.node.priorityClassName | default "system-node-critical" }}` — the values file may show
   the key as unset/blank while the rendered resource still carries a real value.
 
-## Step 3 — values-driven fix → verify a candidate, then write it to `base.values.yaml`
+## Step 3 — values-driven fix → verify a candidate, then write it to the right values file
+
+Per the Golden rule: `base.values.yaml` for a forked package (the common case, and what the
+worked example below uses), `local-chart/values.yaml` directly for a `url: local` one — unless
+that specific value path has its own reason not to (like step 5's `exceptions:` pitfall).
 
 Test the candidate change WITHOUT writing it into the repo yet:
 
@@ -189,10 +202,39 @@ and `disallow-host-path`/`require-run-as-nonroot` fire because it has to run as 
 mounts to bind the kubelet's registration/driver sockets. Before reaching for step 3 or 4, ask:
 would the "fix" actually change what the workload needs to do, or only silence the check? If the
 former, this is a selector-scoped `exceptions` entry in
-`packages/kyverno-pod-policies/local-chart/values.yaml` /
-`packages/kyverno-cluster-policies/local-chart/values.yaml` instead — see each chart's own README
-for how exceptions are declared. This is the exception, not the default — steps 3, 4, and 4a above
-are.
+`packages/kyverno-pod-policies/local-chart/` / `packages/kyverno-cluster-policies/local-chart/`
+instead — see each chart's own README for the full field reference. Four things to get right,
+each one confirmed the hard way while building this exact aws-ebs-csi-driver exception:
+
+- **`base.values.yaml`, even though these are `url: local` packages.** Both policy charts have
+  `url: local` (see the Golden rule), so their `values.yaml` is normally fair game to edit
+  directly — but `exceptions:` is a specific, documented exception to that: its shipped default
+  must stay `exceptions: {}`, because a live entry there breaks `tests/exceptions_test.yaml`.
+  helm-unittest's `set:` on a map path *merges* into whatever `values.yaml` already has at that
+  key, so a live default entry silently adds an extra rendered `PolicyException` document to every
+  fixture in that suite, failing every `hasDocuments`/`DocumentIndex` assertion in it (confirmed in
+  CI: both charts' `helm unittest` jobs failed exactly this way the one time this lived in
+  `values.yaml` instead). `scripts/kyverno-policy-check.sh` layers `base.values.yaml` into its
+  render of both policy charts specifically so a real exception there still takes effect for the
+  check, same as any other package's `base.values.yaml`. (Separately, a live default in
+  `values.yaml` would also apply to every consumer of this repo's chart regardless of what they
+  actually run — one more reason `exceptions:` specifically belongs in a local override, not the
+  shipped default, on top of the test-breakage one above.)
+- **Scope `match` by namespace too, not just name + label selector.** `make template` (and this
+  check) always render a package into `--namespace <package name>` — see the Makefile — so the
+  target package's own name is a reliable `match.namespaces` entry, not just a nice-to-have.
+- **`--exceptions-within-policies`**: already on by default in `scripts/kyverno-policy-check.sh`'s
+  `kyverno apply` call and in this skill's `verify.sh` — needed because `PolicyException`
+  resources render as part of the same policy-chart files passed to `kyverno apply`, and without
+  that flag they're silently never evaluated (confirmed directly: same exception, same
+  violations, until the flag was added).
+- **Only exempt the Enforce-tier ids actually failing.** Audit-tier fallout from the same root
+  cause (e.g. `require-run-as-nonroot` alongside `disallow-host-path` on the same DaemonSet)
+  doesn't need exempting — Audit never blocks, and leaving it out keeps it visible in
+  PolicyReport instead of silently suppressed. Same pattern as the `kube-system-node-agents`/
+  `kyverno-controller` examples in `kyverno-pod-policies`' own values.yaml.
+
+This is the exception, not the default — steps 3, 4, and 4a above are.
 
 ## Step 6 — verify for real
 
