@@ -1,0 +1,22 @@
+--- charts-original/templates/_helpers.tpl
++++ charts/templates/_helpers.tpl
+@@ -13,6 +13,19 @@
+ {{- end -}}
+ 
+ {{/*
++require-resource-annotations (kyverno-policy-fix): this chart has no chart-wide
++commonAnnotations-equivalent value that every template renders (unlike commonLabels, which is
++already wired into virtually every template's labels block) -- annotations here are per-resource
++and often conditional on a feature-specific *.annotations value. So this helper is included
++explicitly, per template, wherever a resource kind kyverno-cluster-policies' blanketResourceKinds
++covers needs it. Keep scoped to exactly what config.requiredResourceAnnotations
++(packages/kyverno-cluster-policies) requires -- don't fold in unrelated annotations.
++*/}}
++{{- define "cilium.patchedAnnotations" -}}
++metadata.example.com/repository: https://github.com/therealgambo/k8s-charts
++{{- end }}
++
++{{/*
+ Render full image name from given values, e.g:
+ ```
+ image:

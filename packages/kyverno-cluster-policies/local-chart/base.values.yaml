@@ -3,6 +3,23 @@
 # in that file's shipped default.
 
 exceptions:
+  # packages/cilium's agent/envoy DaemonSets and operator Deployment ship
+  # system-node-critical/system-cluster-critical priorityClassName by upstream default -- Cilium
+  # is the cluster's CNI, so losing it to node-pressure eviction takes pod networking down
+  # cluster-wide, not just one workload. That's a real "node-critical system workload", not an
+  # unreviewed default. Scoped by namespace + label + name -- `make template` always renders a
+  # package into --namespace <package name> (see Makefile), so cilium's own package name is a
+  # reliable namespace filter here, not just a label/name belt-and-suspenders.
+  cilium:
+    policies: [restrict-priorityclass]
+    match:
+      kinds: [DaemonSet, Deployment]
+      namespaces: [cilium]
+      names: [cilium, cilium-envoy, cilium-operator]
+      selector:
+        matchLabels:
+          app.kubernetes.io/part-of: cilium
+
   # packages/aws-ebs-csi-driver's controller Deployment and both node DaemonSets ship
   # system-cluster-critical/system-node-critical priorityClassName by upstream default -- a CSI
   # controller/node plugin losing to node-pressure eviction takes volume mounts down with it, so

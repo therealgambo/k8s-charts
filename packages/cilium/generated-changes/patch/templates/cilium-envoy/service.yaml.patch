@@ -1,0 +1,20 @@
+--- charts-original/templates/cilium-envoy/service.yaml
++++ charts/templates/cilium-envoy/service.yaml
+@@ -5,8 +5,8 @@
+ metadata:
+   name: cilium-envoy
+   namespace: {{ include "cilium.namespace" . }}
+-  {{- if or (not .Values.envoy.prometheus.serviceMonitor.enabled) .Values.envoy.annotations }}
+   annotations:
++    {{- include "cilium.patchedAnnotations" . | nindent 4 }}
+   {{- if not .Values.envoy.prometheus.serviceMonitor.enabled }}
+     prometheus.io/scrape: "true"
+     prometheus.io/port: {{ .Values.envoy.prometheus.port | quote }}
+@@ -14,7 +14,6 @@
+   {{- with .Values.envoy.annotations }}
+     {{- toYaml . | nindent 4 }}
+   {{- end }}
+-  {{- end }}
+   labels:
+     k8s-app: cilium-envoy
+     app.kubernetes.io/name: cilium-envoy
