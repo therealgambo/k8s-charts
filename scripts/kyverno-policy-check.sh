@@ -82,6 +82,31 @@ helm template kyverno-cluster-policies "${cluster_policies_chart}" "${cluster_po
 # Same values layering `make template` uses -- reuse it directly rather than re-implement it here.
 make --no-print-directory template PACKAGE="${name}" ENV="${env}" > "${tmpdir}/target.yaml"
 
+# `kyverno apply` below only ever reports on resources it was actually GIVEN -- a policy whose
+# ENTIRE match is a kind the target chart never renders has nothing to evaluate at all: no pass,
+# no fail, no line anywhere in the output below, easy to mistake for "compliant" when it was
+# simply never checked. require-labels (Namespace-only) is the known case (most charts never
+# render their own Namespace) -- checked generically here (any policy matching `kinds:
+# [Namespace]` exactly) so a future Namespace-only policy is still caught automatically.
+# Deliberately NOT generalized to every policy/kind pair: most `kinds: [Pod]` policies are covered
+# via Kyverno's autogen expansion (Pod -> Deployment/DaemonSet/... at evaluation time, invisible
+# in this static template render), and plenty of policies (protect-kyverno-resources,
+# disallow-webhook-tampering, ...) are legitimately scoped to kinds most charts will never render
+# at all -- a blind "kind not present" check would flood with false positives for those.
+# Informational only -- never fails this check, since "add a Namespace" is a real design decision
+# for a package, not something to force. See the kyverno-policy-fix skill's SKILL.md step 4a-4.
+if ! grep -q '^kind: Namespace$' "${tmpdir}/target.yaml"; then
+    namespace_only_policies="$(awk '
+        /^metadata:$/ { in_metadata=1; next }
+        in_metadata && /^  name: / { policy=$2; in_metadata=0 }
+        /kinds: \[Namespace\]/ { print policy }
+    ' "${tmpdir}/pod-policies.yaml" "${tmpdir}/cluster-policies.yaml" | sort -u)"
+    if [[ -n "${namespace_only_policies}" ]]; then
+        echo "note: ${name} renders no Namespace -- the following Namespace-only polic(ies) were" >&2
+        echo "  NOT evaluated (not passed -- just never checked): ${namespace_only_policies}" >&2
+    fi
+fi
+
 set +e
 bin/kyverno apply "${tmpdir}/pod-policies.yaml" "${tmpdir}/cluster-policies.yaml" \
     --resource "${tmpdir}/target.yaml" --audit-warn --detailed-results --exceptions-within-policies

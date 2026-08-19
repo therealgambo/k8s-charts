@@ -1,0 +1,18 @@
+--- charts-original/templates/redis/service.yaml
++++ charts/templates/redis/service.yaml
+@@ -10,12 +10,13 @@
+     {{- with .Values.redis.service.labels }}
+       {{- toYaml . | nindent 4 }}
+     {{- end }}
+-  {{- with .Values.redis.service.annotations }}
+   annotations:
++    {{- include "argo-cd.patchedAnnotations" . | indent 4 }}
++    {{- with .Values.redis.service.annotations }}
+     {{- range $key, $value := . }}
+     {{ $key }}: {{ $value | quote }}
+     {{- end }}
+-  {{- end }}
++    {{- end }}
+ spec:
+   {{- include "argo-cd.dualStack" . | indent 2 }}
+   ports:

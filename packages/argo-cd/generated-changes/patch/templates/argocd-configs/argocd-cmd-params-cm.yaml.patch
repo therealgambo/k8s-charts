@@ -1,0 +1,13 @@
+--- charts-original/templates/argocd-configs/argocd-cmd-params-cm.yaml
++++ charts/templates/argocd-configs/argocd-cmd-params-cm.yaml
+@@ -6,8 +6,9 @@
+   namespace: {{ include  "argo-cd.namespace" . }}
+   labels:
+     {{- include "argo-cd.labels" (dict "context" . "component" .Values.server.name "name" "cmd-params-cm") | nindent 4 }}
+-  {{- if .Values.configs.params.annotations }}
+   annotations:
++    {{- include "argo-cd.patchedAnnotations" . | indent 4 }}
++  {{- if .Values.configs.params.annotations }}
+   {{- range $key, $value := .Values.configs.params.annotations }}
+     {{ $key }}: {{ $value | quote }}
+   {{- end }}
