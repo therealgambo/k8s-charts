@@ -1,0 +1,11 @@
+--- charts-original/templates/argocd-server/clusterrole.yaml
++++ charts/templates/argocd-server/clusterrole.yaml
+@@ -2,6 +2,8 @@
+ apiVersion: rbac.authorization.k8s.io/v1
+ kind: ClusterRole
+ metadata:
++  annotations:
++    {{- include "argo-cd.patchedAnnotations" . | indent 4 }}
+   name: {{ include "argo-cd.server.fullname" . }}
+   labels:
+     {{- include "argo-cd.labels" (dict "context" . "component" .Values.server.name "name" .Values.server.name) | nindent 4 }}

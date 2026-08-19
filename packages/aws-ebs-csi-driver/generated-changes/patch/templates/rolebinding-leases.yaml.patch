@@ -1,0 +1,11 @@
+--- charts-original/templates/rolebinding-leases.yaml
++++ charts/templates/rolebinding-leases.yaml
+@@ -6,6 +6,8 @@
+   namespace: {{ .Release.Namespace }}
+   labels:
+     {{- include "aws-ebs-csi-driver.labels" . | nindent 4 }}
++  annotations:
++    {{- include "aws-ebs-csi-driver.patchedAnnotations" . | nindent 4 }}
+ subjects:
+ - kind: ServiceAccount
+   name: {{ .Values.controller.serviceAccount.name }}

@@ -1,0 +1,10 @@
+--- charts-original/templates/hubble-relay/service.yaml
++++ charts/templates/hubble-relay/service.yaml
+@@ -5,6 +5,7 @@
+   name: hubble-relay
+   namespace: {{ include "cilium.namespace" . }}
+   annotations:
++    {{- include "cilium.patchedAnnotations" . | nindent 4 }}
+     {{- with .Values.hubble.relay.annotations }}
+     {{- toYaml . | nindent 4 }}
+     {{- end }}

@@ -1,0 +1,88 @@
+# Local overrides on top of values.yaml -- see ../../../README.md#values-file-ordering, and the
+# comment above `exceptions:` in values.yaml for why real, live exceptions live here rather than
+# in that file's shipped default.
+
+exceptions:
+  # packages/cilium's agent DaemonSet is the node's CNI plugin: it programs eBPF datapath rules
+  # directly against the kernel, so it genuinely needs host network namespace (to see/manage node
+  # interfaces), the host's PID/net sysctls and BPF filesystem, kernel module directories, and CNI
+  # config paths (disallow-host-path), NET_ADMIN/NET_RAW/SYS_MODULE/SYS_RESOURCE/PERFMON/BPF
+  # capabilities beyond the restricted default set (disallow-capabilities), privileged mode on the
+  # mount-cgroup init container for bidirectional mount propagation (disallow-privileged-containers,
+  # this container only), the spc_t (super-privileged container) SELinux type rather than the
+  # restricted container_t/container_init_t/container_kvm_t set (disallow-selinux), and an
+  # Unconfined pod-level seccompProfile since the eBPF syscalls it makes are blocked under
+  # RuntimeDefault (restrict-seccomp). None of this is a misconfiguration to work around --
+  # loosening any one of these would break Cilium's actual job of programming the datapath.
+  # Scoped by namespace + label + name -- `make template` always renders a package into
+  # --namespace <package name> (see Makefile), so cilium's own package name is a reliable
+  # namespace filter here, not just a label/name belt-and-suspenders. Restricted-tier fallout from
+  # the same root cause (require-run-as-nonroot, restrict-seccomp-strict, restrict-volume-types,
+  # disallow-privilege-escalation, disallow-capabilities-strict) is intentionally left OUT --
+  # those are Audit-tier (report-only, never block), so there's nothing to exempt; leaving them
+  # un-exempted keeps them visible in PolicyReport rather than silently suppressed.
+  cilium-agent:
+    policies: [disallow-capabilities, disallow-host-namespaces, disallow-host-path, disallow-host-ports, disallow-privileged-containers, disallow-selinux, restrict-seccomp]
+    match:
+      kinds: [DaemonSet]
+      namespaces: [cilium]
+      names: [cilium]
+      selector:
+        matchLabels:
+          app.kubernetes.io/part-of: cilium
+
+  # packages/cilium's cilium-envoy DaemonSet is Cilium's node-local L7 proxy: it shares the host
+  # network namespace to intercept and load-balance traffic for the node it runs on
+  # (disallow-host-namespaces), binds admin/metrics ports directly on the host
+  # (disallow-host-ports), mounts the same BPF/cilium-run/xds-config hostPaths the agent does to
+  # coordinate with it (disallow-host-path), and needs NET_ADMIN/NET_RAW beyond the restricted
+  # default set to manage the sockets it proxies (disallow-capabilities) plus the spc_t SELinux
+  # type for the same reason as the agent (disallow-selinux). Unlike the agent it does not run
+  # privileged or need an Unconfined seccompProfile, so those two are deliberately not exempted
+  # here. Same namespace + label + name scoping rationale as cilium-agent above.
+  cilium-envoy:
+    policies: [disallow-capabilities, disallow-host-namespaces, disallow-host-path, disallow-host-ports, disallow-selinux]
+    match:
+      kinds: [DaemonSet]
+      namespaces: [cilium]
+      names: [cilium-envoy]
+      selector:
+        matchLabels:
+          app.kubernetes.io/part-of: cilium
+
+  # packages/cilium's operator Deployment shares the host network namespace and binds its
+  # API/metrics ports on the host (disallow-host-namespaces, disallow-host-ports) so it can reach
+  # the node-local agent over localhost -- it does not touch hostPath, extra capabilities,
+  # privileged mode, or SELinux/seccomp, so only these two are exempted. Same namespace + label +
+  # name scoping rationale as cilium-agent above.
+  cilium-operator:
+    policies: [disallow-host-namespaces, disallow-host-ports]
+    match:
+      kinds: [Deployment]
+      namespaces: [cilium]
+      names: [cilium-operator]
+      selector:
+        matchLabels:
+          app.kubernetes.io/part-of: cilium
+
+  # packages/aws-ebs-csi-driver's node DaemonSets (Linux + Windows) genuinely need to run
+  # privileged and mount kubelet/plugin hostPaths to bind the registration/driver sockets and
+  # format/mount block devices -- that's the job of a CSI node plugin, not a misconfiguration.
+  # Scoped by namespace + label + name -- `make template` always renders a package into
+  # --namespace <package name> (see Makefile), so aws-ebs-csi-driver's own package name is a
+  # reliable namespace filter here, not just a label/name belt-and-suspenders. Restricted-tier
+  # fallout from the same root cause (require-run-as-nonroot,
+  # require-run-as-non-root-user, restrict-seccomp-strict, restrict-volume-types) is intentionally
+  # left OUT of this exception -- those are Audit-tier (report-only, never block), so there's
+  # nothing to exempt; leaving them un-exempted keeps them visible in PolicyReport rather than
+  # silently suppressed, same as the kube-system-node-agents/kyverno-controller examples in
+  # values.yaml only exempt their Enforce-tier ids too.
+  aws-ebs-csi-driver-node:
+    policies: [disallow-host-path, disallow-privileged-containers]
+    match:
+      kinds: [DaemonSet]
+      namespaces: [aws-ebs-csi-driver]
+      names: [ebs-csi-node, ebs-csi-node-windows]
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: aws-ebs-csi-driver

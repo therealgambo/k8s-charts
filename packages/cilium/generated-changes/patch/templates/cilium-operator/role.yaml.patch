@@ -1,0 +1,70 @@
+--- charts-original/templates/cilium-operator/role.yaml
++++ charts/templates/cilium-operator/role.yaml
+@@ -7,12 +7,14 @@
+ metadata:
+   name: cilium-operator-ingress-secrets
+   namespace: {{ .Values.ingressController.secretsNamespace.name | quote }}
+-  {{- with .Values.operator.annotations }}
+   annotations:
++    {{- include "cilium.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.operator.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+   labels:
+     app.kubernetes.io/part-of: cilium
++    app.kubernetes.io/name: cilium-operator
+     helm.sh/chart: {{ include "cilium.chart" . }}
+     {{- with .Values.commonLabels }}
+     {{- toYaml . | nindent 4 }}
+@@ -36,12 +38,14 @@
+ metadata:
+   name: cilium-operator-gateway-secrets
+   namespace: {{ .Values.gatewayAPI.secretsNamespace.name | quote }}
+-  {{- with .Values.operator.annotations }}
+   annotations:
++    {{- include "cilium.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.operator.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+   labels:
+     app.kubernetes.io/part-of: cilium
++    app.kubernetes.io/name: cilium-operator
+     helm.sh/chart: {{ include "cilium.chart" . }}
+     {{- with .Values.commonLabels }}
+     {{- toYaml . | nindent 4 }}
+@@ -65,12 +69,14 @@
+ metadata:
+   name: cilium-operator-tlsinterception-secrets
+   namespace: {{ .Values.tls.secretsNamespace.name | quote }}
+-  {{- with .Values.operator.annotations }}
+   annotations:
++    {{- include "cilium.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.operator.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+   labels:
+     app.kubernetes.io/part-of: cilium
++    app.kubernetes.io/name: cilium-operator
+     helm.sh/chart: {{ include "cilium.chart" . }}
+     {{- with .Values.commonLabels }}
+     {{- toYaml . | nindent 4 }}
+@@ -94,12 +100,14 @@
+ metadata:
+   name: cilium-operator-ztunnel
+   namespace: {{ include "cilium.namespace" . }}
+-  {{- with .Values.operator.annotations }}
+   annotations:
++    {{- include "cilium.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.operator.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+   labels:
+     app.kubernetes.io/part-of: cilium
++    app.kubernetes.io/name: cilium-operator
+     helm.sh/chart: {{ include "cilium.chart" . }}
+     {{- with .Values.commonLabels }}
+     {{- toYaml . | nindent 4 }}

@@ -91,6 +91,20 @@ policies: {}
 # features.policyExceptions.enabled: true on the companion packages/kyverno chart, with
 # .namespace pointed at wherever THIS chart is released -- see README.
 #
+# Real, live exceptions belong in this chart's OWN base.values.yaml (see README "Values file
+# ordering" -- applies to every package, local-chart ones included), NOT here in values.yaml.
+# Two reasons: (1) values.yaml is this chart's shipped default, pulled by any consumer of this
+# repo regardless of what they actually run -- an exception for one specific fleet's workload
+# (e.g. packages/aws-ebs-csi-driver) doesn't belong baked into every installer's default; (2)
+# helm-unittest's `set:` on a map path MERGES into whatever values.yaml already has at that key
+# rather than replacing it, so a live default entry here silently multiplies every test fixture in
+# tests/exceptions_test.yaml into one-extra-document, breaking every hasDocuments/DocumentIndex
+# assertion in that suite (confirmed in CI, not by inspection -- both this chart's and
+# kyverno-cluster-policies' `helm unittest` jobs failed this exact way the one time a live
+# exception briefly lived here). scripts/kyverno-policy-check.sh layers base.values.yaml into its
+# render of this chart for exactly this reason, same as `make template` does for every other
+# package.
+#
 #   exceptions:
 #     <name>:
 #       enabled: true

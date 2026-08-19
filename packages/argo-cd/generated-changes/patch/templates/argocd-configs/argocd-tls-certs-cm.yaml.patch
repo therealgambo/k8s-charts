@@ -1,0 +1,18 @@
+--- charts-original/templates/argocd-configs/argocd-tls-certs-cm.yaml
++++ charts/templates/argocd-configs/argocd-tls-certs-cm.yaml
+@@ -6,12 +6,13 @@
+   namespace: {{ include  "argo-cd.namespace" . }}
+   labels:
+     {{- include "argo-cd.labels" (dict "context" . "name" "tls-certs-cm") | nindent 4 }}
+-  {{- with .Values.configs.tls.annotations }}
+   annotations:
++    {{- include "argo-cd.patchedAnnotations" . | indent 4 }}
++    {{- with .Values.configs.tls.annotations }}
+     {{- range $key, $value := . }}
+     {{ $key }}: {{ $value | quote }}
+     {{- end }}
+-  {{- end }}
++    {{- end }}
+ {{- with .Values.configs.tls.certificates }}
+ data:
+   {{- toYaml . | nindent 2 }}

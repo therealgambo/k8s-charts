@@ -1,0 +1,18 @@
+--- charts-original/templates/argocd-configs/argocd-cm.yaml
++++ charts/templates/argocd-configs/argocd-cm.yaml
+@@ -6,12 +6,13 @@
+   namespace: {{ include  "argo-cd.namespace" . }}
+   labels:
+     {{- include "argo-cd.labels" (dict "context" . "component" .Values.server.name "name" "cm") | nindent 4 }}
+-  {{- with .Values.configs.cm.annotations }}
+   annotations:
++    {{- include "argo-cd.patchedAnnotations" . | indent 4 }}
++    {{- with .Values.configs.cm.annotations }}
+     {{- range $key, $value := . }}
+     {{ $key }}: {{ $value | quote }}
+     {{- end }}
+-  {{- end }}
++    {{- end }}
+ data:
+   {{- include "argo-cd.config.cm" . | trim | nindent 2 }}
+ {{- end }}

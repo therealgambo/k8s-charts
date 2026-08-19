@@ -1,0 +1,11 @@
+--- charts-original/templates/role-leases.yaml
++++ charts/templates/role-leases.yaml
+@@ -6,6 +6,8 @@
+   name: ebs-csi-leases-role
+   labels:
+     {{- include "aws-ebs-csi-driver.labels" . | nindent 4 }}
++  annotations:
++    {{- include "aws-ebs-csi-driver.patchedAnnotations" . | nindent 4 }}
+ rules:
+ - apiGroups: ["coordination.k8s.io"]
+   resources: ["leases"]

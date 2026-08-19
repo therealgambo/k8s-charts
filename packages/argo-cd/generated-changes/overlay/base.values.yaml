@@ -1,0 +1,103 @@
+# Local overrides on top of values.yaml -- see ../../../README.md#values-file-ordering.
+# values.yaml itself is never edited; anything needed to pass `make kyverno-policy-check` that a
+# values key already covers goes here instead. See the kyverno-policy-fix skill
+# (.claude/skills/kyverno-policy-fix/SKILL.md) for how each of these was found.
+
+# require-resource-labels (kyverno-cluster-policies): argo-cd.labels already renders
+# global.additionalLabels via toYaml and is included by nearly every template the policy flags.
+global:
+  additionalLabels:
+    metadata.example.com/team: demo-team
+
+# require-resource-requests-limits + require-emptydir-sizelimit (kyverno-cluster-policies): every
+# component's resources: and emptyDir.sizeLimit are passed straight through via toYaml, no
+# template edit needed.
+controller:
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  emptyDir:
+    sizeLimit: 64Mi
+
+dex:
+  resources:
+    limits:
+      cpu: 50m
+      memory: 64Mi
+    requests:
+      cpu: 10m
+      memory: 32Mi
+  emptyDir:
+    sizeLimit: 64Mi
+
+redis:
+  resources:
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 64Mi
+
+redisSecretInit:
+  # require-explicit-automount: the Job's pod spec had no automountServiceAccountToken field at
+  # all (unlike every other component's Deployment/StatefulSet), so templates/redis-secret-init/
+  # job.yaml was patched to add one wired to this new key, mirroring the chart's own
+  # <component>.automountServiceAccountToken convention. Stays true (matching the existing
+  # serviceAccount.automountServiceAccountToken default) because the Job's Role grants get on the
+  # argocd-redis secret, which `argocd admin redis-initial-password` reads via the in-cluster API
+  # client -- it needs the token mounted to authenticate.
+  automountServiceAccountToken: true
+  resources:
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 64Mi
+
+server:
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  emptyDir:
+    sizeLimit: 64Mi
+
+repoServer:
+  resources:
+    limits:
+      cpu: 50m
+      memory: 128Mi
+    requests:
+      cpu: 10m
+      memory: 64Mi
+  emptyDir:
+    sizeLimit: 64Mi
+
+applicationSet:
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  emptyDir:
+    sizeLimit: 64Mi
+
+notifications:
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi

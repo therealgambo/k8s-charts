@@ -1,0 +1,11 @@
+--- charts-original/templates/argocd-configs/argocd-notifications-cm.yaml
++++ charts/templates/argocd-configs/argocd-notifications-cm.yaml
+@@ -2,6 +2,8 @@
+ apiVersion: v1
+ kind: ConfigMap
+ metadata:
++  annotations:
++    {{- include "argo-cd.patchedAnnotations" . | indent 4 }}
+   name: argocd-notifications-cm
+   namespace: {{ include  "argo-cd.namespace" . }}
+   labels:

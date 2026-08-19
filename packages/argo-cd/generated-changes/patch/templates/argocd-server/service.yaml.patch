@@ -1,0 +1,18 @@
+--- charts-original/templates/argocd-server/service.yaml
++++ charts/templates/argocd-server/service.yaml
+@@ -9,12 +9,13 @@
+     {{- with .Values.server.service.labels }}
+       {{- toYaml . | nindent 4 }}
+     {{- end }}
+-  {{- with .Values.server.service.annotations }}
+   annotations:
++    {{- include "argo-cd.patchedAnnotations" . | indent 4 }}
++    {{- with .Values.server.service.annotations }}
+     {{- range $key, $value := . }}
+     {{ $key }}: {{ $value | quote }}
+     {{- end }}
+-  {{- end }}
++    {{- end }}
+ spec:
+   type: {{ .Values.server.service.type }}
+   {{- include "argo-cd.dualStack" . | indent 2 }}
