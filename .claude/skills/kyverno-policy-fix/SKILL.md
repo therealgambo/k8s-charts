@@ -245,15 +245,17 @@ make kyverno-policy-check PACKAGE=<name>
 make template PACKAGE=<name> | kubeconform -strict -summary -ignore-missing-schemas
 ```
 
-## Step 7 — bump packageVersion (skip for `url: local`)
+## Step 7 — bump packageVersion
 
-Any fix above that touched a forked package (steps 3/4/4a/5 — `base.values.yaml`,
-`generated-changes/`, or `packages/<name>/package.yaml`'s `exceptions:`-adjacent fields) changed
-that package's patch set without an upstream release behind it. Per
-[packages/README.md](../../../packages/README.md), bump `packageVersion` in `package.yaml` by one
-(zero-padded, e.g. `01` → `02`) so the next `make charts` publishes a distinct, immutable version —
-two different patch sets must never share a `packageVersion`. Skip this for `url: local` packages
-(no upstream to version against). Confirm with:
+Any fix above (steps 3/4/4a — `base.values.yaml`, `generated-changes/`; step 5's exception —
+`packages/kyverno-pod-policies/local-chart/` or `packages/kyverno-cluster-policies/local-chart/`'s
+own `base.values.yaml`) changed the package's patch set without an upstream release behind it. Per
+[packages/README.md](../../../packages/README.md), bump `packageVersion` in that package's
+`package.yaml` by one (zero-padded, e.g. `01` → `02`) so the next `make charts` publishes a
+distinct, immutable version — two different patch sets must never share a `packageVersion`. This
+applies to **every** package, including a `url: local` one (e.g. fixing an exception inside
+`kyverno-pod-policies`/`kyverno-cluster-policies` themselves) — there's no upstream to reset
+against there, but the change still needs its own version. Confirm with:
 
 ```
 make check-package-version PACKAGE=<name>

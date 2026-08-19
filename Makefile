@@ -101,10 +101,12 @@ check-images: guard-package ## Confirm every image PACKAGE's rendered chart refe
 
 # Verifies PACKAGE's packageVersion field was moved correctly relative to BASE_REF, per the
 # convention in packages/README.md: reset to 01 when the upstream url/commit changed, otherwise
-# strictly bumped whenever anything else about the package changed (so two different patch sets
-# never publish under the same chart version). Skips packages pinned `url: local` (the
-# from-scratch charts). With BASE_REF's default of origin/main, this compares against the
-# working tree -- including uncommitted changes -- so it's usable before a commit even exists.
+# strictly bumped whenever anything else under packages/PACKAGE/ changed -- including a
+# from-scratch `url: local` package's local-chart/, which has no upstream to reset against but is
+# still held to the same "every change gets its own version" bar. So two different patch sets
+# never publish under the same chart version. With BASE_REF's default of origin/main, this
+# compares against the working tree -- including uncommitted changes -- so it's usable before a
+# commit even exists.
 check-package-version: guard-package ## Verify PACKAGE's packageVersion was bumped/reset correctly relative to BASE_REF (default origin/main); make check-package-version PACKAGE=name [BASE_REF=origin/main]
 	@./scripts/check-package-version-bump.sh "$(BASE_REF)" $(PACKAGE)
 

@@ -31,12 +31,15 @@ the full set):
 - `subdirectory` — path within the upstream repo to treat as chart root (git sources only)
 - `chartRepoBranch` / `commit` — what to check out (git sources only)
 - `version` — the version to stamp on the package this cycle
-- `packageVersion` — for any package whose `url` isn't `local`, this must
-  move every time the package does: reset to `01` when `url`/`commit`
-  itself changed (a real new upstream release), otherwise bumped whenever
-  the *patch* changes without an upstream version bump. Two different patch
-  sets must never publish under the same `packageVersion` — that's what
-  keeps every published chart version unique and immutable. Enforced by
+- `packageVersion` — must move every time the package does, whether it's a
+  forked package or a from-scratch `url: local` one: reset to `01` when
+  `url`/`commit` itself changed (a real new upstream release — never happens
+  for a `url: local` package, which has no upstream), otherwise bumped
+  whenever anything else under `packages/<name>/` changes without an
+  upstream version bump (a hand-edited `generated-changes/` patch, a
+  `local-chart/` template edit, a values-file tweak, ...). Two different
+  patch sets must never publish under the same `packageVersion` — that's
+  what keeps every published chart version unique and immutable. Enforced by
   `make check-package-version PACKAGE=<name>` and CI's
   `package-version-bump` job (see `scripts/check-package-version-bump.sh`);
   `updatecli`'s own automated bumps already comply.
