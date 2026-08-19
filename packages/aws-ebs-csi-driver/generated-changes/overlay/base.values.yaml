@@ -1,0 +1,23 @@
+# Local overrides on top of values.yaml -- see ../../../README.md#values-file-ordering.
+# values.yaml itself is never edited; anything needed to pass `make kyverno-policy-check` that a
+# values key already covers goes here instead. See the kyverno-policy-fix skill
+# (.claude/skills/kyverno-policy-fix/SKILL.md) for how each of these was found.
+
+# require-resource-labels (kyverno-cluster-policies): aws-ebs-csi-driver.labels already renders
+# .Values.customLabels via toYaml and is included by every RBAC/workload template the policy
+# flags, so this alone satisfies it fleet-wide (except the helm-test-hook resources under
+# templates/tests/, which build their own bare metadata block -- see the _helpers.tpl.patch and
+# tests/helm-tester.yaml.patch for that gap).
+customLabels:
+  metadata.example.com/team: demo-team
+
+# require-emptydir-sizelimit (kyverno-cluster-policies): both volumes are emptyDir:-shaped values
+# passed straight through via toYaml (controller.yaml / _node.tpl), no template edit needed.
+controller:
+  socketDirVolume:
+    emptyDir:
+      sizeLimit: 1Mi
+node:
+  probeDirVolume:
+    emptyDir:
+      sizeLimit: 1Mi

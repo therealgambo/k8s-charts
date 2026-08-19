@@ -11,10 +11,20 @@ set -euo pipefail
 #
 # Enforcement mirrors exactly what the policies charts themselves ship with (see their READMEs):
 # Enforce-tier violations fail this check; Audit-tier violations are reported but never fail it,
-# via `kyverno apply --audit-warn`. No allow-list or exceptions here -- every package is held to
-# the same bar, unconditionally. kyverno-cluster-policies' Category F (opt-in) policies render
-# nothing by default, same as this check's target packages get by default -- they only apply here
-# if a target package's own values happen to opt one in, same as any other policy.
+# via `kyverno apply --audit-warn`. No separate allow-list here -- the only way to suppress a
+# violation is a real, reviewed kyverno.io/v2 PolicyException committed to
+# kyverno-pod-policies/kyverno-cluster-policies' own `exceptions:` values (see each chart's
+# values.yaml), the same object that (once packages/kyverno's policyExceptions feature ships)
+# governs real admission too -- there is no check-only escape hatch a target package can flip on
+# its own. --exceptions-within-policies below makes `kyverno apply` actually honor those
+# PolicyExceptions, since they render as part of the same pod-policies.yaml/cluster-policies.yaml
+# files passed as this command's policy arguments (PolicyException is just another resource kind
+# each chart emits) -- without that flag `kyverno apply` parses them out of those files but never
+# applies them, silently failing every exempted resource exactly as if no exception existed at
+# all (verified directly: same exception, same violations, until this flag was added).
+# kyverno-cluster-policies' Category F (opt-in) policies render nothing by default, same as this
+# check's target packages get by default -- they only apply here if a target package's own values
+# happen to opt one in, same as any other policy.
 #
 # Usage: ./scripts/kyverno-policy-check.sh <package> [env]
 #
@@ -44,9 +54,10 @@ cluster_policies_chart="$(./scripts/chart-dir.sh kyverno-cluster-policies)"
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "${tmpdir}"' EXIT
 
-# Each rendered into its own namespace, deliberately different from each other and from whatever
-# namespace the target chart's resources land in (helm template defaults to "default" with no
-# --namespace given). Every ClusterPolicy in both charts defensively excludes its OWN release
+# Each rendered into its own namespace, deliberately different from each other and from the
+# target chart's own namespace (`make template` renders every package into --namespace <package
+# name> -- see Makefile -- so the target here always lands in --namespace ${name}, never
+# "default"). Every ClusterPolicy in both charts defensively excludes its OWN release
 # namespace (see each chart's own excludeNamespaces helper in _helpers.tpl) -- if any two of the
 # three renders shared a namespace, every target resource would be silently excluded from that
 # ruleset instead of actually evaluated. Rendered directly via `helm template`, NOT `make
@@ -63,7 +74,7 @@ make --no-print-directory template PACKAGE="${name}" ENV="${env}" > "${tmpdir}/t
 
 set +e
 bin/kyverno apply "${tmpdir}/pod-policies.yaml" "${tmpdir}/cluster-policies.yaml" \
-    --resource "${tmpdir}/target.yaml" --audit-warn --detailed-results
+    --resource "${tmpdir}/target.yaml" --audit-warn --detailed-results --exceptions-within-policies
 status=$?
 set -e
 

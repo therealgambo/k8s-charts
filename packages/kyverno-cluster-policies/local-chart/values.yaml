@@ -151,11 +151,17 @@ policies: {}
 
 # =============================================================================================
 # One key per exception, short/unique/DNS-label-safe -- renders one kyverno.io/v2 PolicyException
-# named after the key, in this release's namespace. Requires
-# features.policyExceptions.enabled: true on the companion packages/kyverno chart, with .namespace
-# pointed at wherever THIS chart is released -- see README. NOTE: as of writing, that companion
-# feature is not yet enabled at all (blocked on an unrelated tooling issue, tracked against the
-# kyverno-pod-policies chart) -- exceptions here are inert until that lands.
+# named after the key, in this release's namespace. Two separate things gate whether an exception
+# here actually does anything, don't confuse them:
+#   - Live-cluster admission: requires features.policyExceptions.enabled: true on the companion
+#     packages/kyverno chart, with .namespace pointed at wherever THIS chart is released -- see
+#     README. NOTE: as of writing, that companion feature is not yet enabled at all (blocked on an
+#     unrelated tooling issue, tracked against the kyverno-pod-policies chart) -- exceptions here
+#     do not suppress anything at real admission time until that lands.
+#   - scripts/kyverno-policy-check.sh (the required CI check, `make kyverno-policy-check`): passes
+#     -e/--exceptions-within-policies to `kyverno apply` specifically so exceptions declared here
+#     ARE honored locally/in CI, independent of the live-cluster gate above -- verified against
+#     packages/aws-ebs-csi-driver's node/controller exception below.
 #
 #   exceptions:
 #     <name>:
@@ -178,4 +184,20 @@ policies: {}
 #       annotations: {}
 # =============================================================================================
 
-exceptions: {}
+exceptions:
+  # packages/aws-ebs-csi-driver's controller Deployment and both node DaemonSets ship
+  # system-cluster-critical/system-node-critical priorityClassName by upstream default -- a CSI
+  # controller/node plugin losing to node-pressure eviction takes volume mounts down with it, so
+  # this is a real "node-critical system workload", not an unreviewed default. Scoped by
+  # namespace + label + name -- `make template` always renders a package into --namespace
+  # <package name> (see Makefile), so aws-ebs-csi-driver's own package name is a reliable
+  # namespace filter here, not just a label/name belt-and-suspenders.
+  aws-ebs-csi-driver:
+    policies: [restrict-priorityclass]
+    match:
+      kinds: [Deployment, DaemonSet]
+      namespaces: [aws-ebs-csi-driver]
+      names: [ebs-csi-controller, ebs-csi-node, ebs-csi-node-windows]
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: aws-ebs-csi-driver

@@ -1,0 +1,11 @@
+--- charts-original/templates/clusterrole-csi-node.yaml
++++ charts/templates/clusterrole-csi-node.yaml
+@@ -5,6 +5,8 @@
+   name: ebs-csi-node-role
+   labels:
+     {{- include "aws-ebs-csi-driver.labels" . | nindent 4 }}
++  annotations:
++    {{- include "aws-ebs-csi-driver.patchedAnnotations" . | nindent 4 }}
+ rules:
+   - apiGroups: ["storage.k8s.io"]
+     resources: ["volumeattachments"]

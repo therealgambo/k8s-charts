@@ -1,0 +1,11 @@
+--- charts-original/templates/clusterrolebinding-provisioner.yaml
++++ charts/templates/clusterrolebinding-provisioner.yaml
+@@ -6,6 +6,8 @@
+   name: ebs-csi-provisioner-binding
+   labels:
+     {{- include "aws-ebs-csi-driver.labels" . | nindent 4 }}
++  annotations:
++    {{- include "aws-ebs-csi-driver.patchedAnnotations" . | nindent 4 }}
+ subjects:
+   - kind: ServiceAccount
+     name: {{ .Values.controller.serviceAccount.name }}
