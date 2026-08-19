@@ -1,2 +1,2 @@
-url: https://github.com/kubernetes-sigs/aws-ebs-csi-driver/releases/download/helm-chart-aws-ebs-csi-driver-2.63.1/aws-ebs-csi-driver-2.63.1.tgz
+url: https://github.com/kubernetes-sigs/aws-ebs-csi-driver/releases/download/helm-chart-aws-ebs-csi-driver-2.64.0/aws-ebs-csi-driver-2.64.0.tgz
 packageVersion: 01

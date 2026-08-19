@@ -1,0 +1,18 @@
+--- charts-original/templates/_common.tpl
++++ charts/templates/_common.tpl
+@@ -1,4 +1,15 @@
+ {{/* vim: set filetype=mustache: */}}
++
++{{/*
++Annotations required by kyverno-cluster-policies' require-resource-annotations policy on every
++resource kind it covers -- see config.requiredResourceAnnotations. global.additionalLabels already
++covers the equivalent label policy, but this chart has no annotations equivalent of that global
++value, so every resource template includes this helper explicitly.
++*/}}
++{{- define "argo-cd.patchedAnnotations" }}
++metadata.example.com/repository: https://github.com/therealgambo/k8s-charts
++{{- end }}
++
+ {{/*
+ Expand the name of the chart.
+ */}}

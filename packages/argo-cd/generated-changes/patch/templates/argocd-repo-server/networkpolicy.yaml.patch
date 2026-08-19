@@ -1,0 +1,11 @@
+--- charts-original/templates/argocd-repo-server/networkpolicy.yaml
++++ charts/templates/argocd-repo-server/networkpolicy.yaml
+@@ -2,6 +2,8 @@
+ apiVersion: networking.k8s.io/v1
+ kind: NetworkPolicy
+ metadata:
++  annotations:
++    {{- include "argo-cd.patchedAnnotations" . | indent 4 }}
+   labels:
+     {{- include "argo-cd.labels" (dict "context" . "component" .Values.repoServer.name "name" .Values.repoServer.name) | nindent 4 }}
+   name: {{ template "argo-cd.repoServer.fullname" . }}

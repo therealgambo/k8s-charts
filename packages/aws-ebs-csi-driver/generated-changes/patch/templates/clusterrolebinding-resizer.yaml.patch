@@ -1,0 +1,11 @@
+--- charts-original/templates/clusterrolebinding-resizer.yaml
++++ charts/templates/clusterrolebinding-resizer.yaml
+@@ -6,6 +6,8 @@
+   name: ebs-csi-resizer-binding
+   labels:
+     {{- include "aws-ebs-csi-driver.labels" . | nindent 4 }}
++  annotations:
++    {{- include "aws-ebs-csi-driver.patchedAnnotations" . | nindent 4 }}
+ subjects:
+   - kind: ServiceAccount
+     name: {{ .Values.controller.serviceAccount.name }}

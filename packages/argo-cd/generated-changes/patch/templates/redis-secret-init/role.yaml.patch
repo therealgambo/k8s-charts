@@ -1,0 +1,10 @@
+--- charts-original/templates/redis-secret-init/role.yaml
++++ charts/templates/redis-secret-init/role.yaml
+@@ -3,6 +3,7 @@
+ kind: Role
+ metadata:
+   annotations:
++    {{- include "argo-cd.patchedAnnotations" . | indent 4 }}
+     "helm.sh/hook": pre-install,pre-upgrade
+     "helm.sh/hook-delete-policy": before-hook-creation
+   labels:

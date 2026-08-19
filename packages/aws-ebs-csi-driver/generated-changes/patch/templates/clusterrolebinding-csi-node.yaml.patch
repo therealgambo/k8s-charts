@@ -1,0 +1,11 @@
+--- charts-original/templates/clusterrolebinding-csi-node.yaml
++++ charts/templates/clusterrolebinding-csi-node.yaml
+@@ -5,6 +5,8 @@
+   name: ebs-csi-node-getter-binding
+   labels:
+     {{- include "aws-ebs-csi-driver.labels" . | nindent 4 }}
++  annotations:
++    {{- include "aws-ebs-csi-driver.patchedAnnotations" . | nindent 4 }}
+ subjects:
+   - kind: ServiceAccount
+     name: {{ .Values.node.serviceAccount.name }}

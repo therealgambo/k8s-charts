@@ -1,0 +1,18 @@
+--- charts-original/templates/argocd-notifications/deployment.yaml
++++ charts/templates/argocd-notifications/deployment.yaml
+@@ -2,12 +2,13 @@
+ apiVersion: apps/v1
+ kind: Deployment
+ metadata:
+-  {{- with (mergeOverwrite (deepCopy .Values.global.deploymentAnnotations) .Values.notifications.deploymentAnnotations) }}
+   annotations:
++    {{- include "argo-cd.patchedAnnotations" . | indent 4 }}
++    {{- with (mergeOverwrite (deepCopy .Values.global.deploymentAnnotations) .Values.notifications.deploymentAnnotations) }}
+     {{- range $key, $value := . }}
+     {{ $key }}: {{ $value | quote }}
+     {{- end }}
+-  {{- end }}
++    {{- end }}
+   name: {{ include "argo-cd.notifications.fullname" . }}
+   namespace: {{ include  "argo-cd.namespace" . }}
+   labels:

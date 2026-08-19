@@ -1,0 +1,18 @@
+--- charts-original/templates/argocd-repo-server/deployment.yaml
++++ charts/templates/argocd-repo-server/deployment.yaml
+@@ -1,12 +1,13 @@
+ apiVersion: apps/v1
+ kind: Deployment
+ metadata:
+-  {{- with (mergeOverwrite (deepCopy .Values.global.deploymentAnnotations) .Values.repoServer.deploymentAnnotations) }}
+   annotations:
++    {{- include "argo-cd.patchedAnnotations" . | indent 4 }}
++    {{- with (mergeOverwrite (deepCopy .Values.global.deploymentAnnotations) .Values.repoServer.deploymentAnnotations) }}
+     {{- range $key, $value := . }}
+     {{ $key }}: {{ $value | quote }}
+     {{- end }}
+-  {{- end }}
++    {{- end }}
+   name: {{ template "argo-cd.repoServer.fullname" . }}
+   namespace: {{ include  "argo-cd.namespace" . }}
+   labels:
