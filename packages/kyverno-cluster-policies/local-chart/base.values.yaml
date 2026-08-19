@@ -75,3 +75,58 @@ exceptions:
       selector:
         matchLabels:
           app.kubernetes.io/part-of: argocd
+
+  # packages/kargo dynamically provisions per-Project RBAC: as each Kargo Project namespace is
+  # created, the API server/webhooks-server/management-controller bind their most sensitive
+  # permissions (on Secrets/ConfigMaps/ServiceAccounts, and on Roles/RoleBindings themselves) into
+  # that namespace via these cluster-scoped ClusterRoles, rather than granting them cluster-wide up
+  # front -- that's the whole point of the design (see the chart's own comments in
+  # templates/common/cluster-roles.yaml). Narrowing the wildcard verbs would break Kargo's ability
+  # to grant/revoke per-Project access at all, not just silence the check -- same "generic
+  # tool needs broad verbs on its own management surface" reasoning as argo-cd-application-
+  # controller above. kargo-project-admin/kargo-webhooks-server/kargo-management-controller also
+  # hold wildcard verbs on Roles/RoleBindings/ClusterRoles/ClusterRoleBindings under
+  # rbac.authorization.k8s.io, which is exactly what disallow-rbac-escalation-verbs' `escalate`
+  # rule flags too -- kargo-api/kargo-admin don't (their rbac.authorization.k8s.io rules are
+  # get/list/watch only), so those two are deliberately left off that policy's list. No
+  # `namespaces:` filter -- ClusterRole is cluster-scoped, and (per the argo-cd-application-
+  # controller comment above) adding one here makes the exception never match at all.
+  kargo-clusterroles-escalate:
+    policies: [disallow-wildcard-rbac, disallow-rbac-escalation-verbs]
+    match:
+      kinds: [ClusterRole]
+      names: [kargo-project-admin, kargo-webhooks-server, kargo-management-controller]
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: kargo
+
+  kargo-clusterroles-wildcard-only:
+    policies: [disallow-wildcard-rbac]
+    match:
+      kinds: [ClusterRole]
+      names: [kargo-api, kargo-admin]
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: kargo
+
+  # Same dynamic per-Project RBAC design as the ClusterRoles above, but these are the namespaced
+  # Role counterparts: kargo-admin/kargo-api (release namespace) hold wildcard verbs on Secrets
+  # (kargo-api only when api.secretManagementEnabled), and kargo-cluster-secrets-admin/
+  # kargo-shared-resources-admin/kargo-system-resources-admin (their own dedicated namespaces) hold
+  # wildcard verbs on Secrets/ConfigMaps for the same reason -- Kargo's own admin-facing roles need
+  # full CRUD on the resources they administer. None of these carry wildcard verbs on
+  # rbac.authorization.k8s.io resources, so disallow-rbac-escalation-verbs' `escalate` rule doesn't
+  # fire on them and isn't exempted here. Namespaces listed explicitly (Role is namespaced, unlike
+  # ClusterRole above) -- `make template` always renders packages/kargo into --namespace kargo (see
+  # Makefile), and the other three are this chart's own extra namespaces
+  # (global.systemResources.namespace/global.sharedResources.namespace/
+  # global.clusterSecretsNamespace), all of which default to the kargo-<name> values seen here.
+  kargo-roles-wildcard:
+    policies: [disallow-wildcard-rbac]
+    match:
+      kinds: [Role]
+      namespaces: [kargo, kargo-cluster-secrets, kargo-shared-resources, kargo-system-resources]
+      names: [kargo-admin, kargo-api, kargo-cluster-secrets-admin, kargo-shared-resources-admin, kargo-system-resources-admin]
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: kargo

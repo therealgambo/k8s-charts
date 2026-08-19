@@ -16,6 +16,7 @@ endif
 #   make prepare PACKAGE=my-chart
 PACKAGE ?=
 ENV ?= staging
+BASE_REF ?= origin/main
 
 .DEFAULT_GOAL := help
 
@@ -98,6 +99,17 @@ kyverno-policy-check: guard-package ## Assert a package's rendered chart against
 check-images: guard-package ## Confirm every image PACKAGE's rendered chart references actually exists (requires the crane CLI; make check-images PACKAGE=name [ENV=staging])
 	@./scripts/check-image-availability.sh $(PACKAGE) $(ENV)
 
+# Verifies PACKAGE's packageVersion field was moved correctly relative to BASE_REF, per the
+# convention in packages/README.md: reset to 01 when the upstream url/commit changed, otherwise
+# strictly bumped whenever anything else under packages/PACKAGE/ changed -- including a
+# from-scratch `url: local` package's local-chart/, which has no upstream to reset against but is
+# still held to the same "every change gets its own version" bar. So two different patch sets
+# never publish under the same chart version. With BASE_REF's default of origin/main, this
+# compares against the working tree -- including uncommitted changes -- so it's usable before a
+# commit even exists.
+check-package-version: guard-package ## Verify PACKAGE's packageVersion was bumped/reset correctly relative to BASE_REF (default origin/main); make check-package-version PACKAGE=name [BASE_REF=origin/main]
+	@./scripts/check-package-version-bump.sh "$(BASE_REF)" $(PACKAGE)
+
 ##@ Tooling
 
 pull-scripts: ## Download the pinned charts-build-scripts release into bin/ (skips if already current)
@@ -111,4 +123,4 @@ guard-package:
 help: ## Display this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z0-9][a-zA-Z0-9 _-]*:.*?##/ { split($$1, targets, " "); for (i in targets) { printf "  \033[36m%-15s\033[0m %s\n", targets[i], $$2 } } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
-.PHONY: prepare template patch charts clean unittest kyverno-test kyverno-policy-check check-images pull-scripts guard-package help
+.PHONY: prepare template patch charts clean unittest kyverno-test kyverno-policy-check check-images check-package-version pull-scripts guard-package help

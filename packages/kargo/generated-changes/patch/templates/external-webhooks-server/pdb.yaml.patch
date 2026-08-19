@@ -1,0 +1,14 @@
+--- charts-original/templates/external-webhooks-server/pdb.yaml
++++ charts/templates/external-webhooks-server/pdb.yaml
+@@ -7,7 +7,10 @@
+   labels:
+     {{- include "kargo.labels" . | nindent 4 }}
+     {{- include "kargo.externalWebhooksServer.labels" . | nindent 4 }}
+-  {{- with (mergeOverwrite (deepCopy .Values.global.labels) .Values.externalWebhooksServer.labels) }}
++  # kargo.labels above already renders global.labels/extraNamespaceLabels -- re-merging it here
++  # too was a latent duplicate-key bug that only surfaces once that value is actually set
++  # (kyverno-policy-fix).
++  {{- with .Values.externalWebhooksServer.labels }}
+     {{- range $key, $value := . }}
+     {{ $key }}: {{ $value | quote }}
+     {{- end }}

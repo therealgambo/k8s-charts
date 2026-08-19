@@ -1,0 +1,34 @@
+--- charts-original/templates/controller/deployment.yaml
++++ charts/templates/controller/deployment.yaml
+@@ -10,7 +10,10 @@
+     {{- include "kargo.labels" . | nindent 4 }}
+     {{- include "kargo.controller.labels" . | nindent 4 }}
+     {{- include "kargo.controller.idLabel" . | nindent 4 }}
+-  {{- with (mergeOverwrite (deepCopy .Values.global.labels) .Values.controller.labels) }}
++  # kargo.labels above already renders global.labels/extraNamespaceLabels -- re-merging it here
++  # too was a latent duplicate-key bug that only surfaces once that value is actually set
++  # (kyverno-policy-fix).
++  {{- with .Values.controller.labels }}
+     {{- range $key, $value := . }}
+     {{ $key }}: {{ $value | quote }}
+     {{- end }}
+@@ -46,6 +49,7 @@
+       {{- end }}
+     spec:
+       serviceAccountName: {{ include "kargo.controller.fullname" . }}
++      automountServiceAccountToken: {{ .Values.controller.automountServiceAccountToken }}
+       {{- with .Values.controller.affinity | default .Values.global.affinity }}
+       affinity:
+         {{- toYaml . | nindent 8 }}
+@@ -131,7 +135,10 @@
+       {{- end }}
+       volumes:
+       - name: tmp-data
+-        emptyDir: {}
++        # require-emptydir-sizelimit (kyverno-policy-fix): no values knob reaches this volume
++        # upstream, so the sizeLimit is set directly here.
++        emptyDir:
++          sizeLimit: 64Mi
+       {{- if or $kc $argocdKc }}
+       - name: kubeconfigs
+         projected:

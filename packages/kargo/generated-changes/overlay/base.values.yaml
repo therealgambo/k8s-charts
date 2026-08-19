@@ -1,0 +1,94 @@
+# Local overrides on top of values.yaml -- see ../../../README.md#values-file-ordering.
+# values.yaml itself is never edited; anything needed to pass `make kyverno-policy-check` that a
+# values key already covers goes here instead. See the kyverno-policy-fix skill
+# (.claude/skills/kyverno-policy-fix/SKILL.md) for how each of these was found.
+
+# require-resource-labels/require-resource-annotations (kyverno-cluster-policies): kargo.labels
+# and kargo.annotations already render global.labels/global.annotations via toYaml/mergeOverwrite
+# and are included by virtually every template in this chart (RBAC, ServiceAccounts, Namespaces,
+# workloads alike), so this alone satisfies both fleet-wide.
+global:
+  labels:
+    metadata.example.com/team: demo-team
+  annotations:
+    metadata.example.com/repository: https://github.com/therealgambo/k8s-charts
+  # require-resource-annotations, ServiceAccount gap: every ServiceAccount template renders its
+  # annotations block from global.serviceAccount.annotations/<component>.serviceAccount.annotations
+  # (a separate values namespace from global.annotations above), not kargo.annotations, so it
+  # needs its own setting to reach the api/controller/external-webhooks-server/garbage-collector/
+  # webhooks-server/management-controller/dex-server ServiceAccounts. templates/users/
+  # service-accounts.yaml (kargo-admin/kargo-project-creator/kargo-user/kargo-viewer) doesn't wire
+  # this in at all, so those four were patched separately -- see generated-changes.
+  serviceAccount:
+    annotations:
+      metadata.example.com/repository: https://github.com/therealgambo/k8s-charts
+
+# require-resource-requests-limits (kyverno-cluster-policies): every component's resources: is
+# passed straight through via toYaml, no template edit needed.
+api:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  # require-explicit-automount (kyverno-cluster-policies): the api Deployment's pod spec had no
+  # automountServiceAccountToken field at all, so templates/api/deployment.yaml was patched to add
+  # one wired to this new key. Stays true -- the API server is an in-cluster client that needs its
+  # own ServiceAccount token to talk to the Kubernetes API.
+  automountServiceAccountToken: true
+
+controller:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  # require-explicit-automount: see api.automountServiceAccountToken above -- same reasoning,
+  # templates/controller/deployment.yaml patched the same way.
+  automountServiceAccountToken: true
+
+externalWebhooksServer:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  # require-explicit-automount: see api.automountServiceAccountToken above -- same reasoning,
+  # templates/external-webhooks-server/deployment.yaml patched the same way.
+  automountServiceAccountToken: true
+
+webhooksServer:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  # require-explicit-automount: see api.automountServiceAccountToken above -- same reasoning,
+  # templates/kubernetes-webhooks-server/deployment.yaml patched the same way.
+  automountServiceAccountToken: true
+
+managementController:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  # require-explicit-automount: see api.automountServiceAccountToken above -- same reasoning,
+  # templates/management-controller/deployment.yaml patched the same way.
+  automountServiceAccountToken: true
+
+garbageCollector:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  # require-explicit-automount: see api.automountServiceAccountToken above -- same reasoning,
+  # templates/garbage-collector/cron-job.yaml patched the same way.
+  automountServiceAccountToken: true

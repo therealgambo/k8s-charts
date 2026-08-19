@@ -1,0 +1,22 @@
+--- charts-original/templates/api/deployment.yaml
++++ charts/templates/api/deployment.yaml
+@@ -8,7 +8,10 @@
+   labels:
+     {{- include "kargo.labels" . | nindent 4 }}
+     {{- include "kargo.api.labels" . | nindent 4 }}
+-  {{- with (mergeOverwrite (deepCopy .Values.global.labels) .Values.api.labels) }}
++  # kargo.labels above already renders global.labels/extraNamespaceLabels -- re-merging it here
++  # too was a latent duplicate-key bug that only surfaces once that value is actually set
++  # (kyverno-policy-fix).
++  {{- with .Values.api.labels }}
+     {{- range $key, $value := . }}
+     {{ $key }}: {{ $value | quote }}
+     {{- end }}
+@@ -47,6 +50,7 @@
+       {{- end }}
+     spec:
+       serviceAccountName: kargo-api
++      automountServiceAccountToken: {{ .Values.api.automountServiceAccountToken }}
+       {{- with .Values.api.affinity | default .Values.global.affinity }}
+       affinity:
+         {{- toYaml . | nindent 8 }}

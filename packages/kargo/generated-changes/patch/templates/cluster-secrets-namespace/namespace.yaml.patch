@@ -1,0 +1,11 @@
+--- charts-original/templates/cluster-secrets-namespace/namespace.yaml
++++ charts/templates/cluster-secrets-namespace/namespace.yaml
+@@ -5,5 +5,8 @@
+   name: {{ quote .Values.global.clusterSecretsNamespace }}
+   labels:
+     {{- include "kargo.labels" . | nindent 4 }}
++    # require-labels (kyverno-policy-fix): pager.example.com/key is Namespace-scoped and not
++    # covered by kargo.labels/global.labels, so it's added directly here.
++    pager.example.com/key: pagerduty-demo
+   {{- include "kargo.annotations" (dict "root" .) | nindent 2 }}
+ {{- end }}

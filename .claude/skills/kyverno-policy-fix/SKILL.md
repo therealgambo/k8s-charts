@@ -1,6 +1,7 @@
 ---
 name: kyverno-policy-fix
 description: Fix (or just investigate) Kyverno policy violations reported by `make kyverno-policy-check PACKAGE=<name>` for a packages/<name> chart in this k8s-charts repo — missing required resource labels/annotations, pod-security hardening (dropped capabilities, privilege escalation, runAsNonRoot, seccompProfile, restricted volume types, hostPath), missing emptyDir sizeLimit, automountServiceAccountToken, disallowed priorityClassName, and similar kyverno-pod-policies/kyverno-cluster-policies findings. Use when the user asks to fix Kyverno violations, make a chart pass `kyverno-policy-check`, bring a package into policy compliance, references kyverno-cluster-policies/kyverno-pod-policies failures on a specific package, or runs `/kyverno-policy-fix <package>`.
+model: claude-haiku-4-5-20251001
 ---
 
 # /kyverno-policy-fix — bring a packages/<name> chart into Kyverno compliance
@@ -242,4 +243,20 @@ This is the exception, not the default — steps 3, 4, and 4a above are.
 make patch PACKAGE=<name>
 make kyverno-policy-check PACKAGE=<name>
 make template PACKAGE=<name> | kubeconform -strict -summary -ignore-missing-schemas
+```
+
+## Step 7 — bump packageVersion
+
+Any fix above (steps 3/4/4a — `base.values.yaml`, `generated-changes/`; step 5's exception —
+`packages/kyverno-pod-policies/local-chart/` or `packages/kyverno-cluster-policies/local-chart/`'s
+own `base.values.yaml`) changed the package's patch set without an upstream release behind it. Per
+[packages/README.md](../../../packages/README.md), bump `packageVersion` in that package's
+`package.yaml` by one (zero-padded, e.g. `01` → `02`) so the next `make charts` publishes a
+distinct, immutable version — two different patch sets must never share a `packageVersion`. This
+applies to **every** package, including a `url: local` one (e.g. fixing an exception inside
+`kyverno-pod-policies`/`kyverno-cluster-policies` themselves) — there's no upstream to reset
+against there, but the change still needs its own version. Confirm with:
+
+```
+make check-package-version PACKAGE=<name>
 ```
