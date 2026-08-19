@@ -1,0 +1,24 @@
+--- charts-original/templates/hubble-ui/configmap.yaml
++++ charts/templates/hubble-ui/configmap.yaml
+@@ -5,15 +5,17 @@
+ metadata:
+   name: hubble-ui-nginx
+   namespace: {{ include "cilium.namespace" . }}
+-  {{- with .Values.commonLabels }}
+   labels:
++    app.kubernetes.io/name: hubble-ui
++    {{- with .Values.commonLabels }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ 
+-  {{- with .Values.hubble.ui.annotations }}
+   annotations:
++    {{- include "cilium.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.hubble.ui.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ data:
+   nginx.conf: {{ include "hubble-ui.nginx.conf" . | trim | quote }}
+ {{- end }}

@@ -1,0 +1,100 @@
+--- charts-original/templates/cilium-agent/rolebinding.yaml
++++ charts/templates/cilium-agent/rolebinding.yaml
+@@ -7,12 +7,14 @@
+ metadata:
+   name: cilium-config-agent
+   namespace: {{ include "cilium.namespace" . }}
+-  {{- with .Values.annotations }}
+   annotations:
++    {{- include "cilium.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+   labels:
+     app.kubernetes.io/part-of: cilium
++    app.kubernetes.io/name: cilium
+     helm.sh/chart: {{ include "cilium.chart" . }}
+     {{- with .Values.commonLabels }}
+     {{- toYaml . | nindent 4 }}
+@@ -34,12 +36,14 @@
+ metadata:
+   name: cilium-secrets
+   namespace: {{ .Values.ingressController.secretsNamespace.name | quote }}
+-  {{- with .Values.annotations }}
+   annotations:
++    {{- include "cilium.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+   labels:
+     app.kubernetes.io/part-of: cilium
++    app.kubernetes.io/name: cilium
+     helm.sh/chart: {{ include "cilium.chart" . }}
+     {{- with .Values.commonLabels }}
+     {{- toYaml . | nindent 4 }}
+@@ -61,12 +65,14 @@
+ metadata:
+   name: cilium-gateway-secrets
+   namespace: {{ .Values.gatewayAPI.secretsNamespace.name | quote }}
+-  {{- with .Values.annotations }}
+   annotations:
++    {{- include "cilium.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+   labels:
+     app.kubernetes.io/part-of: cilium
++    app.kubernetes.io/name: cilium
+     helm.sh/chart: {{ include "cilium.chart" . }}
+     {{- with .Values.commonLabels }}
+     {{- toYaml . | nindent 4 }}
+@@ -88,12 +94,14 @@
+ metadata:
+   name: cilium-envoy-config-secrets
+   namespace: {{ .Values.envoyConfig.secretsNamespace.name | quote }}
+-  {{- with .Values.annotations }}
+   annotations:
++    {{- include "cilium.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+   labels:
+     app.kubernetes.io/part-of: cilium
++    app.kubernetes.io/name: cilium
+     helm.sh/chart: {{ include "cilium.chart" . }}
+     {{- with .Values.commonLabels }}
+     {{- toYaml . | nindent 4 }}
+@@ -115,8 +123,14 @@
+ metadata:
+   name: cilium-bgp-control-plane-secrets
+   namespace: {{ .Values.bgpControlPlane.secretsNamespace.name | quote }}
++  annotations:
++    {{- include "cilium.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.annotations }}
++    {{- toYaml . | nindent 4 }}
++    {{- end }}
+   labels:
+     app.kubernetes.io/part-of: cilium
++    app.kubernetes.io/name: cilium
+     helm.sh/chart: {{ include "cilium.chart" . }}
+     {{- with .Values.commonLabels }}
+     {{- toYaml . | nindent 4 }}
+@@ -138,8 +152,14 @@
+ metadata:
+   name: cilium-tlsinterception-secrets
+   namespace: {{ .Values.tls.secretsNamespace.name | quote }}
++  annotations:
++    {{- include "cilium.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.annotations }}
++    {{- toYaml . | nindent 4 }}
++    {{- end }}
+   labels:
+     app.kubernetes.io/part-of: cilium
++    app.kubernetes.io/name: cilium
+     helm.sh/chart: {{ include "cilium.chart" . }}
+     {{- with .Values.commonLabels }}
+     {{- toYaml . | nindent 4 }}

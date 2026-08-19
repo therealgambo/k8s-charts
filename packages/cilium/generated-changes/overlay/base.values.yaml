@@ -1,5 +1,18 @@
 priorityClassName: system-node-critical
 
+# require-resource-labels/require-resource-annotations (kyverno-policy-fix): commonLabels is
+# already wired via `{{- with .Values.commonLabels }}` into the labels block of virtually every
+# template in this chart, so app.kubernetes.io/managed-by and metadata.example.com/team land on
+# every resource for free. app.kubernetes.io/name is NOT included here on purpose: several
+# templates (DaemonSet/Deployment/Service) already hardcode a component-specific
+# app.kubernetes.io/name (e.g. cilium-agent, cilium-operator, hubble-relay) rendered ahead of
+# commonLabels, so a blanket value here would win the duplicate-key merge and clobber that
+# distinction. The RBAC/ServiceAccount/ConfigMap/Secret resources that had no
+# app.kubernetes.io/name at all get it via a direct template patch instead -- see generated-changes.
+commonLabels:
+  app.kubernetes.io/managed-by: Helm
+  metadata.example.com/team: demo-team
+
 ingressController:
   enabled: false
 
@@ -17,6 +30,13 @@ kubeProxyReplacement: "true"
 operator:
   replicas: 1
   priorityClassName: system-cluster-critical
+  # require-resource-requests-limits (kyverno-policy-fix)
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
 
 image:
   pullPolicy: IfNotPresent
@@ -24,11 +44,56 @@ image:
 ipam:
   mode: kubernetes
 
+# require-resource-requests-limits / require-emptydir-sizelimit (kyverno-policy-fix): cilium-agent
+# container resources, and the "tmp" volume the agent DaemonSet falls back to a bare
+# `emptyDir: {}` for whenever tmpVolume is unset (see templates/cilium-agent/daemonset.yaml).
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 1Gi
+tmpVolume:
+  emptyDir:
+    sizeLimit: 100Mi
+
+# require-resource-requests-limits (kyverno-policy-fix): cilium-envoy container resources.
+envoy:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 1Gi
+
 hubble:
   relay:
     enabled: true
     rollOutPods: true
+    # require-resource-requests-limits (kyverno-policy-fix)
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
   ui:
     enabled: true
     rollOutPods: true
+    # require-resource-requests-limits (kyverno-policy-fix): the hubble-ui Deployment has two
+    # containers, backend and frontend -- both need requests/limits set.
+    backend:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 64Mi
+        limits:
+          memory: 256Mi
+    frontend:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 64Mi
+        limits:
+          memory: 256Mi
 
