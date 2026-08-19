@@ -1,0 +1,11 @@
+--- charts-original/templates/clusterrole-metadata-labeler.yaml
++++ charts/templates/clusterrole-metadata-labeler.yaml
+@@ -6,6 +6,8 @@
+   name: ebs-metadata-labeler-role
+   labels:
+     {{- include "aws-ebs-csi-driver.labels" . | nindent 4 }}
++  annotations:
++    {{- include "aws-ebs-csi-driver.patchedAnnotations" . | nindent 4 }}
+ rules:
+ - apiGroups: [""]
+   resources: ["nodes"]

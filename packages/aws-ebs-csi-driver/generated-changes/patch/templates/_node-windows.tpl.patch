@@ -1,0 +1,19 @@
+--- charts-original/templates/_node-windows.tpl
++++ charts/templates/_node-windows.tpl
+@@ -8,6 +8,8 @@
+   namespace: {{ .Values.node.namespaceOverride | default .Release.Namespace }}
+   labels:
+     {{- include "aws-ebs-csi-driver.labels" . | nindent 4 }}
++  annotations:
++    {{- include "aws-ebs-csi-driver.patchedAnnotations" . | nindent 4 }}
+ spec:
+   {{- if or (kindIs "float64" .Values.node.revisionHistoryLimit) (kindIs "int64" .Values.node.revisionHistoryLimit) }}
+   revisionHistoryLimit: {{ .Values.node.revisionHistoryLimit }}
+@@ -40,6 +42,7 @@
+         {{- toYaml . | nindent 8 }}
+         {{- end }}
+       serviceAccountName: {{ .Values.node.serviceAccount.name }}
++      automountServiceAccountToken: true
+       terminationGracePeriodSeconds: {{ .Values.node.terminationGracePeriodSeconds }}
+       priorityClassName: {{ .Values.node.priorityClassName | default "system-node-critical" }}
+       tolerations:
