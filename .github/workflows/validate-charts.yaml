@@ -15,6 +15,8 @@ on:
       - "scripts/version"
       - "Makefile"
       - ".github/workflows/validate-charts.yaml"
+      - ".github/workflows/_detect-changed-packages.yaml"
+      - ".github/actions/setup-pinned-helm/**"
   workflow_dispatch: {}
 
 permissions:
@@ -29,40 +31,7 @@ jobs:
   # touches. workflow_dispatch has no base ref to diff against, so it falls
   # back to validating every tracked package.
   detect-packages:
-    runs-on: ubuntu-latest
-    outputs:
-      packages: ${{ steps.detect.outputs.packages }}
-      # Only meaningful for pull_request (see below) -- the merge-base package-version-bump
-      # diffs each changed package's package.yaml/generated-changes against. Empty on
-      # workflow_dispatch, which has no PR to diff against.
-      base_sha: ${{ steps.detect.outputs.base_sha }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Detect changed packages
-        id: detect
-        run: |
-          set -euo pipefail
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            # github.event.pull_request.base.sha is frozen at the PR's last
-            # sync and goes stale as soon as unrelated commits land on the
-            # base branch afterwards -- diffing against it then pulls in
-            # every intervening change too, not just this PR's own. Diff
-            # from the merge-base with the base branch's *current* tip
-            # instead, so only packages this PR actually touches show up.
-            base="$(git merge-base "origin/${{ github.event.pull_request.base.ref }}" "${{ github.sha }}")"
-            list="$(./scripts/changed-packages.sh "${base}" "${{ github.sha }}")"
-            echo "base_sha=${base}" >> "$GITHUB_OUTPUT"
-          else
-            list="$(./scripts/changed-packages.sh --all)"
-            echo "base_sha=" >> "$GITHUB_OUTPUT"
-          fi
-          packages="$(jq -R -s -c 'split("\n") | map(select(length > 0))' <<< "${list}")"
-          echo "packages=${packages}" >> "$GITHUB_OUTPUT"
-          echo "Packages to validate: ${packages}"
+    uses: ./.github/workflows/_detect-changed-packages.yaml
 
   # Enforces the packageVersion convention from packages/README.md: it resets to 01 when a
   # package's upstream url/commit changes, and otherwise strictly increases whenever anything
@@ -106,15 +75,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Resolve pinned helm version
-        run: |
-          source scripts/version
-          echo "HELM_VERSION=${HELM_VERSION}" >> "$GITHUB_ENV"
-
-      - name: Install helm
-        uses: azure/setup-helm@v4
-        with:
-          version: ${{ env.HELM_VERSION }}
+      - name: Setup pinned helm
+        uses: ./.github/actions/setup-pinned-helm
 
       - name: make prepare
         run: make prepare PACKAGE=${{ matrix.package }}
@@ -143,15 +105,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Resolve pinned helm version
-        run: |
-          source scripts/version
-          echo "HELM_VERSION=${HELM_VERSION}" >> "$GITHUB_ENV"
-
-      - name: Install helm
-        uses: azure/setup-helm@v4
-        with:
-          version: ${{ env.HELM_VERSION }}
+      - name: Setup pinned helm
+        uses: ./.github/actions/setup-pinned-helm
 
       - name: make prepare
         run: make prepare PACKAGE=${{ matrix.package }}
@@ -192,15 +147,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Resolve pinned helm version
-        run: |
-          source scripts/version
-          echo "HELM_VERSION=${HELM_VERSION}" >> "$GITHUB_ENV"
-
-      - name: Install helm
-        uses: azure/setup-helm@v4
-        with:
-          version: ${{ env.HELM_VERSION }}
+      - name: Setup pinned helm
+        uses: ./.github/actions/setup-pinned-helm
 
       - name: make prepare
         run: make prepare PACKAGE=${{ matrix.package }}
@@ -230,16 +178,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Resolve pinned tool versions
-        run: |
-          source scripts/version
-          echo "HELM_VERSION=${HELM_VERSION}" >> "$GITHUB_ENV"
-          echo "HELM_UNITTEST_VERSION=${HELM_UNITTEST_VERSION}" >> "$GITHUB_ENV"
-
-      - name: Install helm
-        uses: azure/setup-helm@v4
-        with:
-          version: ${{ env.HELM_VERSION }}
+      - name: Setup pinned helm
+        id: setup-helm
+        uses: ./.github/actions/setup-pinned-helm
 
       - name: make prepare
         run: make prepare PACKAGE=${{ matrix.package }}
@@ -256,7 +197,7 @@ jobs:
 
       - name: Install helm-unittest
         if: steps.check.outputs.has_tests == 'true'
-        run: helm plugin install https://github.com/helm-unittest/helm-unittest --version "${HELM_UNITTEST_VERSION}" --verify=false
+        run: helm plugin install https://github.com/helm-unittest/helm-unittest --version "${{ steps.setup-helm.outputs.helm-unittest-version }}" --verify=false
 
       - name: make unittest
         if: steps.check.outputs.has_tests == 'true'
@@ -281,15 +222,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Resolve pinned helm version
-        run: |
-          source scripts/version
-          echo "HELM_VERSION=${HELM_VERSION}" >> "$GITHUB_ENV"
-
-      - name: Install helm
-        uses: azure/setup-helm@v4
-        with:
-          version: ${{ env.HELM_VERSION }}
+      - name: Setup pinned helm
+        uses: ./.github/actions/setup-pinned-helm
 
       - name: make prepare
         run: make prepare PACKAGE=${{ matrix.package }}
@@ -340,15 +274,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Resolve pinned helm version
-        run: |
-          source scripts/version
-          echo "HELM_VERSION=${HELM_VERSION}" >> "$GITHUB_ENV"
-
-      - name: Install helm
-        uses: azure/setup-helm@v4
-        with:
-          version: ${{ env.HELM_VERSION }}
+      - name: Setup pinned helm
+        uses: ./.github/actions/setup-pinned-helm
 
       - name: make prepare
         run: make prepare PACKAGE=${{ matrix.package }}

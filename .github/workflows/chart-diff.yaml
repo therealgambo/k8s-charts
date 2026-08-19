@@ -17,6 +17,8 @@ on:
       - "scripts/version"
       - "Makefile"
       - ".github/workflows/chart-diff.yaml"
+      - ".github/workflows/_detect-changed-packages.yaml"
+      - ".github/actions/setup-pinned-helm/**"
 
 permissions:
   contents: read
@@ -29,27 +31,7 @@ jobs:
   # Scopes rendering to only the packages this PR actually touches, same as
   # validate-charts.yaml.
   detect-packages:
-    runs-on: ubuntu-latest
-    outputs:
-      packages: ${{ steps.detect.outputs.packages }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Detect changed packages
-        id: detect
-        run: |
-          set -euo pipefail
-          # See validate-charts.yaml's detect-packages step: base.sha can go
-          # stale relative to the base branch's current tip, so recompute a
-          # fresh merge-base instead of trusting the event payload.
-          base="$(git merge-base "origin/${{ github.event.pull_request.base.ref }}" "${{ github.sha }}")"
-          list="$(./scripts/changed-packages.sh "${base}" "${{ github.sha }}")"
-          packages="$(jq -R -s -c 'split("\n") | map(select(length > 0))' <<< "${list}")"
-          echo "packages=${packages}" >> "$GITHUB_OUTPUT"
-          echo "Packages to diff: ${packages}"
+    uses: ./.github/workflows/_detect-changed-packages.yaml
 
   # Renders each changed package from both branches and uploads a markdown
   # fragment with the dyff result. Matrix jobs can't feed a single comment
@@ -76,15 +58,15 @@ jobs:
           ref: ${{ github.event.pull_request.base.sha }}
           path: main
 
-      - name: Resolve pinned helm version
-        run: |
-          source pr/scripts/version
-          echo "HELM_VERSION=${HELM_VERSION}" >> "$GITHUB_ENV"
-
-      - name: Install helm
-        uses: azure/setup-helm@v4
+      # Referenced from inside the pr/ checkout, not ./.github/actions -- this job never
+      # checks out the repo at the workspace root (only into pr/ and main/), so that path
+      # doesn't exist. working-directory: pr makes the action resolve pr/scripts/version,
+      # matching this step's previous `source pr/scripts/version` exactly -- HELM_VERSION is
+      # deliberately never re-resolved from main/, so both renders use identical tooling.
+      - name: Setup pinned helm
+        uses: ./pr/.github/actions/setup-pinned-helm
         with:
-          version: ${{ env.HELM_VERSION }}
+          working-directory: pr
 
       - name: Install dyff
         run: pr/scripts/pull-dyff.sh

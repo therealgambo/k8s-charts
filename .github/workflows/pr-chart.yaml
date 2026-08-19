@@ -31,27 +31,7 @@ jobs:
   # Scopes the build to only the packages this PR actually touches, same
   # approach as validate-charts.yaml/chart-diff.yaml.
   detect-packages:
-    runs-on: ubuntu-latest
-    outputs:
-      packages: ${{ steps.detect.outputs.packages }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Detect changed packages
-        id: detect
-        run: |
-          set -euo pipefail
-          # See validate-charts.yaml's detect-packages step: base.sha can go
-          # stale relative to the base branch's current tip, so recompute a
-          # fresh merge-base instead of trusting the event payload.
-          base="$(git merge-base "origin/${{ github.event.pull_request.base.ref }}" "${{ github.sha }}")"
-          list="$(./scripts/changed-packages.sh "${base}" "${{ github.sha }}")"
-          packages="$(jq -R -s -c 'split("\n") | map(select(length > 0))' <<< "${list}")"
-          echo "packages=${packages}" >> "$GITHUB_OUTPUT"
-          echo "Packages to build: ${packages}"
+    uses: ./.github/workflows/_detect-changed-packages.yaml
 
   build-and-push:
     name: build-and-push (${{ matrix.package }})
@@ -71,15 +51,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Resolve pinned helm version
-        run: |
-          source scripts/version
-          echo "HELM_VERSION=${HELM_VERSION}" >> "$GITHUB_ENV"
-
-      - name: Install helm
-        uses: azure/setup-helm@v4
-        with:
-          version: ${{ env.HELM_VERSION }}
+      - name: Setup pinned helm
+        uses: ./.github/actions/setup-pinned-helm
 
       - name: Log in to GHCR
         run: |
