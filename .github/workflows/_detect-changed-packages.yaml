@@ -1,0 +1,55 @@
+name: Detect changed packages
+
+# Reusable workflow shared by validate-charts.yaml, chart-diff.yaml, and pr-chart.yaml -- each
+# calls this instead of duplicating the same job. Scopes downstream jobs to only the packages a
+# PR actually touches. workflow_dispatch has no base ref to diff against, so it falls back to
+# every tracked package.
+#
+# `base_sha` is only meaningful for pull_request -- validate-charts.yaml's package-version-bump
+# job diffs each changed package's package.yaml/generated-changes against it. Empty on
+# workflow_dispatch (no PR to diff against), and unused by chart-diff.yaml/pr-chart.yaml, which
+# don't run on workflow_dispatch at all.
+
+on:
+  workflow_call:
+    outputs:
+      packages:
+        description: JSON array of package names touched since base_sha (or every tracked package, on workflow_dispatch)
+        value: ${{ jobs.detect.outputs.packages }}
+      base_sha:
+        description: Merge-base with the PR's base branch (pull_request only; empty otherwise)
+        value: ${{ jobs.detect.outputs.base_sha }}
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.detect.outputs.packages }}
+      base_sha: ${{ steps.detect.outputs.base_sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed packages
+        id: detect
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # github.event.pull_request.base.sha is frozen at the PR's last
+            # sync and goes stale as soon as unrelated commits land on the
+            # base branch afterwards -- diffing against it then pulls in
+            # every intervening change too, not just this PR's own. Diff
+            # from the merge-base with the base branch's *current* tip
+            # instead, so only packages this PR actually touches show up.
+            base="$(git merge-base "origin/${{ github.event.pull_request.base.ref }}" "${{ github.sha }}")"
+            list="$(./scripts/changed-packages.sh "${base}" "${{ github.sha }}")"
+            echo "base_sha=${base}" >> "$GITHUB_OUTPUT"
+          else
+            list="$(./scripts/changed-packages.sh --all)"
+            echo "base_sha=" >> "$GITHUB_OUTPUT"
+          fi
+          packages="$(jq -R -s -c 'split("\n") | map(select(length > 0))' <<< "${list}")"
+          echo "packages=${packages}" >> "$GITHUB_OUTPUT"
+          echo "Packages: ${packages}"

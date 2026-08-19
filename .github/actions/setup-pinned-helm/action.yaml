@@ -1,0 +1,56 @@
+name: Setup pinned helm
+description: >-
+  Resolves this repo's pinned tool versions from scripts/version and installs helm at the
+  pinned version. Exposes the other pinned versions as outputs for jobs that need one (e.g.
+  helm-unittest needs HELM_UNITTEST_VERSION too), so they don't have to source scripts/version
+  a second time. Deliberately does not checkout (some callers need a non-standard checkout,
+  e.g. chart-diff.yaml's dual pr/+main/ layout) and does not run `make prepare` (callers fuse
+  it with other steps differently -- see chart-diff.yaml's render step, which fuses it with
+  `make template` behind its own error-capture).
+
+inputs:
+  working-directory:
+    description: Directory containing scripts/version, relative to the job's default working directory
+    required: false
+    default: "."
+
+outputs:
+  helm-version:
+    description: Pinned helm version
+    value: ${{ steps.resolve.outputs.helm-version }}
+  helm-unittest-version:
+    description: Pinned helm-unittest plugin version
+    value: ${{ steps.resolve.outputs.helm-unittest-version }}
+  kyverno-cli-version:
+    description: Pinned kyverno CLI version
+    value: ${{ steps.resolve.outputs.kyverno-cli-version }}
+  kubeconform-version:
+    description: Pinned kubeconform version
+    value: ${{ steps.resolve.outputs.kubeconform-version }}
+  crane-version:
+    description: Pinned crane version
+    value: ${{ steps.resolve.outputs.crane-version }}
+  dyff-version:
+    description: Pinned dyff version
+    value: ${{ steps.resolve.outputs.dyff-version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve pinned versions
+      id: resolve
+      shell: bash
+      run: |
+        set -euo pipefail
+        source "${{ inputs.working-directory }}/scripts/version"
+        echo "helm-version=${HELM_VERSION}" >> "$GITHUB_OUTPUT"
+        echo "helm-unittest-version=${HELM_UNITTEST_VERSION}" >> "$GITHUB_OUTPUT"
+        echo "kyverno-cli-version=${KYVERNO_CLI_VERSION}" >> "$GITHUB_OUTPUT"
+        echo "kubeconform-version=${KUBECONFORM_VERSION}" >> "$GITHUB_OUTPUT"
+        echo "crane-version=${CRANE_VERSION}" >> "$GITHUB_OUTPUT"
+        echo "dyff-version=${DYFF_VERSION}" >> "$GITHUB_OUTPUT"
+
+    - name: Install helm
+      uses: azure/setup-helm@v4
+      with:
+        version: ${{ steps.resolve.outputs.helm-version }}
