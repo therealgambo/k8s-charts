@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    {{- include "argo-cd.labels" (dict "context" .) | nindent 4 }}
+    pager.example.com/key: pagerduty-demo
+  annotations:
+    {{- include "argo-cd.patchedAnnotations" . | indent 4 }}
+  name: {{ include "argo-cd.namespace" . }}

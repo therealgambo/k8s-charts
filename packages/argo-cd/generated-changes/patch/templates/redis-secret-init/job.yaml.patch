@@ -1,0 +1,16 @@
+--- charts-original/templates/redis-secret-init/job.yaml
++++ charts/templates/redis-secret-init/job.yaml
+@@ -5,6 +5,7 @@
+   name: {{ include "argo-cd.redisSecretInit.fullname" . }}
+   namespace: {{ include  "argo-cd.namespace" . | quote }}
+   annotations:
++    {{- include "argo-cd.patchedAnnotations" . | indent 4 }}
+     "helm.sh/hook": pre-install,pre-upgrade
+     "helm.sh/hook-delete-policy": before-hook-creation
+     {{- range $key, $value := .Values.redisSecretInit.jobAnnotations }}
+@@ -73,4 +74,5 @@
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+       serviceAccountName: {{ include "argo-cd.redisSecretInit.serviceAccountName" . }}
++      automountServiceAccountToken: {{ .Values.redisSecretInit.automountServiceAccountToken }}
+ {{- end }}

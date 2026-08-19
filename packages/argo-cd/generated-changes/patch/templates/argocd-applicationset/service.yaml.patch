@@ -1,0 +1,13 @@
+--- charts-original/templates/argocd-applicationset/service.yaml
++++ charts/templates/argocd-applicationset/service.yaml
+@@ -1,8 +1,9 @@
+ apiVersion: v1
+ kind: Service
+ metadata:
+-{{- if .Values.applicationSet.service.annotations }}
+   annotations:
++    {{- include "argo-cd.patchedAnnotations" . | indent 4 }}
++{{- if .Values.applicationSet.service.annotations }}
+   {{- range $key, $value := .Values.applicationSet.service.annotations }}
+     {{ $key }}: {{ $value | quote }}
+   {{- end }}

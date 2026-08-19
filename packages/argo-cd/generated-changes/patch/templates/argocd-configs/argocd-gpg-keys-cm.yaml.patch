@@ -1,0 +1,18 @@
+--- charts-original/templates/argocd-configs/argocd-gpg-keys-cm.yaml
++++ charts/templates/argocd-configs/argocd-gpg-keys-cm.yaml
+@@ -5,12 +5,13 @@
+   namespace: {{ include  "argo-cd.namespace" . }}
+   labels:
+     {{- include "argo-cd.labels" (dict "context" . "name" "gpg-keys-cm") | nindent 4 }}
+-  {{- with .Values.configs.gpg.annotations }}
+   annotations:
++    {{- include "argo-cd.patchedAnnotations" . | indent 4 }}
++    {{- with .Values.configs.gpg.annotations }}
+     {{- range $key, $value := . }}
+     {{ $key }}: {{ $value | quote }}
+     {{- end }}
+-  {{- end }}
++    {{- end }}
+ {{- with .Values.configs.gpg.keys }}
+ data:
+   {{- toYaml . | nindent 2 }}

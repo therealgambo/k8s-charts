@@ -79,7 +79,42 @@ summarize() {
         | sed -E 's/^policy ([a-z0-9-]+) ->.*/\1/' | sort | uniq -c | sort -rn
 }
 
+# kyverno apply only ever reports on resources it was actually GIVEN -- a policy whose ENTIRE
+# match is a kind the target chart never renders has nothing to evaluate at all: no pass, no fail,
+# no line anywhere in the output, easy to mistake for "compliant" when it was simply never
+# checked. require-labels (Namespace-only) is the known case (most charts never render their own
+# Namespace) -- checked generically here (any policy matching `kinds: [Namespace]` exactly) so a
+# future Namespace-only policy is still caught automatically. Deliberately NOT generalized to
+# every policy/kind pair: most `kinds: [Pod]` policies are covered via Kyverno's autogen expansion
+# (Pod -> Deployment/DaemonSet/... at evaluation time, invisible in this static template render),
+# and plenty of policies (protect-kyverno-resources, disallow-webhook-tampering, ...) are
+# legitimately scoped to kinds most charts will never render at all -- a blind "kind not present"
+# check floods with false positives for those. See kyverno-policy-fix SKILL.md step 4a-4.
+check_missing_namespace() {
+    local resource_file="$1"
+    grep -q '^kind: Namespace$' "${resource_file}" && return 0
+    # Track the most recently seen `metadata: / name:` (every doc in these two files is a
+    # ClusterPolicy or PolicyException, always name-before-rules, so this reliably attributes
+    # each `kinds: [...]` line to its owning policy) and print it whenever that policy's match is
+    # exactly [Namespace].
+    local namespace_only_policies
+    namespace_only_policies="$(awk '
+        /^metadata:$/ { in_metadata=1; next }
+        in_metadata && /^  name: / { policy=$2; in_metadata=0 }
+        /kinds: \[Namespace\]/ { print policy }
+    ' "${tmpdir}/pod-policies.yaml" "${tmpdir}/cluster-policies.yaml" | sort -u)"
+    if [[ -n "${namespace_only_policies}" ]]; then
+        echo
+        echo "⚠ this chart renders no Namespace -- the following Namespace-only polic(ies) were NOT"
+        echo "  evaluated at all (not passed -- just never checked):"
+        echo "${namespace_only_policies}" | sed 's/^/    - /'
+        echo "  Confirm by hand whether that's actually fine or whether this chart needs its own"
+        echo "  Namespace, per SKILL.md step 4a-4."
+    fi
+}
+
 render "${tmpdir}/target.yaml"
+check_missing_namespace "${tmpdir}/target.yaml"
 bin/kyverno apply "${tmpdir}/pod-policies.yaml" "${tmpdir}/cluster-policies.yaml" \
     --resource "${tmpdir}/target.yaml" --audit-warn --detailed-results --exceptions-within-policies \
     > "${tmpdir}/baseline.log" 2>&1 || true
