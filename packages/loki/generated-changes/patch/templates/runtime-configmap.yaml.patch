@@ -1,0 +1,11 @@
+--- charts-original/templates/runtime-configmap.yaml
++++ charts/templates/runtime-configmap.yaml
+@@ -5,6 +5,8 @@
+   namespace: {{ include "loki.namespace" . }}
+   labels:
+     {{- include "loki.labels" . | nindent 4 }}
++  annotations:
++    metadata.example.com/repository: https://github.com/therealgambo/k8s-charts
+ data:
+   runtime-config.yaml: |
+     {{- tpl (toYaml .Values.loki.runtimeConfig) . | nindent 4 }}
