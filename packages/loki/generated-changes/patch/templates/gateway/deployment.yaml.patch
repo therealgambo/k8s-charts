@@ -1,0 +1,16 @@
+--- charts-original/templates/gateway/deployment.yaml
++++ charts/templates/gateway/deployment.yaml
+@@ -199,9 +199,11 @@
+             secretName: {{ include "loki.gatewayAuthSecret" . }}
+         {{- end }}
+         - name: tmp
+-          emptyDir: {}
++          emptyDir:
++            sizeLimit: 256Mi
+         - name: docker-entrypoint-d-override
+-          emptyDir: {}
++          emptyDir:
++            sizeLimit: 256Mi
+         {{- if .Values.gateway.extraVolumes }}
+         {{- toYaml .Values.gateway.extraVolumes | nindent 8 }}
+         {{- end }}
