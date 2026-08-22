@@ -1,0 +1,30 @@
+--- charts-original/templates/role.yaml
++++ charts/templates/role.yaml
+@@ -5,10 +5,11 @@
+   namespace: {{ .Release.Namespace }}
+   labels:
+     {{- include "karpenter.labels" . | nindent 4 }}
+-  {{- with .Values.additionalAnnotations }}
+   annotations:
++    {{- include "karpenter.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.additionalAnnotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ rules:
+   # Read
+   - apiGroups: ["coordination.k8s.io"]
+@@ -33,10 +34,11 @@
+   namespace: kube-system
+   labels:
+     {{- include "karpenter.labels" . | nindent 4 }}
+-  {{- with .Values.additionalAnnotations }}
+   annotations:
++    {{- include "karpenter.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.additionalAnnotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ rules:
+   # Read
+   - apiGroups: [""]
