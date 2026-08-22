@@ -1,0 +1,31 @@
+--- charts-original/templates/_helpers.tpl
++++ charts/templates/_helpers.tpl
+@@ -31,6 +31,20 @@
+ {{- end }}
+ 
+ {{/*
++Karpenter patched labels for policy compliance
++*/}}
++{{- define "karpenter.patchedLabels" }}
++metadata.example.com/team: {{ .Values.patchedLabels.team | default "platform" }}
++{{- end }}
++
++{{/*
++Karpenter patched annotations for policy compliance
++*/}}
++{{- define "karpenter.patchedAnnotations" }}
++metadata.example.com/repository: https://github.com/therealgambo/k8s-charts
++{{- end }}
++
++{{/*
+ Common labels
+ */}}
+ {{- define "karpenter.labels" -}}
+@@ -40,6 +54,7 @@
+ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+ {{- end }}
+ app.kubernetes.io/managed-by: {{ .Release.Service }}
++{{- include "karpenter.patchedLabels" . }}
+ {{- with .Values.additionalLabels }}
+ {{ toYaml . }}
+ {{- end }}

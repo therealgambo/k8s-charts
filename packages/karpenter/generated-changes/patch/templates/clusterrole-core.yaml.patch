@@ -1,0 +1,20 @@
+--- charts-original/templates/clusterrole-core.yaml
++++ charts/templates/clusterrole-core.yaml
+@@ -4,6 +4,8 @@
+   name: {{ include "karpenter.fullname" . }}-core
+   labels:
+     {{- include "karpenter.labels" . | nindent 4 }}
++  annotations:
++    {{- include "karpenter.patchedAnnotations" . | nindent 4 }}
+   {{- with .Values.additionalAnnotations }}
+   annotations:
+     {{- toYaml . | nindent 4 }}
+@@ -23,6 +25,8 @@
+   name: {{ include "karpenter.fullname" . }}-core
+   labels:
+     {{- include "karpenter.labels" . | nindent 4 }}
++  annotations:
++    {{- include "karpenter.patchedAnnotations" . | nindent 4 }}
+   {{- with .Values.additionalAnnotations }}
+   annotations:
+     {{- toYaml . | nindent 4 }}
