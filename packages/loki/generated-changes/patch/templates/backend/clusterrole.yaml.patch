@@ -1,0 +1,15 @@
+--- charts-original/templates/backend/clusterrole.yaml
++++ charts/templates/backend/clusterrole.yaml
+@@ -4,9 +4,10 @@
+ metadata:
+   labels:
+     {{- include "loki.labels" . | nindent 4 }}
+-{{- with .Values.annotations }}
+   annotations:
+-{{ toYaml . | indent 4 }}
++    metadata.example.com/repository: https://github.com/therealgambo/k8s-charts
++{{- with .Values.annotations }}
++    {{- toYaml . | nindent 4 }}
+ {{- end }}
+   name: {{ template "loki.fullname" . }}-clusterrole
+ {{- if .Values.sidecar.rules.enabled }}
