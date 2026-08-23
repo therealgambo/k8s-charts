@@ -1,2 +1,2 @@
 url: oci://public.ecr.aws/karpenter/karpenter:1.14.1
-packageVersion: 02
+packageVersion: 01
