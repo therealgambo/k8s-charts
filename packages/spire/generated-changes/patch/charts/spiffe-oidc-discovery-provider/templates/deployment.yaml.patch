@@ -1,0 +1,16 @@
+--- charts-original/charts/spiffe-oidc-discovery-provider/templates/deployment.yaml
++++ charts/charts/spiffe-oidc-discovery-provider/templates/deployment.yaml
+@@ -7,10 +7,11 @@
+   namespace: {{ include "spiffe-oidc-discovery-provider.namespace" . }}
+   labels:
+     {{- include "spiffe-oidc-discovery-provider.labels" . | nindent 4 }}
+-  {{- with .Values.annotations }}
+   annotations:
++    {{- include "spiffe-oidc-discovery-provider.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ spec:
+   {{- if not .Values.autoscaling.enabled }}
+   replicas: {{ .Values.replicaCount }}

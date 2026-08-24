@@ -1,0 +1,11 @@
+--- charts-original/charts/spire-agent/templates/daemonset.yaml
++++ charts/charts/spire-agent/templates/daemonset.yaml
+@@ -51,6 +51,8 @@
+   labels:
+     {{- include "spire-agent.labels" . | nindent 4 }}
+     app.kubernetes.io/component: {{ $name | quote }}
++  annotations:
++    {{- include "spire-agent.patchedAnnotations" . | nindent 4 }}
+ spec:
+   selector:
+     matchLabels:

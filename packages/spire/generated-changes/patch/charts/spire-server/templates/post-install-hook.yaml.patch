@@ -1,0 +1,40 @@
+--- charts-original/charts/spire-server/templates/post-install-hook.yaml
++++ charts/charts/spire-server/templates/post-install-hook.yaml
+@@ -11,6 +11,7 @@
+   labels:
+     {{- include "spire-server.labels" . | nindent 4 }}
+   annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
+     "helm.sh/hook": post-install
+     "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+ ---
+@@ -18,7 +19,10 @@
+ kind: ClusterRole
+ metadata:
+   name: {{ include "spire-server.fullname" . }}-post-install
++  labels:
++    {{- include "spire-server.labels" . | nindent 4 }}
+   annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
+     "helm.sh/hook": post-install
+     "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+ rules:
+@@ -31,7 +35,10 @@
+ apiVersion: rbac.authorization.k8s.io/v1
+ metadata:
+   name: {{ include "spire-server.fullname" . }}-post-install
++  labels:
++    {{- include "spire-server.labels" . | nindent 4 }}
+   annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
+     "helm.sh/hook": post-install
+     "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+ subjects:
+@@ -51,6 +58,7 @@
+   labels:
+     {{- include "spire-server.labels" . | nindent 4 }}
+   annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
+     "helm.sh/hook": post-install
+     "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+ spec:

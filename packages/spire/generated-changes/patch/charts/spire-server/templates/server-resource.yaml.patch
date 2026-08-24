@@ -1,0 +1,11 @@
+--- charts-original/charts/spire-server/templates/server-resource.yaml
++++ charts/charts/spire-server/templates/server-resource.yaml
+@@ -79,6 +79,8 @@
+   labels:
+     {{- include "spire-server.labels" . | nindent 4 }}
+     app.kubernetes.io/component: server
++  annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
+ spec:
+   {{- if not .Values.autoscaling.enabled }}
+   {{- if and (eq .Values.dataStore.sql.databaseType "sqlite3") (gt (int .Values.replicaCount) 1) }}

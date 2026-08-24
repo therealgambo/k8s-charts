@@ -1,0 +1,18 @@
+--- charts-original/charts/spiffe-oidc-discovery-provider/templates/configmap.yaml
++++ charts/charts/spiffe-oidc-discovery-provider/templates/configmap.yaml
+@@ -78,10 +78,13 @@
+ metadata:
+   name: {{ include "spiffe-oidc-discovery-provider.fullname" . }}
+   namespace: {{ include "spiffe-oidc-discovery-provider.namespace" . }}
+-  {{- with .Values.configMap.annotations }}
++  labels:
++    {{- include "spiffe-oidc-discovery-provider.labels" . | nindent 4 }}
+   annotations:
++    {{- include "spiffe-oidc-discovery-provider.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.configMap.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ data:
+   oidc-discovery-provider.conf: |
+     {{- include "spiffe-oidc-discovery-provider.yaml-config" (dict "oidcSocket" $oidcSocket "root" .) | fromYaml | toPrettyJson | nindent 4 }}

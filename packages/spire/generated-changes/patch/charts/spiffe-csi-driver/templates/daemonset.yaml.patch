@@ -1,0 +1,11 @@
+--- charts-original/charts/spiffe-csi-driver/templates/daemonset.yaml
++++ charts/charts/spiffe-csi-driver/templates/daemonset.yaml
+@@ -8,6 +8,8 @@
+   namespace: {{ include "spiffe-csi-driver.namespace" . }}
+   labels:
+     {{- include "spiffe-csi-driver.labels" . | nindent 4 }}
++  annotations:
++    {{- include "spiffe-csi-driver.patchedAnnotations" . | nindent 4 }}
+ spec:
+   selector:
+     matchLabels:

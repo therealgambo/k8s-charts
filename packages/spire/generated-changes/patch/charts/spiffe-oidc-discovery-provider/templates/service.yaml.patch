@@ -1,0 +1,18 @@
+--- charts-original/charts/spiffe-oidc-discovery-provider/templates/service.yaml
++++ charts/charts/spiffe-oidc-discovery-provider/templates/service.yaml
+@@ -3,10 +3,13 @@
+ metadata:
+   name: {{ include "spiffe-oidc-discovery-provider.fullname" . }}
+   namespace: {{ include "spiffe-oidc-discovery-provider.namespace" . }}
+-  {{- with .Values.service.annotations }}
++  labels:
++    {{- include "spiffe-oidc-discovery-provider.labels" . | nindent 4 }}
+   annotations:
++    {{- include "spiffe-oidc-discovery-provider.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.service.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ spec:
+   type: {{ .Values.service.type }}
+   {{- if and (eq .Values.service.type "LoadBalancer") .Values.service.loadBalancerIP }}

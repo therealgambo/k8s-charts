@@ -1,0 +1,10 @@
+--- charts-original/charts/spire-server/templates/tests/test-connection.yaml
++++ charts/charts/spire-server/templates/tests/test-connection.yaml
+@@ -9,6 +9,7 @@
+     {{- include "spire-server.labels" . | nindent 4 }}
+     app.kubernetes.io/component: test
+   annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
+     "helm.sh/hook": test
+ spec:
+   securityContext:

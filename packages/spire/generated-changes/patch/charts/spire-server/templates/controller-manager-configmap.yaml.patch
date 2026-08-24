@@ -1,0 +1,18 @@
+--- charts-original/charts/spire-server/templates/controller-manager-configmap.yaml
++++ charts/charts/spire-server/templates/controller-manager-configmap.yaml
+@@ -9,10 +9,13 @@
+ metadata:
+   name: {{ include "spire-controller-manager.fullname" . }}
+   namespace: {{ include "spire-server.namespace" . }}
+-  {{- with .Values.controllerManager.configMap.annotations }}
++  labels:
++    {{- include "spire-server.labels" . | nindent 4 }}
+   annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.controllerManager.configMap.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ data:
+ {{- if eq (.Values.controllerManager.enabled | toString) "true" }}
+ {{- $clusterName := include "spire-lib.cluster-name" . }}
