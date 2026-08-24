@@ -1,11 +1,13 @@
 --- charts-original/templates/querier/deployment-querier.yaml
 +++ charts/templates/querier/deployment-querier.yaml
-@@ -6,6 +6,8 @@
+@@ -6,8 +6,9 @@
    namespace: {{ .Release.Namespace }}
    labels:
      {{- include "tempo.labels" $dict | nindent 4 }}
-+  annotations:
-+  {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
-   {{- with .Values.querier.annotations }}
+-  {{- with .Values.querier.annotations }}
    annotations:
++  {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
++  {{- with .Values.querier.annotations }}
    {{- toYaml . | nindent 4 }}
+   {{- end }}
+ spec:

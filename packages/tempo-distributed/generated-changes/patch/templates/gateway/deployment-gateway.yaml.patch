@@ -1,11 +1,13 @@
 --- charts-original/templates/gateway/deployment-gateway.yaml
 +++ charts/templates/gateway/deployment-gateway.yaml
-@@ -7,6 +7,8 @@
+@@ -7,8 +7,9 @@
    namespace: {{ .Release.Namespace }}
    labels:
      {{- include "tempo.labels" $dict | nindent 4 }}
-+  annotations:
-+  {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
-   {{- with .Values.gateway.annotations }}
+-  {{- with .Values.gateway.annotations }}
    annotations:
++  {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
++  {{- with .Values.gateway.annotations }}
      {{- toYaml . | nindent 4 }}
+   {{- end }}
+ spec:

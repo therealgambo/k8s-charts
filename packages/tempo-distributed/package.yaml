@@ -1,2 +1,2 @@
 url: oci://ghcr.io/grafana-community/helm-charts/tempo-distributed:3.3.0
-packageVersion: 02
+packageVersion: 01
