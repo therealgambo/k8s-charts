@@ -7,7 +7,7 @@
 +Karpenter patched labels for policy compliance
 +*/}}
 +{{- define "karpenter.patchedLabels" }}
-+metadata.example.com/team: {{ .Values.patchedLabels.team | default "platform" }}
++metadata.example.com/team: "platform"
 +{{- end }}
 +
 +{{/*
