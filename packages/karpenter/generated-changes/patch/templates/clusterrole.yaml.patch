@@ -1,0 +1,30 @@
+--- charts-original/templates/clusterrole.yaml
++++ charts/templates/clusterrole.yaml
+@@ -4,10 +4,11 @@
+   name: {{ include "karpenter.fullname" . }}
+   labels:
+     {{- include "karpenter.labels" . | nindent 4 }}
+-  {{- with .Values.additionalAnnotations }}
+   annotations:
++    {{- include "karpenter.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.additionalAnnotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ roleRef:
+   apiGroup: rbac.authorization.k8s.io
+   kind: ClusterRole
+@@ -23,10 +24,11 @@
+   name: {{ include "karpenter.fullname" . }}
+   labels:
+     {{- include "karpenter.labels" . | nindent 4 }}
+-  {{- with .Values.additionalAnnotations }}
+   annotations:
++    {{- include "karpenter.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.additionalAnnotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ rules:
+   # Read
+   - apiGroups: ["karpenter.k8s.aws"]
