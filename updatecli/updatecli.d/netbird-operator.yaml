@@ -1,0 +1,21 @@
+{{ $pkg := dict "name" "netbird-operator" "image" "ghcr.io/netbirdio/helm-charts/netbird-operator" "tagfilter" "^\\d+\\.\\d+\\.\\d+$" "github" .github }}
+name: "Bump netbird-operator chart to the latest upstream release"
+pipelineid: "{{ $pkg.name }}"
+
+scms:
+  default:{{ template "common.scm" $pkg }}
+
+sources:
+  lastRelease:{{ template "dockerimage.source" $pkg }}
+
+conditions:
+  chartTagPublished:{{ template "dockerimage.condition" $pkg }}
+  upstreamVersionChanged:{{ template "dockerimage.upstreamVersionChanged" $pkg }}
+
+targets:
+  packageURL:{{ template "dockerimage.packageURL" $pkg }}
+  packageBuildVersion:{{ template "common.packageBuildVersion" $pkg }}
+  buildChart:{{ template "common.buildChart" $pkg }}
+
+actions:
+  default:{{ template "common.action" $pkg }}

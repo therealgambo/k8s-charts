@@ -1,0 +1,20 @@
+--- charts-original/templates/service.yaml
++++ charts/templates/service.yaml
+@@ -5,6 +5,8 @@
+   name: {{ include "netbird-operator.fullname" . }}-metrics
+   labels:
+     {{- include "netbird-operator.labels" . | nindent 4 }}
++  annotations:
++    {{- include "netbird-operator.patchedAnnotations" . | nindent 4 }}
+ spec:
+   type: {{ .Values.operator.metrics.type }}
+   ports:
+@@ -22,6 +24,8 @@
+   name: {{ include "netbird-operator.webhookService" . }}
+   labels:
+     {{- include "netbird-operator.labels" . | nindent 4 }}
++  annotations:
++    {{- include "netbird-operator.patchedAnnotations" . | nindent 4 }}
+ spec:
+   type: {{ .Values.webhook.service.type }}
+   ports:
