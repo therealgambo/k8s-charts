@@ -1,0 +1,30 @@
+--- charts-original/templates/rolebinding.yaml
++++ charts/templates/rolebinding.yaml
+@@ -5,10 +5,11 @@
+   namespace: {{ .Release.Namespace }}
+   labels:
+     {{- include "karpenter.labels" . | nindent 4 }}
+-  {{- with .Values.additionalAnnotations }}
+   annotations:
++    {{- include "karpenter.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.additionalAnnotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ roleRef:
+   apiGroup: rbac.authorization.k8s.io
+   kind: Role
+@@ -25,10 +26,11 @@
+   namespace: kube-system
+   labels:
+     {{- include "karpenter.labels" . | nindent 4 }}
+-  {{- with .Values.additionalAnnotations }}
+   annotations:
++    {{- include "karpenter.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.additionalAnnotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ roleRef:
+   apiGroup: rbac.authorization.k8s.io
+   kind: Role
