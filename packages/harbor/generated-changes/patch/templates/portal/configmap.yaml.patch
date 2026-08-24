@@ -1,0 +1,11 @@
+--- charts-original/templates/portal/configmap.yaml
++++ charts/templates/portal/configmap.yaml
+@@ -5,6 +5,8 @@
+   namespace: {{ .Release.Namespace | quote }}
+   labels:
+ {{ include "harbor.labels" . | indent 4 }}
++  annotations:
++{{ include "harbor.requiredAnnotations" . | indent 4 }}
+ data:
+   nginx.conf: |+
+     worker_processes auto;

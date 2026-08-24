@@ -1,0 +1,11 @@
+--- charts-original/templates/exporter/exporter-cm-env.yaml
++++ charts/templates/exporter/exporter-cm-env.yaml
+@@ -6,6 +6,8 @@
+   namespace: {{ .Release.Namespace | quote }}
+   labels:
+ {{ include "harbor.labels" . | indent 4 }}
++  annotations:
++{{ include "harbor.requiredAnnotations" . | indent 4 }}
+ data:
+   {{- if has "jobservice" .Values.proxy.components }}
+   HTTP_PROXY: "{{ .Values.proxy.httpProxy }}"

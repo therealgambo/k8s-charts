@@ -1,0 +1,47 @@
+--- charts-original/templates/registry/registry-dpl.yaml
++++ charts/templates/registry/registry-dpl.yaml
+@@ -9,6 +9,8 @@
+ {{ include "harbor.labels" . | indent 4 }}
+     component: registry
+     app.kubernetes.io/component: registry
++  annotations:
++{{ include "harbor.requiredAnnotations" . | indent 4 }}
+ spec:
+   replicas: {{ .Values.registry.replicas }}
+   revisionHistoryLimit: {{ .Values.registry.revisionHistoryLimit }}
+@@ -95,9 +97,16 @@
+           timeoutSeconds: {{ .Values.registry.registry.readinessProbe.timeoutSeconds }}
+           failureThreshold: {{ .Values.registry.registry.readinessProbe.failureThreshold }}
+           successThreshold: {{ .Values.registry.registry.readinessProbe.successThreshold }}
+-{{- if .Values.registry.registry.resources }}
+         resources:
++{{- if .Values.registry.registry.resources }}
+ {{ toYaml .Values.registry.registry.resources | indent 10 }}
++{{- else }}
++          requests:
++            cpu: 100m
++            memory: 256Mi
++          limits:
++            cpu: 1000m
++            memory: 1024Mi
+ {{- end }}
+         {{- if not (empty .Values.containerSecurityContext) }}
+         securityContext: {{ .Values.containerSecurityContext | toYaml | nindent 10 }}
+@@ -232,9 +241,16 @@
+           timeoutSeconds: {{ .Values.registry.controller.readinessProbe.timeoutSeconds }}
+           failureThreshold: {{ .Values.registry.controller.readinessProbe.failureThreshold }}
+           successThreshold: {{ .Values.registry.controller.readinessProbe.successThreshold }}
+-{{- if .Values.registry.controller.resources }}
+         resources:
++{{- if .Values.registry.controller.resources }}
+ {{ toYaml .Values.registry.controller.resources | indent 10 }}
++{{- else }}
++          requests:
++            cpu: 100m
++            memory: 256Mi
++          limits:
++            cpu: 1000m
++            memory: 1024Mi
+ {{- end }}
+         {{- if not (empty .Values.containerSecurityContext) }}
+         securityContext: {{ .Values.containerSecurityContext | toYaml | nindent 10 }}

@@ -1,0 +1,15 @@
+--- charts-original/templates/core/core-svc.yaml
++++ charts/templates/core/core-svc.yaml
+@@ -5,9 +5,10 @@
+   namespace: {{ .Release.Namespace | quote }}
+   labels:
+ {{ include "harbor.labels" . | indent 4 }}
+-{{- with .Values.core.serviceAnnotations }}
+   annotations:
+-  {{- toYaml . | nindent 4 }}
++{{ include "harbor.requiredAnnotations" . | indent 4 }}
++{{- with .Values.core.serviceAnnotations }}
++{{ toYaml . | nindent 4 }}
+ {{- end }}
+ spec:
+ {{- if or (eq .Values.expose.ingress.controller "gce") (eq .Values.expose.ingress.controller "alb")  (eq .Values.expose.ingress.controller "f5-bigip") }}

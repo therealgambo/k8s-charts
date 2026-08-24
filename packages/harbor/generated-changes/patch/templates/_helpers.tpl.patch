@@ -1,0 +1,20 @@
+--- charts-original/templates/_helpers.tpl
++++ charts/templates/_helpers.tpl
+@@ -43,11 +43,17 @@
+ app.kubernetes.io/name: {{ include "harbor.name" . }}
+ app.kubernetes.io/managed-by: {{ .Release.Service }}
+ app.kubernetes.io/part-of: {{ include "harbor.name" . }}
++metadata.example.com/team: unset
+ {{- if .Chart.AppVersion }}
+ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+ {{- end }}
+ {{- end -}}
+ 
++{{/* Required annotations for kyverno compliance */}}
++{{- define "harbor.requiredAnnotations" -}}
++metadata.example.com/repository: https://github.com/therealgambo/k8s-charts
++{{- end -}}
++
+ {{/* matchLabels */}}
+ {{- define "harbor.matchLabels" -}}
+ release: {{ .Release.Name }}

@@ -1,0 +1,11 @@
+--- charts-original/templates/database/database-svc.yaml
++++ charts/templates/database/database-svc.yaml
+@@ -6,6 +6,8 @@
+   namespace: {{ .Release.Namespace | quote }}
+   labels:
+ {{ include "harbor.labels" . | indent 4 }}
++  annotations:
++{{ include "harbor.requiredAnnotations" . | indent 4 }}
+ spec:
+ {{- if .Values.ipFamily.policy }}
+   ipFamilyPolicy: {{ .Values.ipFamily.policy }}

@@ -1,0 +1,11 @@
+--- charts-original/templates/trivy/trivy-sts.yaml
++++ charts/templates/trivy/trivy-sts.yaml
+@@ -9,6 +9,8 @@
+ {{ include "harbor.labels" . | indent 4 }}
+     component: trivy
+     app.kubernetes.io/component: trivy
++  annotations:
++{{ include "harbor.requiredAnnotations" . | indent 4 }}
+ spec:
+   replicas: {{ .Values.trivy.replicas }}
+   serviceName: {{  template "harbor.trivy" . }}

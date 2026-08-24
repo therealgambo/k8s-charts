@@ -1,0 +1,49 @@
+--- charts-original/templates/core/core-dpl.yaml
++++ charts/templates/core/core-dpl.yaml
+@@ -5,8 +5,8 @@
+   namespace: {{ .Release.Namespace | quote }}
+   labels:
+ {{ include "harbor.labels" . | indent 4 }}
+-    component: core
+-    app.kubernetes.io/component: core
++  annotations:
++{{ include "harbor.requiredAnnotations" . | indent 4 }}
+ spec:
+   replicas: {{ .Values.core.replicas }}
+   revisionHistoryLimit: {{ .Values.core.revisionHistoryLimit }}
+@@ -24,6 +24,7 @@
+ {{ toYaml .Values.core.podLabels | indent 8 }}
+ {{- end }}
+       annotations:
++{{ include "harbor.requiredAnnotations" . | indent 8 }}
+         checksum/configmap: {{ include (print $.Template.BasePath "/core/core-cm.yaml") . | sha256sum }}
+         checksum/secret: {{ include (print $.Template.BasePath "/core/core-secret.yaml") . | sha256sum }}
+         checksum/secret-jobservice: {{ include (print $.Template.BasePath "/jobservice/jobservice-secrets.yaml") . | sha256sum }}
+@@ -192,9 +193,16 @@
+         {{- if .Values.caBundleSecretName }}
+ {{ include "harbor.caBundleVolumeMount" . | indent 8 }}
+         {{- end }}
+-{{- if .Values.core.resources }}
+         resources:
++{{- if .Values.core.resources }}
+ {{ toYaml .Values.core.resources | indent 10 }}
++{{- else }}
++          requests:
++            cpu: 100m
++            memory: 256Mi
++          limits:
++            cpu: 1000m
++            memory: 1024Mi
+ {{- end }}
+       volumes:
+       - name: config
+@@ -245,7 +253,8 @@
+           secretName: {{ template "harbor.internalTLS.core.secretName" . }}
+       {{- end }}
+       - name: psc
+-        emptyDir: {}
++        emptyDir:
++          sizeLimit: {{ .Values.core.emptyDirSizeLimit | default "256Mi" }}
+       {{- if .Values.caBundleSecretName }}
+ {{ include "harbor.caBundleVolume" . | indent 6 }}
+       {{- end }}
