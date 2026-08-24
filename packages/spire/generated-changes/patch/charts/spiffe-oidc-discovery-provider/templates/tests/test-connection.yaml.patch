@@ -1,10 +1,51 @@
 --- charts-original/charts/spiffe-oidc-discovery-provider/templates/tests/test-connection.yaml
 +++ charts/charts/spiffe-oidc-discovery-provider/templates/tests/test-connection.yaml
-@@ -20,6 +20,7 @@
+@@ -20,8 +20,14 @@
    labels:
      {{- include "spiffe-oidc-discovery-provider.labels" . | nindent 4 }}
    annotations:
 +    {{- include "spiffe-oidc-discovery-provider.patchedAnnotations" . | nindent 4 }}
      "helm.sh/hook": test
  spec:
++  # This test hook only curls the spiffe-oidc-discovery-provider Service and has no RBAC bound to
++  # its (default) ServiceAccount -- the token doesn't need to be mounted. Explicit false satisfies
++  # kyverno-cluster-policies' require-explicit-automount, which just requires the field be set one
++  # way or the other.
++  automountServiceAccountToken: false
    securityContext:
+     {{- include "spire-lib.podsecuritycontext" . | nindent 4 }}
+   containers:
+@@ -31,18 +37,24 @@
+       args: ['-s', '-f', '-k', '{{ $protocol }}://{{ include "spiffe-oidc-discovery-provider.fullname" . }}:{{ $port }}/.well-known/openid-configuration']
+       securityContext:
+         {{- include "spire-lib.securitycontext" . | nindent 8 }}
++      resources:
++        {{- toYaml .Values.tests.resources | nindent 8 }}
+     - name: curl-service-name-namespace
+       image: {{ template "spire-lib.image" (dict "image" .Values.tests.bash.image "global" .Values.global) }}
+       command: ['curl']
+       args: ['-s', '-f', '-k', '{{ $protocol }}://{{ include "spiffe-oidc-discovery-provider.fullname" . }}.{{ include "spiffe-oidc-discovery-provider.namespace" . }}:{{ $port }}/.well-known/openid-configuration']
+       securityContext:
+         {{- include "spire-lib.securitycontext" . | nindent 8 }}
++      resources:
++        {{- toYaml .Values.tests.resources | nindent 8 }}
+     - name: curl-service-name-namespace-svc-cluster-local
+       image: {{ template "spire-lib.image" (dict "image" .Values.tests.bash.image "global" .Values.global) }}
+       command: ['curl']
+       args: ['-s', '-f', '-k', '{{ $protocol }}://{{ include "spiffe-oidc-discovery-provider.fullname" . }}.{{ include "spiffe-oidc-discovery-provider.namespace" . }}.svc.{{ include "spire-lib.cluster-domain" . }}:{{ $port }}/.well-known/openid-configuration']
+       securityContext:
+         {{- include "spire-lib.securitycontext" . | nindent 8 }}
++      resources:
++        {{- toYaml .Values.tests.resources | nindent 8 }}
+     {{- if or .Values.ingress.enabled .Values.gatewayAPI.enabled }}
+     - name: curl-ingress
+       image: {{ template "spire-lib.image" (dict "image" .Values.tests.bash.image "global" .Values.global) }}
+@@ -63,6 +75,8 @@
+       {{- end }}
+       securityContext:
+         {{- include "spire-lib.securitycontext" . | nindent 8 }}
++      resources:
++        {{- toYaml .Values.tests.resources | nindent 8 }}
+     {{- end }}
+   {{- if ne (len (dig "tests" "hostAliases" "" $values)) 0 }}
+   hostAliases:

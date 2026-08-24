@@ -38,3 +38,14 @@
      "helm.sh/hook": pre-delete
      "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
  spec:
+@@ -62,6 +70,10 @@
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+       serviceAccountName: {{ include "spiffe-oidc-discovery-provider.serviceAccountName" . }}-pre-delete
++      # This hook Job's dedicated Role (above) deletes the Deployment via the k8s API, so the
++      # token needs to be mounted -- explicit true satisfies kyverno-cluster-policies'
++      # require-explicit-automount, which just requires the field be set one way or the other.
++      automountServiceAccountToken: true
+       securityContext:
+         {{- include "spire-lib.podsecuritycontext" . | nindent 8 }}
+       containers:

@@ -14,3 +14,42 @@
  spec:
    {{- if not .Values.autoscaling.enabled }}
    replicas: {{ .Values.replicaCount }}
+@@ -39,6 +40,11 @@
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+       serviceAccountName: {{ include "spiffe-oidc-discovery-provider.serviceAccountName" . }}
++      # This workload serves OIDC discovery documents over HTTP/HTTPS and has no RBAC bound to its
++      # ServiceAccount (unlike its pre-delete hook Job, which does) -- the token doesn't need to be
++      # mounted. Explicit false satisfies kyverno-cluster-policies' require-explicit-automount,
++      # which just requires the field be set one way or the other.
++      automountServiceAccountToken: false
+       securityContext:
+         {{- include "spiffe-oidc-discovery-provider.podSecurityContext" . | nindent 8 }}
+       initContainers:
+@@ -192,12 +198,14 @@
+             name: {{ include "spire-lib.bundle-configmap" . }}
+         {{- end }}
+         - name: spire-oidc-sockets
+-          emptyDir: {}
++          emptyDir:
++            sizeLimit: 1Mi
+         - name: spire-oidc-config
+           configMap:
+             name: {{ include "spiffe-oidc-discovery-provider.fullname" . }}
+         - name: nginx-tmp
+-          emptyDir: {}
++          emptyDir:
++            sizeLimit: 10Mi
+         - name: certdir
+           {{- if .Values.tls.externalSecret.enabled }}
+           secret:
+@@ -206,7 +214,8 @@
+           secret:
+             secretName: {{ include "spiffe-oidc-discovery-provider.fullname" . }}-cert
+           {{- else }}
+-          emptyDir: {}
++          emptyDir:
++            sizeLimit: 10Mi
+           {{- end }}
+       {{- with .Values.nodeSelector }}
+       nodeSelector:

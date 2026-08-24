@@ -38,3 +38,15 @@
      "helm.sh/hook": pre-upgrade
      "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
  spec:
+@@ -68,6 +76,11 @@
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+       serviceAccountName: {{ include "spire-server.serviceAccountName" . }}-pre-upgrade
++      # This hook Job's dedicated ClusterRole (above) patches the ValidatingWebhookConfiguration
++      # via the k8s API, so the token needs to be mounted -- explicit true satisfies
++      # kyverno-cluster-policies' require-explicit-automount, which just requires the field be set
++      # one way or the other.
++      automountServiceAccountToken: true
+       securityContext:
+         {{- include "spire-lib.podsecuritycontext" . | nindent 8 }}
+       containers:

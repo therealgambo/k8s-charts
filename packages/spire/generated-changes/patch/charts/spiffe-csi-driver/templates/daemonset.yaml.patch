@@ -9,3 +9,15 @@
  spec:
    selector:
      matchLabels:
+@@ -40,6 +42,11 @@
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+       serviceAccountName: {{ include "spiffe-csi-driver.serviceAccountName" . }}
++      # This CSI node plugin talks to the kubelet over its unix socket, not the k8s API -- it has
++      # no RBAC bound to its ServiceAccount, so the token doesn't need to be mounted. Explicit
++      # false satisfies kyverno-cluster-policies' require-explicit-automount, which just requires
++      # the field be set one way or the other.
++      automountServiceAccountToken: false
+       {{- with .Values.nodeSelector }}
+       nodeSelector:
+         {{- toYaml . | nindent 8 }}

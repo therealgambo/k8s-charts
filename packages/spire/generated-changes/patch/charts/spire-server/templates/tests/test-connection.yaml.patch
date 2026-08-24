@@ -1,10 +1,53 @@
 --- charts-original/charts/spire-server/templates/tests/test-connection.yaml
 +++ charts/charts/spire-server/templates/tests/test-connection.yaml
-@@ -9,6 +9,7 @@
+@@ -9,8 +9,14 @@
      {{- include "spire-server.labels" . | nindent 4 }}
      app.kubernetes.io/component: test
    annotations:
 +    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
      "helm.sh/hook": test
  spec:
++  # This test hook only curls the spire-server Service and has no RBAC bound to its (default)
++  # ServiceAccount -- the token doesn't need to be mounted. Explicit false satisfies
++  # kyverno-cluster-policies' require-explicit-automount, which just requires the field be set one
++  # way or the other.
++  automountServiceAccountToken: false
    securityContext:
+     {{- include "spire-lib.podsecuritycontext" . | nindent 4 }}
+   containers:
+@@ -34,6 +40,8 @@
+           exit 1
+       securityContext:
+         {{- include "spire-lib.securitycontext" . | nindent 8 }}
++      resources:
++        {{- toYaml .Values.tests.resources | nindent 8 }}
+     {{- if eq (.Values.federation.enabled | toString) "true" }}
+     - name: curl-federation-bundle-endpoint
+       image: {{ template "spire-lib.image" (dict "image" .Values.tests.bash.image "global" .Values.global) }}
+@@ -41,6 +49,8 @@
+       args: ['-k', '-s', '-f', 'https://{{ include "spire-server.fullname" . }}.{{ include "spire-server.namespace" . }}.svc.{{ include "spire-lib.cluster-domain" . }}:{{ .Values.federation.bundleEndpoint.port }}']
+       securityContext:
+         {{- include "spire-lib.securitycontext" . | nindent 8 }}
++      resources:
++        {{- toYaml .Values.tests.resources | nindent 8 }}
+     {{- end }}
+     {{- if .Values.federation.ingress.enabled }}
+     - name: federation-ingress
+@@ -55,6 +65,8 @@
+       {{- end }}
+       securityContext:
+         {{- include "spire-lib.securitycontext" . | nindent 8 }}
++      resources:
++        {{- toYaml .Values.tests.resources | nindent 8 }}
+     {{- end }}
+     {{- if .Values.federation.gatewayAPI.enabled }}
+     {{- $gwHost := include "spire-lib.ingress-calculated-name" (dict "Values" .Values "ingress" (dict "host" .Values.federation.gatewayAPI.host)) | trim }}
+@@ -70,6 +82,8 @@
+       {{- end }}
+       securityContext:
+         {{- include "spire-lib.securitycontext" . | nindent 8 }}
++      resources:
++        {{- toYaml .Values.tests.resources | nindent 8 }}
+     {{- end }}
+   {{- if ne (len (dig "tests" "hostAliases" "" $values)) 0 }}
+   hostAliases:

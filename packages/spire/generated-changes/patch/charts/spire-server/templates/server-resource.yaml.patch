@@ -9,3 +9,62 @@
  spec:
    {{- if not .Values.autoscaling.enabled }}
    {{- if and (eq .Values.dataStore.sql.databaseType "sqlite3") (gt (int .Values.replicaCount) 1) }}
+@@ -119,6 +121,11 @@
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+       serviceAccountName: {{ include "spire-server.serviceAccountName" . }}
++      # This pod's own RBAC (see roles.yaml) and its optional controller-manager sidecar container
++      # both need to call the k8s API, so the token needs to be mounted -- explicit true satisfies
++      # kyverno-cluster-policies' require-explicit-automount, which just requires the field be set
++      # one way or the other.
++      automountServiceAccountToken: true
+       shareProcessNamespace: true
+       securityContext:
+         {{- $podSecurityContext | toYaml | nindent 8 }}
+@@ -591,14 +598,17 @@
+       {{- end }}
+       volumes:
+         - name: server-tmp
+-          emptyDir: {}
++          emptyDir:
++            sizeLimit: 100Mi
+         - name: spire-config
+           configMap:
+             name: {{ include "spire-server.fullname" . }}
+         - name: spire-server-socket
+-          emptyDir: {}
++          emptyDir:
++            sizeLimit: 1Mi
+         - name: spire-controller-manager-tmp
+-          emptyDir: {}
++          emptyDir:
++            sizeLimit: 50Mi
+         {{- if gt (len .Values.kubeConfigs) 0 }}
+         - name: kubeconfigs
+           projected:
+@@ -630,11 +640,13 @@
+         {{- end }}
+         {{- if $pluginLoaderNeeded }}
+         - name: plugins
+-          emptyDir: {}
++          emptyDir:
++            sizeLimit: 50Mi
+         {{- end }}
+         {{- if .Values.nodeAttestor.tpmDirect.enabled }}
+         - name: tpm-direct
+-          emptyDir: {}
++          emptyDir:
++            sizeLimit: 1Mi
+         {{- if ne (len .Values.nodeAttestor.tpmDirect.cas) 0 }}
+         - name: tpm-direct-cas
+           configMap:
+@@ -724,7 +736,8 @@
+         {{- end }}
+         {{- if eq .Values.persistence.type "emptyDir" }}
+         - name: spire-data
+-          emptyDir: {}
++          emptyDir:
++            sizeLimit: 500Mi
+         {{- else if eq .Values.persistence.type "hostPath" }}
+         - name: spire-data
+           hostPath:
