@@ -1,0 +1,19 @@
+--- charts-original/templates/memcached/statefulset-memcached.yaml
++++ charts/templates/memcached/statefulset-memcached.yaml
+@@ -7,6 +7,8 @@
+   namespace: {{ .Release.Namespace }}
+   labels:
+     {{- include "tempo.labels" $dict | nindent 4 }}
++  annotations:
++  {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
+   {{- with .Values.memcached.annotations }}
+   annotations:
+   {{- toYaml . | nindent 4 }}
+@@ -42,6 +44,7 @@
+       priorityClassName: {{ tpl (default .Values.memcached.priorityClassName .Values.global.priorityClassName) . }}
+       {{- end }}
+       serviceAccountName: {{ include "tempo.serviceAccountName" . }}
++      automountServiceAccountToken: false
+       {{- with .Values.tempo.podSecurityContext }}
+       securityContext:
+         {{- toYaml . | nindent 8 }}

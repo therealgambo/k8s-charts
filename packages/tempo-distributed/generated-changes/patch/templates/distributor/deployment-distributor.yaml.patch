@@ -1,0 +1,15 @@
+--- charts-original/templates/distributor/deployment-distributor.yaml
++++ charts/templates/distributor/deployment-distributor.yaml
+@@ -49,9 +49,10 @@
+   namespace: {{ .Release.Namespace }}
+   labels:
+   {{- include "tempo.labels" $dict | nindent 4 }}
+-  {{- with .Values.distributor.annotations }}
+   annotations:
+-  {{- toYaml . | nindent 4 }}
++  {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
++  {{- with .Values.distributor.annotations }}
++    {{- toYaml . | nindent 4 }}
+   {{- end }}
+ spec:
+   minReadySeconds: {{ .Values.distributor.minReadySeconds }}

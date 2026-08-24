@@ -1,0 +1,15 @@
+--- charts-original/templates/memcached/service-memcached.yaml
++++ charts/templates/memcached/service-memcached.yaml
+@@ -6,7 +6,11 @@
+   namespace: {{ .Release.Namespace }}
+   labels:
+   {{- include "tempo.labels" (dict "ctx" . "component" "memcached") | nindent 4 }}
+-  {{- with .Values.memcached.service.annotations }}
++  annotations:
++    {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
++  annotations:
++    {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
++    {{- with .Values.memcached.service.annotations }}
+   annotations:
+     {{- tpl (toYaml . | nindent 4) $ }}
+   {{- end }}

@@ -1,0 +1,15 @@
+--- charts-original/templates/gateway/service-gateway.yaml
++++ charts/templates/gateway/service-gateway.yaml
+@@ -9,7 +9,11 @@
+     {{- with .Values.gateway.service.labels }}
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+-  {{- with .Values.gateway.service.annotations }}
++  annotations:
++    {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
++  annotations:
++    {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
++    {{- with .Values.gateway.service.annotations }}
+   annotations:
+     {{- tpl (toYaml . | nindent 4) $ }}
+   {{- end }}

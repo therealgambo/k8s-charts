@@ -1,0 +1,18 @@
+--- charts-original/templates/_helpers.tpl
++++ charts/templates/_helpers.tpl
+@@ -149,6 +149,15 @@
+ {{- end -}}
+ 
+ {{/*
++Additional annotations required by cluster policies
++*/}}
++{{- define "tempo.patchedAnnotations" -}}
++{{- if .ctx.Values.global.commonAnnotations }}
++{{ toYaml .ctx.Values.global.commonAnnotations | indent 0 }}
++{{- end }}
++{{- end -}}
++
++{{/*
+ Simple service selector labels
+ */}}
+ {{- define "tempo.selectorLabels" -}}

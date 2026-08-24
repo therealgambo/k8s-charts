@@ -1,0 +1,13 @@
+--- charts-original/templates/query-frontend/service-query-frontend-discovery.yaml
++++ charts/templates/query-frontend/service-query-frontend-discovery.yaml
+@@ -8,8 +8,9 @@
+     {{- with .Values.queryFrontend.serviceDiscovery.labels }}
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+-  {{- with .Values.queryFrontend.serviceDiscovery.annotations }}
+   annotations:
++    {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
++  {{- with .Values.queryFrontend.serviceDiscovery.annotations }}
+     {{- tpl (toYaml . | nindent 4) $ }}
+   {{- end }}
+ spec:

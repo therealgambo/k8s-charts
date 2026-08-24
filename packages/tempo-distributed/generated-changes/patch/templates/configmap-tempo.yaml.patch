@@ -1,0 +1,11 @@
+--- charts-original/templates/configmap-tempo.yaml
++++ charts/templates/configmap-tempo.yaml
+@@ -10,6 +10,8 @@
+   labels:
+     {{- include "tempo.labels" (dict "ctx" .) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
++  annotations:
++    {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
+ {{- if eq .Values.configStorageType "Secret" }}
+ data:
+   tempo-query.yaml: {{ tpl .Values.queryFrontend.query.config . | b64enc }}

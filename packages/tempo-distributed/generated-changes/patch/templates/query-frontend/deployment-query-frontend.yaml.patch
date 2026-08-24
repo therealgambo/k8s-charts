@@ -1,0 +1,11 @@
+--- charts-original/templates/query-frontend/deployment-query-frontend.yaml
++++ charts/templates/query-frontend/deployment-query-frontend.yaml
+@@ -41,6 +41,8 @@
+   namespace: {{ .Release.Namespace }}
+   labels:
+     {{- include "tempo.labels" $dict | nindent 4 }}
++  annotations:
++  {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
+   {{- with .Values.queryFrontend.annotations }}
+   annotations:
+   {{- toYaml . | nindent 4 }}

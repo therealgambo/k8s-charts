@@ -1,0 +1,11 @@
+--- charts-original/templates/backend-scheduler/service-backend-scheduler.yaml
++++ charts/templates/backend-scheduler/service-backend-scheduler.yaml
+@@ -6,6 +6,8 @@
+   namespace: {{ .Release.Namespace }}
+   labels:
+     {{- include "tempo.labels" (dict "ctx" . "component" "backend-scheduler") | nindent 4 }}
++  annotations:
++    {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
+   {{- with .Values.backendScheduler.service.annotations }}
+   annotations:
+     {{- tpl (toYaml . | nindent 4) $ }}
