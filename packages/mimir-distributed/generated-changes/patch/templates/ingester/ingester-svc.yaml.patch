@@ -1,0 +1,11 @@
+--- charts-original/templates/ingester/ingester-svc.yaml
++++ charts/templates/ingester/ingester-svc.yaml
+@@ -18,7 +18,7 @@
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+   annotations:
+-    {{- toYaml .Values.ingester.service.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.ingester.service.annotations) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ spec:
+   type: {{ .Values.ingester.service.type }}

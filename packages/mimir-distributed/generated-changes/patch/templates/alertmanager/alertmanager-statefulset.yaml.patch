@@ -1,0 +1,29 @@
+--- charts-original/templates/alertmanager/alertmanager-statefulset.yaml
++++ charts/templates/alertmanager/alertmanager-statefulset.yaml
+@@ -78,6 +78,7 @@
+       schedulerName: {{ . | quote }}
+       {{- end }}
+       serviceAccountName: {{ template "mimir.alertmanager.serviceAccountName" . }}
++      automountServiceAccountToken: false
+       {{- if .Values.alertmanager.priorityClassName }}
+       priorityClassName: {{ .Values.alertmanager.priorityClassName }}
+       {{- end }}
+@@ -119,12 +120,15 @@
+             name: {{ template "mimir.fullname" . }}-runtime
+         {{- if not .Values.alertmanager.persistentVolume.enabled }}
+         - name: {{ .Values.alertmanager.persistentVolume.name }}
+-          emptyDir: {}
++          emptyDir: 
++            sizeLimit: 1Gi
+         {{- end }}
+         - name: tmp
+-          emptyDir: {}
++          emptyDir: 
++            sizeLimit: 100Mi
+         - name: active-queries
+-          emptyDir: {}
++          emptyDir: 
++            sizeLimit: 1Gi
+         {{- if .Values.alertmanager.fallbackConfig }}
+         - name: alertmanager-fallback-config
+           configMap:

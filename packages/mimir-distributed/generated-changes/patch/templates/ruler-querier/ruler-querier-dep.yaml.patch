@@ -1,0 +1,19 @@
+--- charts-original/templates/ruler-querier/ruler-querier-dep.yaml
++++ charts/templates/ruler-querier/ruler-querier-dep.yaml
+@@ -6,7 +6,7 @@
+   labels:
+     {{- include "mimir.labels" (dict "ctx" . "component" "ruler-querier" "memberlist" true) | nindent 4 }}
+   annotations:
+-    {{- toYaml .Values.ruler_querier.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.ruler_querier.annotations) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ spec:
+   {{- if or (not .Values.ruler_querier.kedaAutoscaling.enabled) (.Values.ruler_querier.kedaAutoscaling.preserveReplicas) }}
+@@ -31,6 +31,7 @@
+         {{- include "mimir.podAnnotations" (dict "ctx" . "component" "ruler-querier") | nindent 8 }}
+     spec:
+       serviceAccountName: {{ template "mimir.serviceAccountName" . }}
++      automountServiceAccountToken: false
+       {{- if .Values.ruler_querier.priorityClassName }}
+       priorityClassName: {{ .Values.ruler_querier.priorityClassName }}
+       {{- end }}

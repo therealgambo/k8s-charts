@@ -1,0 +1,11 @@
+--- charts-original/templates/alertmanager/alertmanager-config.yaml
++++ charts/templates/alertmanager/alertmanager-config.yaml
+@@ -7,7 +7,7 @@
+   labels:
+     {{- include "mimir.labels" (dict "ctx" . "component" "alertmanager" "memberlist" true) | nindent 4 }}
+   annotations:
+-  {{- toYaml .Values.alertmanager.annotations | nindent 4 }} 
++  {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.alertmanager.annotations) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ data:
+   alertmanager_fallback_config.yaml: |

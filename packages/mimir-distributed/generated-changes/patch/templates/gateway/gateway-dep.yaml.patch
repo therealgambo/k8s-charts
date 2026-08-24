@@ -1,0 +1,38 @@
+--- charts-original/templates/gateway/gateway-dep.yaml
++++ charts/templates/gateway/gateway-dep.yaml
+@@ -4,7 +4,7 @@
+ kind: Deployment
+ metadata:
+   annotations:
+-    {{- toYaml .annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" $ "extra" .annotations) | nindent 4 }}
+   labels:
+     {{- include "mimir.labels" (dict "ctx" $ "component" "gateway") | nindent 4 }}
+   name: {{ include "mimir.resourceName" (dict "ctx" $ "component" "gateway") }}
+@@ -34,6 +34,7 @@
+       namespace: {{ $.Release.Namespace | quote }}
+     spec:
+       serviceAccountName: {{ include "mimir.serviceAccountName" $ }}
++      automountServiceAccountToken: false
+       {{- if .priorityClassName }}
+       priorityClassName: {{ .priorityClassName }}
+       {{- end }}
+@@ -136,14 +137,16 @@
+           configMap:
+             name: {{ include "mimir.fullname" $ }}-gateway-nginx
+         - name: docker-entrypoint-d-override
+-          emptyDir: {}
++          emptyDir: 
++            sizeLimit: 10Mi
+         {{- if .nginx.basicAuth.enabled }}
+         - name: auth
+           secret:
+             secretName: {{ include "mimir.gateway.nginx.authSecret" $ }}
+         {{- end }}
+         - name: tmp
+-          emptyDir: {}
++          emptyDir: 
++            sizeLimit: 100Mi
+         {{- if .extraVolumes }}
+         {{- toYaml .extraVolumes | nindent 8 }}
+         {{- end }}

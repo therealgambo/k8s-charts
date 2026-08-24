@@ -1,0 +1,25 @@
+--- charts-original/templates/minio/create-bucket-job.yaml
++++ charts/templates/minio/create-bucket-job.yaml
+@@ -15,10 +15,11 @@
+     chart: {{ template "minio.chart" . }}
+     release: {{ .Release.Name }}
+     heritage: {{ .Release.Service }}
+-{{- with .Values.minio.makeBucketJob.annotations }}
++    app.kubernetes.io/name: {{ include "mimir.name" . }}
++    app.kubernetes.io/managed-by: {{ .Release.Service }}
++    {{- include "mimir.patchedLabels" (dict "ctx" .) | nindent 4 }}
+   annotations:
+-{{ toYaml . | indent 4 }}
+-{{- end }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.minio.makeBucketJob.annotations) | nindent 4 }}
+ spec:
+   template:
+     metadata:
+@@ -33,6 +34,7 @@
+ {{ toYaml .Values.minio.makeBucketJob.podAnnotations | indent 8 }}
+ {{- end }}
+     spec:
++      automountServiceAccountToken: false
+       restartPolicy: OnFailure
+ {{- with .Values.minio.makeBucketJob.dnsConfig }}
+       dnsConfig:

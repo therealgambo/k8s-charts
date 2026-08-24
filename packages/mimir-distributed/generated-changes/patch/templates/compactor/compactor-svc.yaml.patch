@@ -1,0 +1,11 @@
+--- charts-original/templates/compactor/compactor-svc.yaml
++++ charts/templates/compactor/compactor-svc.yaml
+@@ -9,7 +9,7 @@
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+   annotations:
+-    {{- toYaml .Values.compactor.service.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.compactor.service.annotations) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ spec:
+   type: {{ .Values.compactor.service.type }}

@@ -1,0 +1,11 @@
+--- charts-original/templates/ruler-query-scheduler/ruler-query-scheduler-svc-headless.yaml
++++ charts/templates/ruler-query-scheduler/ruler-query-scheduler-svc-headless.yaml
+@@ -11,7 +11,7 @@
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+   annotations:
+-    {{- toYaml .Values.ruler_query_scheduler.service.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.ruler_query_scheduler.service.annotations) | nindent 4 }}
+ spec:
+   type: ClusterIP
+   clusterIP: None

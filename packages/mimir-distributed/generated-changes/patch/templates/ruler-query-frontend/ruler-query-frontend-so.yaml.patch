@@ -1,0 +1,11 @@
+--- charts-original/templates/ruler-query-frontend/ruler-query-frontend-so.yaml
++++ charts/templates/ruler-query-frontend/ruler-query-frontend-so.yaml
+@@ -7,7 +7,7 @@
+   labels:
+     {{- include "mimir.labels" (dict "ctx" . "component" "ruler-query-frontend") | nindent 4 }}
+   annotations:
+-    {{- toYaml .Values.ruler_query_frontend.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.ruler_query_frontend.annotations) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ spec:
+   advanced:

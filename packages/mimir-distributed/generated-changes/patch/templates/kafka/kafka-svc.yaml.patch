@@ -1,0 +1,11 @@
+--- charts-original/templates/kafka/kafka-svc.yaml
++++ charts/templates/kafka/kafka-svc.yaml
+@@ -9,7 +9,7 @@
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+   annotations:
+-    {{- toYaml .Values.kafka.service.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.kafka.service.annotations) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ spec:
+   type: {{ .Values.kafka.service.type }}

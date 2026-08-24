@@ -1,0 +1,31 @@
+--- charts-original/templates/ruler/ruler-dep.yaml
++++ charts/templates/ruler/ruler-dep.yaml
+@@ -6,7 +6,7 @@
+   labels:
+     {{- include "mimir.labels" (dict "ctx" . "component" "ruler" "memberlist" true) | nindent 4 }}
+   annotations:
+-    {{- toYaml .Values.ruler.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.ruler.annotations) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ spec:
+   {{- if or (not .Values.ruler.kedaAutoscaling.enabled) (.Values.ruler.kedaAutoscaling.preserveReplicas) }}
+@@ -29,6 +29,7 @@
+       namespace: {{ .Release.Namespace | quote }}
+     spec:
+       serviceAccountName: {{ template "mimir.ruler.serviceAccountName" . }}
++      automountServiceAccountToken: false
+       {{- if .Values.ruler.priorityClassName }}
+       priorityClassName: {{ .Values.ruler.priorityClassName }}
+       {{- end }}
+@@ -146,7 +147,9 @@
+         {{ toYaml .Values.global.extraVolumes | nindent 8}}
+         {{- end }}
+         - name: storage
+-          emptyDir: {}
++          emptyDir: 
++            sizeLimit: 2Gi
+         - name: active-queries
+-          emptyDir: {}
++          emptyDir: 
++            sizeLimit: 1Gi
+ {{- end -}}

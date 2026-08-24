@@ -1,0 +1,31 @@
+--- charts-original/templates/query-frontend/query-frontend-dep.yaml
++++ charts/templates/query-frontend/query-frontend-dep.yaml
+@@ -6,7 +6,7 @@
+   labels:
+     {{- include "mimir.labels" (dict "ctx" . "component" "query-frontend") | nindent 4 }}
+   annotations:
+-    {{- toYaml .Values.query_frontend.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.query_frontend.annotations) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ spec:
+   {{- if or (not .Values.query_frontend.kedaAutoscaling.enabled) (.Values.query_frontend.kedaAutoscaling.preserveReplicas) }}
+@@ -32,6 +32,7 @@
+       namespace: {{ .Release.Namespace | quote }}
+     spec:
+       serviceAccountName: {{ template "mimir.serviceAccountName" . }}
++      automountServiceAccountToken: false
+       {{- if .Values.query_frontend.priorityClassName }}
+       priorityClassName: {{ .Values.query_frontend.priorityClassName }}
+       {{- end }}
+@@ -129,7 +130,9 @@
+         {{ toYaml .Values.global.extraVolumes | nindent 8}}
+         {{- end }}
+         - name: storage
+-          emptyDir: {}
++          emptyDir: 
++            sizeLimit: 2Gi
+         - name: active-queries
+-          emptyDir: {}
++          emptyDir: 
++            sizeLimit: 1Gi
+ {{- end }}

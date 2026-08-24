@@ -1,0 +1,31 @@
+--- charts-original/templates/query-scheduler/query-scheduler-dep.yaml
++++ charts/templates/query-scheduler/query-scheduler-dep.yaml
+@@ -7,7 +7,7 @@
+   labels:
+     {{- include "mimir.labels" (dict "ctx" . "component" "query-scheduler") | nindent 4 }}
+   annotations:
+-    {{- toYaml .Values.query_scheduler.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.query_scheduler.annotations) | nindent 4 }}
+ spec:
+   replicas: {{ .Values.query_scheduler.replicas }}
+   {{- with .Values.query_scheduler.revisionHistoryLimit }}
+@@ -26,6 +26,7 @@
+         {{- include "mimir.podAnnotations" (dict "ctx" . "component" "query-scheduler") | nindent 8 }}
+     spec:
+       serviceAccountName: {{ template "mimir.serviceAccountName" . }}
++      automountServiceAccountToken: false
+       {{- if .Values.query_scheduler.priorityClassName }}
+       priorityClassName: {{ .Values.query_scheduler.priorityClassName }}
+       {{- end }}
+@@ -120,7 +121,9 @@
+         {{ toYaml .Values.global.extraVolumes | nindent 8}}
+         {{- end }}
+         - name: storage
+-          emptyDir: {}
++          emptyDir: 
++            sizeLimit: 2Gi
+         - name: active-queries
+-          emptyDir: {}
++          emptyDir: 
++            sizeLimit: 1Gi
+ {{- end }}

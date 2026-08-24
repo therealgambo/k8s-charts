@@ -1,0 +1,11 @@
+--- charts-original/templates/querier/querier-svc.yaml
++++ charts/templates/querier/querier-svc.yaml
+@@ -9,7 +9,7 @@
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+   annotations:
+-    {{- toYaml .Values.querier.service.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.querier.service.annotations) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ spec:
+   type: {{ .Values.querier.service.type }}

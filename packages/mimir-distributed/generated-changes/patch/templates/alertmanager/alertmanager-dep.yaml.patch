@@ -1,0 +1,19 @@
+--- charts-original/templates/alertmanager/alertmanager-dep.yaml
++++ charts/templates/alertmanager/alertmanager-dep.yaml
+@@ -7,7 +7,7 @@
+   labels:
+     {{- include "mimir.labels" (dict "ctx" . "component" "alertmanager" "memberlist" true) | nindent 4 }}
+   annotations:
+-    {{- toYaml .Values.alertmanager.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.alertmanager.annotations) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ spec:
+   replicas: {{ .Values.alertmanager.replicas }}
+@@ -31,6 +31,7 @@
+       namespace: {{ .Release.Namespace | quote }}
+     spec:
+       serviceAccountName: {{ template "mimir.alertmanager.serviceAccountName" . }}
++      automountServiceAccountToken: false
+       {{- if .Values.alertmanager.priorityClassName }}
+       priorityClassName: {{ .Values.query_frontend.priorityClassName }}
+       {{- end }}

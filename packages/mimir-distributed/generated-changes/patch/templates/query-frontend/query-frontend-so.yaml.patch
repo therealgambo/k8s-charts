@@ -1,0 +1,11 @@
+--- charts-original/templates/query-frontend/query-frontend-so.yaml
++++ charts/templates/query-frontend/query-frontend-so.yaml
+@@ -6,7 +6,7 @@
+   labels:
+     {{- include "mimir.labels" (dict "ctx" . "component" "query-frontend") | nindent 4 }}
+   annotations:
+-    {{- toYaml .Values.query_frontend.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.query_frontend.annotations) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ spec:
+   advanced:

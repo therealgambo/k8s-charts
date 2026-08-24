@@ -1,0 +1,11 @@
+--- charts-original/templates/mimir-config.yaml
++++ charts/templates/mimir-config.yaml
+@@ -9,6 +9,8 @@
+   name: {{ tpl .Values.externalConfigSecretName . }}
+   labels:
+     {{- include "mimir.labels" (dict "ctx" .) | nindent 4 }}
++  annotations:
++    {{- include "mimir.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ {{- if eq .Values.configStorageType "Secret" }}
+ data:

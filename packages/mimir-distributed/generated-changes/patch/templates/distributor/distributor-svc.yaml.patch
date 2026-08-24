@@ -1,0 +1,11 @@
+--- charts-original/templates/distributor/distributor-svc.yaml
++++ charts/templates/distributor/distributor-svc.yaml
+@@ -9,7 +9,7 @@
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+   annotations:
+-    {{- toYaml .Values.distributor.service.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.distributor.service.annotations) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ spec:
+   type: {{ .Values.distributor.service.type }}
