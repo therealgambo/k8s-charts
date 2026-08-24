@@ -1,0 +1,23 @@
+--- charts-original/templates/service.yaml
++++ charts/templates/service.yaml
+@@ -5,15 +5,14 @@
+   namespace: {{ .Release.Namespace }}
+   labels:
+     {{- include "karpenter.labels" . | nindent 4 }}
+-  {{- if or .Values.additionalAnnotations .Values.service.annotations }}
+   annotations:
+-  {{- with .Values.additionalAnnotations }}
++    {{- include "karpenter.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.additionalAnnotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
+-  {{- with .Values.service.annotations }}
++    {{- end }}
++    {{- with .Values.service.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
+-  {{- end }}
++    {{- end }}
+ spec:
+   type: ClusterIP
+   ports:

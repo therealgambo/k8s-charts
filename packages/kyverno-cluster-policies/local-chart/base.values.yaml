@@ -130,3 +130,19 @@ exceptions:
       selector:
         matchLabels:
           app.kubernetes.io/name: kargo
+
+  # packages/karpenter's controller Deployment ships system-cluster-critical priorityClassName
+  # by upstream default -- Karpenter is a cluster autoscaler whose eviction would prevent new pod
+  # scheduling during node-pressure conditions, making it a real "node-critical system workload",
+  # not an unreviewed default. Scoped by namespace + label + name -- `make template` always
+  # renders a package into --namespace <package name> (see Makefile), so karpenter's own package
+  # name is a reliable namespace filter here, not just a label/name belt-and-suspenders.
+  karpenter:
+    policies: [restrict-priorityclass]
+    match:
+      kinds: [Deployment]
+      namespaces: [karpenter]
+      names: [karpenter]
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: karpenter

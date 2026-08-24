@@ -1,0 +1,16 @@
+--- charts-original/templates/service.yaml
++++ charts/templates/service.yaml
+@@ -7,8 +7,12 @@
+   namespace: {{ .Release.Namespace }}
+   labels:
+     {{- include "coder.labels" . | nindent 4 }}
++    {{- include "coder.patchedLabels" . | nindent 4 }}
+   annotations:
+-    {{- toYaml .Values.coder.service.annotations | nindent 4 }}
++    {{- include "coder.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.coder.service.annotations }}
++    {{- toYaml . | nindent 4 }}
++    {{- end }}
+ spec:
+   type: {{ .Values.coder.service.type }}
+   sessionAffinity: {{ .Values.coder.service.sessionAffinity }}
