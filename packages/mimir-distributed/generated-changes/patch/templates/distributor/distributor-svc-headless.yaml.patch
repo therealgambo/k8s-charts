@@ -1,0 +1,11 @@
+--- charts-original/templates/distributor/distributor-svc-headless.yaml
++++ charts/templates/distributor/distributor-svc-headless.yaml
+@@ -10,7 +10,7 @@
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+   annotations:
+-    {{- toYaml .Values.distributor.service.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.distributor.service.annotations) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ spec:
+   type: ClusterIP

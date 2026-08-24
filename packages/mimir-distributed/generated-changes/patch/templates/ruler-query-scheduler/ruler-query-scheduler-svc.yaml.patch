@@ -1,0 +1,11 @@
+--- charts-original/templates/ruler-query-scheduler/ruler-query-scheduler-svc.yaml
++++ charts/templates/ruler-query-scheduler/ruler-query-scheduler-svc.yaml
+@@ -10,7 +10,7 @@
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+   annotations:
+-    {{- toYaml .Values.ruler_query_scheduler.service.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.ruler_query_scheduler.service.annotations) | nindent 4 }}
+ spec:
+   type: {{ .Values.ruler_query_scheduler.service.type }}
+   {{- if semverCompare ">= 1.22-0" (include "mimir.kubeVersion" .) }}

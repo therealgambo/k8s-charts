@@ -1,0 +1,19 @@
+--- charts-original/templates/ruler-query-scheduler/ruler-query-scheduler-dep.yaml
++++ charts/templates/ruler-query-scheduler/ruler-query-scheduler-dep.yaml
+@@ -7,7 +7,7 @@
+   labels:
+     {{- include "mimir.labels" (dict "ctx" . "component" "ruler-query-scheduler") | nindent 4 }}
+   annotations:
+-    {{- toYaml .Values.ruler_query_scheduler.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.ruler_query_scheduler.annotations) | nindent 4 }}
+ spec:
+   replicas: {{ .Values.ruler_query_scheduler.replicas }}
+   {{- with .Values.ruler_query_scheduler.revisionHistoryLimit }}
+@@ -26,6 +26,7 @@
+         {{- include "mimir.podAnnotations" (dict "ctx" . "component" "ruler-query-scheduler") | nindent 8 }}
+     spec:
+       serviceAccountName: {{ template "mimir.serviceAccountName" . }}
++      automountServiceAccountToken: false
+       {{- if .Values.ruler_query_scheduler.priorityClassName }}
+       priorityClassName: {{ .Values.ruler_query_scheduler.priorityClassName }}
+       {{- end }}

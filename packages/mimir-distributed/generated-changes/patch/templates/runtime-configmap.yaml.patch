@@ -1,0 +1,11 @@
+--- charts-original/templates/runtime-configmap.yaml
++++ charts/templates/runtime-configmap.yaml
+@@ -4,6 +4,8 @@
+   name: {{ include "mimir.resourceName" (dict "ctx" . "component" "runtime") }}
+   labels:
+     {{- include "mimir.labels" (dict "ctx" .) | nindent 4 }}
++  annotations:
++    {{- include "mimir.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ data:
+   runtime.yaml: |

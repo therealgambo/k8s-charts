@@ -1,0 +1,11 @@
+--- charts-original/templates/ruler/ruler-so.yaml
++++ charts/templates/ruler/ruler-so.yaml
+@@ -6,7 +6,7 @@
+   labels:
+     {{- include "mimir.labels" (dict "ctx" . "component" "ruler") | nindent 4 }}
+   annotations:
+-    {{- toYaml .Values.ruler.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.ruler.annotations) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ spec:
+   advanced:

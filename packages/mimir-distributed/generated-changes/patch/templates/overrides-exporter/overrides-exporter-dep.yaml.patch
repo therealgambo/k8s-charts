@@ -1,0 +1,31 @@
+--- charts-original/templates/overrides-exporter/overrides-exporter-dep.yaml
++++ charts/templates/overrides-exporter/overrides-exporter-dep.yaml
+@@ -3,7 +3,7 @@
+ kind: Deployment
+ metadata:
+   annotations:
+-    {{- toYaml .Values.overrides_exporter.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.overrides_exporter.annotations) | nindent 4 }}
+   labels:
+     {{- include "mimir.labels" (dict "ctx" . "component" "overrides-exporter") | nindent 4 }}
+   name: {{ include "mimir.resourceName" (dict "ctx" . "component" "overrides-exporter") }}
+@@ -27,6 +27,7 @@
+       namespace: {{ .Release.Namespace | quote }}
+     spec:
+       serviceAccountName: {{ template "mimir.serviceAccountName" . }}
++      automountServiceAccountToken: false
+       {{- if .Values.overrides_exporter.priorityClassName }}
+       priorityClassName: {{ .Values.overrides_exporter.priorityClassName }}
+       {{- end }}
+@@ -121,7 +122,9 @@
+         {{ toYaml .Values.global.extraVolumes | nindent 8}}
+         {{- end }}
+         - name: storage
+-          emptyDir: {}
++          emptyDir: 
++            sizeLimit: 2Gi
+         - name: active-queries
+-          emptyDir: {}
++          emptyDir: 
++            sizeLimit: 1Gi
+ {{- end -}}

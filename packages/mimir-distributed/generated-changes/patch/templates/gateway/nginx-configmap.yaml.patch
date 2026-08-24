@@ -1,0 +1,11 @@
+--- charts-original/templates/gateway/nginx-configmap.yaml
++++ charts/templates/gateway/nginx-configmap.yaml
+@@ -5,6 +5,8 @@
+   name: {{ include "mimir.resourceName" (dict "ctx" . "component" "gateway-nginx") }}
+   labels:
+     {{- include "mimir.labels" (dict "ctx" . "component" "gateway-nginx") | nindent 4 }}
++  annotations:
++    {{- include "mimir.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ data:
+   nginx.conf: |

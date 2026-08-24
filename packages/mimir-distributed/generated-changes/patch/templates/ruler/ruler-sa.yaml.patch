@@ -1,0 +1,10 @@
+--- charts-original/templates/ruler/ruler-sa.yaml
++++ charts/templates/ruler/ruler-sa.yaml
+@@ -9,6 +9,6 @@
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+   annotations:
+-    {{- toYaml .Values.ruler.serviceAccount.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.ruler.serviceAccount.annotations) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ {{- end }}

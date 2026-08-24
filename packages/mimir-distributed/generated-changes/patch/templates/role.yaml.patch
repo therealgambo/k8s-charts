@@ -1,0 +1,11 @@
+--- charts-original/templates/role.yaml
++++ charts/templates/role.yaml
+@@ -7,6 +7,8 @@
+   name: {{ include "mimir.resourceName" (dict "ctx" .) }}
+   labels:
+     {{- include "mimir.labels" (dict "ctx" .) | nindent 4 }}
++  annotations:
++    {{- include "mimir.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ rules:
+ {{- if $usePSP }}

@@ -1,0 +1,20 @@
+--- charts-original/templates/store-gateway/store-gateway-statefulset.yaml
++++ charts/templates/store-gateway/store-gateway-statefulset.yaml
+@@ -80,6 +80,7 @@
+       schedulerName: {{ . | quote }}
+       {{- end }}
+       serviceAccountName: {{ template "mimir.serviceAccountName" . }}
++      automountServiceAccountToken: false
+       {{- if .Values.store_gateway.priorityClassName }}
+       priorityClassName: {{ .Values.store_gateway.priorityClassName }}
+       {{- end }}
+@@ -131,7 +132,8 @@
+         {{ toYaml .Values.global.extraVolumes | nindent 8 }}
+         {{- end }}
+         - name: active-queries
+-          emptyDir: {}
++          emptyDir: 
++            sizeLimit: 1Gi
+       containers:
+         {{- if .Values.store_gateway.extraContainers }}
+         {{ toYaml .Values.store_gateway.extraContainers | nindent 8 }}

@@ -1,0 +1,10 @@
+--- charts-original/templates/alertmanager/alertmanager-sa.yaml
++++ charts/templates/alertmanager/alertmanager-sa.yaml
+@@ -9,6 +9,6 @@
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+   annotations:
+-    {{- toYaml .Values.alertmanager.serviceAccount.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.alertmanager.serviceAccount.annotations) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ {{- end }}

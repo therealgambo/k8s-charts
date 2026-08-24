@@ -1,0 +1,39 @@
+--- charts-original/templates/compactor/compactor-statefulset.yaml
++++ charts/templates/compactor/compactor-statefulset.yaml
+@@ -6,7 +6,7 @@
+   labels:
+     {{- include "mimir.labels" (dict "ctx" . "component" "compactor" "memberlist" true) | nindent 4 }}
+   annotations:
+-    {{- toYaml .Values.compactor.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.compactor.annotations) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ spec:
+   podManagementPolicy: {{ .Values.compactor.podManagementPolicy }}
+@@ -56,6 +56,7 @@
+       schedulerName: {{ . | quote }}
+       {{- end }}
+       serviceAccountName: {{ template "mimir.serviceAccountName" . }}
++      automountServiceAccountToken: false
+       {{- if .Values.compactor.priorityClassName }}
+       priorityClassName: {{ .Values.compactor.priorityClassName }}
+       {{- end }}
+@@ -97,7 +98,8 @@
+             name: {{ template "mimir.fullname" . }}-runtime
+         {{- if not .Values.compactor.persistentVolume.enabled }}
+         - name: {{ .Values.compactor.persistentVolume.name }}
+-          emptyDir: {}
++          emptyDir: 
++            sizeLimit: 10Gi
+         {{- end }}
+         {{- if .Values.compactor.extraVolumes }}
+         {{ toYaml .Values.compactor.extraVolumes | nindent 8 }}
+@@ -106,7 +108,8 @@
+         {{ toYaml .Values.global.extraVolumes | nindent 8 }}
+         {{- end }}
+         - name: active-queries
+-          emptyDir: {}
++          emptyDir: 
++            sizeLimit: 1Gi
+       containers:
+         {{- if .Values.compactor.extraContainers }}
+         {{ toYaml .Values.compactor.extraContainers | nindent 8 }}

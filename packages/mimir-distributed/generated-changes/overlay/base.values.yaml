@@ -1,0 +1,118 @@
+# Patched labels for Kyverno compliance
+# metadata.example.com/team is required by kyverno-cluster-policies/require-resource-labels
+patchedLabels:
+  metadata.example.com/team: platform
+
+# Patched annotations for Kyverno compliance
+# metadata.example.com/repository is required by kyverno-cluster-policies/require-resource-annotations
+patchedAnnotations:
+  metadata.example.com/repository: https://github.com/therealgambo/k8s-charts
+
+# Explicit automountServiceAccountToken for Kyverno compliance
+# Some resources need this explicitly set; values here can be overridden per-component
+serviceAccount:
+  automountServiceAccountToken: false
+
+# rollout-operator (vendored subchart dependency, alias rollout_operator) supports its own
+# global.commonLabels knob -- wired into its own labels helper and covers most of its
+# resources (Deployment/Role/RoleBinding/Service/ServiceAccount), same requirement as
+# patchedLabels above. It has no equivalent commonAnnotations knob, and its 4 webhook RBAC
+# templates (webhook-clusterrole/-clusterrolebinding/-role/-rolebinding) render no
+# metadata.labels/annotations block at all -- see mimir-distributed-kyverno-fix memory for
+# the remaining gap (minio subchart + rollout-operator webhook RBAC + rollout-operator
+# annotations), a candidate for a kyverno-cluster-policies PolicyException (Step 5) rather
+# than a template patch on a vendored dependency.
+rollout_operator:
+  global:
+    commonLabels:
+      metadata.example.com/team: platform
+
+# Resource limits for Kyverno compliance (require-resource-requests-limits). Upstream ships
+# requests only for most components; limits set here at roughly 2x the shipped request (more
+# headroom for alertmanager, whose shipped request is tiny) rather than tuned for any specific
+# workload -- override per-environment if actual usage needs differ.
+distributor:
+  resources:
+    limits:
+      cpu: 200m
+      memory: 1Gi
+gateway:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+overrides_exporter:
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+querier:
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+query_frontend:
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+query_scheduler:
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+ruler:
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+alertmanager:
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+compactor:
+  resources:
+    limits:
+      cpu: 200m
+      memory: 1Gi
+ingester:
+  resources:
+    limits:
+      cpu: 200m
+      memory: 1Gi
+kafka:
+  resources:
+    limits:
+      cpu: 2
+      memory: 2Gi
+store_gateway:
+  resources:
+    limits:
+      cpu: 200m
+      memory: 1Gi
+smoke_test:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# create-bucket-job.yaml is one of mimir-distributed's OWN templates (a workaround job, not a
+# vendored subchart file -- see that template's own comment), but its resources come from the
+# minio subchart's own values schema (.Values.minio.makeBucketJob.resources), which ships a
+# request-only default. Same story as the resources.limits block above -- set roughly 2x the
+# shipped request.
+minio:
+  makeBucketJob:
+    resources:
+      requests:
+        cpu: 50m
+      limits:
+        cpu: 100m
+        memory: 256Mi

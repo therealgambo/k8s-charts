@@ -1,0 +1,11 @@
+--- charts-original/templates/querier/querier-so.yaml
++++ charts/templates/querier/querier-so.yaml
+@@ -9,7 +9,7 @@
+   labels:
+     {{- include "mimir.labels" (dict "ctx" . "component" "querier") | nindent 4 }}
+   annotations:
+-    {{- toYaml .Values.querier.annotations | nindent 4 }}
++    {{- include "mimir.patchedAnnotations" (dict "ctx" . "extra" .Values.querier.annotations) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
+ spec:
+   advanced:

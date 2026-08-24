@@ -1,0 +1,61 @@
+--- charts-original/templates/_helpers.tpl
++++ charts/templates/_helpers.tpl
+@@ -242,6 +242,7 @@
+ app.kubernetes.io/version: {{ .ctx.Chart.AppVersion | quote }}
+ {{- end }}
+ app.kubernetes.io/managed-by: {{ .ctx.Release.Service }}
++{{- include "mimir.patchedLabels" (dict "ctx" .ctx) | nindent 0 }}
+ {{- if .rolloutZoneName }}
+ {{-   if not .component }}
+ {{-     printf "Component name cannot be empty if rolloutZoneName (%s) is set" .rolloutZoneName | fail }}
+@@ -316,6 +317,37 @@
+ {{- end -}}
+ 
+ {{/*
++Patched labels for resource metadata (non-pod resources)
++Params:
++  ctx = . context
++These labels are required by kyverno-cluster-policies/require-resource-labels
++*/}}
++{{- define "mimir.patchedLabels" -}}
++{{- with .ctx.Values.patchedLabels }}
++{{ toYaml . }}
++{{- end }}
++{{- end -}}
++
++{{/*
++Merged resource annotations: the patched (compliance) annotations plus a component's own
++annotations, rendered as a single map. Required by kyverno-cluster-policies/
++require-resource-annotations. Merging into one map before a single toYaml call (rather than
++concatenating two separate toYaml blocks) avoids invalid YAML when "extra" is the chart's
++"{}" default -- a bare "{}" appended as a sibling of a real key is not valid YAML.
++Params:
++  ctx = . context
++  extra = component-specific annotations map (optional)
++*/}}
++{{- define "mimir.patchedAnnotations" -}}
++{{- $merged := merge (deepCopy (.extra | default dict)) (.ctx.Values.patchedAnnotations | default dict) -}}
++{{- if $merged }}
++{{ toYaml $merged -}}
++{{- else }}
++{}
++{{- end }}
++{{- end -}}
++
++{{/*
+ Service selector labels
+ Params:
+   ctx = . context
+@@ -644,9 +676,10 @@
+ {{- $componentSection := include "mimir.componentSectionFromName" . | fromYaml -}}
+ {{- if and (or $componentSection.zoneAwareReplication.enabled $componentSection.zoneAwareReplication.migration.enabled) .rolloutZoneName }}
+ {{- $map := dict "rollout-max-unavailable" ($componentSection.zoneAwareReplication.maxUnavailable | toString) -}}
+-{{- toYaml (deepCopy $map | mergeOverwrite $componentSection.annotations) }}
++{{- $extra := deepCopy $map | mergeOverwrite (deepCopy $componentSection.annotations) -}}
++{{- include "mimir.patchedAnnotations" (dict "ctx" .ctx "extra" $extra) }}
+ {{- else -}}
+-{{ toYaml $componentSection.annotations }}
++{{- include "mimir.patchedAnnotations" (dict "ctx" .ctx "extra" $componentSection.annotations) }}
+ {{- end -}}
+ {{- end -}}
+ 

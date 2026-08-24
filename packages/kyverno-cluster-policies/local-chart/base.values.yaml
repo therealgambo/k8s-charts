@@ -146,3 +146,38 @@ exceptions:
       selector:
         matchLabels:
           app.kubernetes.io/name: karpenter
+
+  # packages/mimir-distributed's bundled `minio` dependency (used only when minio.enabled -- a
+  # dev/test object-store backend, not what production Mimir deployments point at) is a vendored
+  # subchart with no label/annotation/automount/resources override knob at all: no shared labels
+  # helper (every template hardcodes its own metadata), and its ServiceAccount (minio-sa) renders
+  # with no labels or annotations whatsoever. Matched by name rather than selector, since that
+  # ServiceAccount has nothing to select on. Scoped to namespace "default" -- the minio subchart's
+  # templates never set metadata.namespace at all (confirmed empirically against the rendered
+  # output), so every one of its resources lands in "default" regardless of the release namespace
+  # `make template`/kyverno apply otherwise use. mimir-distributed's own templates (everything
+  # else in that chart) are fully compliant without an exception -- see the
+  # mimir-distributed-kyverno-fix memory for the full fix history.
+  mimir-distributed-minio:
+    policies: [require-resource-labels, require-resource-annotations, require-explicit-automount, require-resource-requests-limits, require-emptydir-sizelimit]
+    match:
+      kinds: [ConfigMap, Deployment, Job, PersistentVolumeClaim, Secret, Service, ServiceAccount]
+      namespaces: [default]
+      names: ["*minio*"]
+
+  # packages/mimir-distributed's bundled `rollout-operator` dependency (alias rollout_operator)
+  # supports its own global.commonLabels knob (set in mimir-distributed's own base.values.yaml),
+  # which covers required labels on its Deployment/Role/RoleBinding/Service/ServiceAccount -- but
+  # it has no equivalent commonAnnotations knob, and its 4 webhook RBAC templates
+  # (webhook-clusterrole/-clusterrolebinding/-role/-rolebinding) render literally no
+  # metadata.labels/annotations block at all. Matched by name rather than selector since those 4
+  # have nothing to select on. Namespaces cover both halves: the webhook ClusterRole/
+  # ClusterRoleBinding are cluster-scoped and land in "default" under kyverno apply (same as
+  # minio's namespace-less templates above), the rest render into mimir-distributed's own release
+  # namespace.
+  mimir-distributed-rollout-operator:
+    policies: [require-resource-labels, require-resource-annotations, require-explicit-automount]
+    match:
+      kinds: [ClusterRole, ClusterRoleBinding, Role, RoleBinding, Deployment, Service, ServiceAccount]
+      namespaces: [default, mimir-distributed]
+      names: ["*rollout-operator*"]
