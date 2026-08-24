@@ -1,0 +1,59 @@
+--- charts-original/charts/libcoder/charts/libcoder/templates/_coder.yaml
++++ charts/charts/libcoder/charts/libcoder/templates/_coder.yaml
+@@ -6,10 +6,15 @@
+   namespace: {{ .Release.Namespace }}
+   labels:
+     {{- include "coder.labels" . | nindent 4 }}
++    {{- include "coder.patchedLabels" . | nindent 4 }}
+     {{- with .Values.coder.labels }}
+       {{- toYaml . | nindent 4 }}
+     {{- end }}
+-  annotations: {{ toYaml .Values.coder.annotations | nindent 4}}
++  annotations:
++    {{- include "coder.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.coder.annotations }}
++    {{- toYaml . | nindent 4 }}
++    {{- end }}
+ spec:
+   replicas: {{ .Values.coder.replicaCount }}
+   selector:
+@@ -29,6 +34,7 @@
+         {{- end }}
+ 
+     spec:
++      automountServiceAccountToken: true
+       serviceAccountName: {{ .Values.coder.serviceAccount.name | quote }}
+       {{- with .Values.coder.priorityClassName }}
+       priorityClassName: {{ . | quote }}
+@@ -93,7 +99,14 @@
+   {{- end }}
+ lifecycle:
+   {{- toYaml .Values.coder.lifecycle | nindent 2 }}
+-securityContext: {{ toYaml .Values.coder.securityContext | nindent 2 }}
++securityContext:
++  {{- toYaml .Values.coder.securityContext | nindent 2 }}
++  {{- if .Values.coder.securityContext.capabilities }}
++  {{- else }}
++  capabilities:
++    drop:
++    - ALL
++  {{- end }}
+ {{ include "coder.volumeMounts" . }}
+ {{- end -}}
+ {{- define "libcoder.containerspec" -}}
+@@ -106,9 +119,14 @@
+ metadata:
+   name: {{ .Values.coder.serviceAccount.name | quote }}
+   namespace: {{ .Release.Namespace }}
+-  annotations: {{ toYaml .Values.coder.serviceAccount.annotations | nindent 4 }}
++  annotations:
++    {{- include "coder.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.coder.serviceAccount.annotations }}
++    {{- toYaml . | nindent 4 }}
++    {{- end }}
+   labels:
+     {{- include "coder.labels" . | nindent 4 }}
++    {{- include "coder.patchedLabels" . | nindent 4 }}
+     {{- with .Values.coder.serviceAccount.labels }}
+     {{- toYaml . | nindent 4 }}
+     {{- end }}

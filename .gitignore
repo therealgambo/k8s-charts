@@ -1,6 +1,6 @@
 /bin/
 /.charts-build-scripts-cache/
-/packages/**/charts/
+/packages/*/charts/
 
 # `make kyverno-test` renders the chart fresh into this file each run (see kyverno-test.yaml's
 # `policies:` reference) -- never committed, so it can't drift from the live templates.

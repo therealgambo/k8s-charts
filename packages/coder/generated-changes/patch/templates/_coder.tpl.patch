@@ -1,11 +1,13 @@
 --- charts-original/templates/_coder.tpl
 +++ charts/templates/_coder.tpl
-@@ -1,4 +1,19 @@
+@@ -1,4 +1,21 @@
  {{/*
-+Patched labels to satisfy kyverno-cluster-policies requirements
++Patched labels to satisfy kyverno-cluster-policies requirements. Deliberately does NOT set
++app.kubernetes.io/managed-by -- coder.labels (upstream) already sets that via .Release.Service
++everywhere this is included alongside it; templates that don't call coder.labels (rbac.yaml) set
++managed-by explicitly themselves instead.
 +*/}}
 +{{- define "coder.patchedLabels" -}}
-+app.kubernetes.io/managed-by: helm
 +metadata.example.com/team: platform
 +{{- end }}
 +
