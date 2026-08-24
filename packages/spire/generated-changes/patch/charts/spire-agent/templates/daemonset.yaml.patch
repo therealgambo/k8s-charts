@@ -1,0 +1,82 @@
+--- charts-original/charts/spire-agent/templates/daemonset.yaml
++++ charts/charts/spire-agent/templates/daemonset.yaml
+@@ -51,6 +51,8 @@
+   labels:
+     {{- include "spire-agent.labels" . | nindent 4 }}
+     app.kubernetes.io/component: {{ $name | quote }}
++  annotations:
++    {{- include "spire-agent.patchedAnnotations" . | nindent 4 }}
+ spec:
+   selector:
+     matchLabels:
+@@ -94,6 +96,10 @@
+       dnsPolicy: {{ $dnsPolicy }}
+       {{- end }}
+       serviceAccountName: {{ include "spire-agent.serviceAccountName" . | quote }}
++      # This agent's ClusterRole (see roles.yaml) queries the k8s API for node attestation, so the
++      # token needs to be mounted -- explicit true satisfies kyverno-cluster-policies'
++      # require-explicit-automount, which just requires the field be set one way or the other.
++      automountServiceAccountToken: true
+       securityContext:
+         {{- toYaml $podSecurityContext | nindent 8 }}
+       {{- include "spire-lib.default_node_priority_class_name" . | nindent 6 }}
+@@ -481,7 +487,8 @@
+             path: {{ .Values.persistence.hostPath }}
+             type: DirectoryOrCreate
+           {{- else }}
+-          emptyDir: {}
++          emptyDir:
++            sizeLimit: 10Mi
+           {{- end }}
+         {{- end }}
+         {{- if $pluginLoaderNeeded }}
+@@ -500,7 +507,8 @@
+             type: DirectoryOrCreate
+         {{- else }}
+         - name: spire-agent-admin-socket-dir
+-          emptyDir: {}
++          emptyDir:
++            sizeLimit: 1Mi
+         {{- end }}
+         {{- if .Values.sockets.broker.mountOnHost }}
+         - name: spire-agent-broker-socket-dir
+@@ -513,7 +521,8 @@
+             type: DirectoryOrCreate
+         {{- else }}
+         - name: spire-agent-broker-socket-dir
+-          emptyDir: {}
++          emptyDir:
++            sizeLimit: 1Mi
+         {{- end }}
+         {{- if eq .Values.persistence.type "hostPath" }}
+         - name: spire-agent-persistence
+@@ -526,7 +535,8 @@
+             type: DirectoryOrCreate
+         {{- else }}
+         - name: spire-agent-persistence
+-          emptyDir: {}
++          emptyDir:
++            sizeLimit: 50Mi
+         {{- end }}
+         {{- if eq (len .Values.trustBundleURL) 0 }}
+         - name: spire-bundle
+@@ -540,7 +550,8 @@
+         {{- end }}
+         {{- if .Values.nodeAttestor.tpmDirect.enabled }}
+         - name: tpm-direct
+-          emptyDir: {}
++          emptyDir:
++            sizeLimit: 1Mi
+         {{- end }}
+         {{- if .Values.nodeAttestor.x509POP.enabled }}
+         - name: x509pop-upstream
+@@ -580,7 +591,8 @@
+         {{- end }}
+         {{- if or (eq .Values.workloadAttestors.k8s.verification.type "hostCert") (eq .Values.workloadAttestors.k8s.verification.type "auto") }}
+         - name: host-cert-isolated
+-          emptyDir: {}
++          emptyDir:
++            sizeLimit: 10Mi
+         - name: host-cert
+           hostPath:
+             path: {{ .Values.workloadAttestors.k8s.verification.hostCert.basePath | quote }}

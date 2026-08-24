@@ -1,0 +1,52 @@
+--- charts-original/charts/spire-server/templates/pre-upgrade-hook.yaml
++++ charts/charts/spire-server/templates/pre-upgrade-hook.yaml
+@@ -11,6 +11,7 @@
+   labels:
+     {{- include "spire-server.labels" . | nindent 4 }}
+   annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
+     "helm.sh/hook": pre-upgrade
+     "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+ ---
+@@ -18,7 +19,10 @@
+ kind: ClusterRole
+ metadata:
+   name: {{ include "spire-server.fullname" . }}-pre-upgrade
++  labels:
++    {{- include "spire-server.labels" . | nindent 4 }}
+   annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
+     "helm.sh/hook": pre-upgrade
+     "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+ rules:
+@@ -31,7 +35,10 @@
+ apiVersion: rbac.authorization.k8s.io/v1
+ metadata:
+   name: {{ include "spire-server.fullname" . }}-pre-upgrade
++  labels:
++    {{- include "spire-server.labels" . | nindent 4 }}
+   annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
+     "helm.sh/hook": pre-upgrade
+     "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+ subjects:
+@@ -51,6 +58,7 @@
+   labels:
+     {{- include "spire-server.labels" . | nindent 4 }}
+   annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
+     "helm.sh/hook": pre-upgrade
+     "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+ spec:
+@@ -68,6 +76,11 @@
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+       serviceAccountName: {{ include "spire-server.serviceAccountName" . }}-pre-upgrade
++      # This hook Job's dedicated ClusterRole (above) patches the ValidatingWebhookConfiguration
++      # via the k8s API, so the token needs to be mounted -- explicit true satisfies
++      # kyverno-cluster-policies' require-explicit-automount, which just requires the field be set
++      # one way or the other.
++      automountServiceAccountToken: true
+       securityContext:
+         {{- include "spire-lib.podsecuritycontext" . | nindent 8 }}
+       containers:

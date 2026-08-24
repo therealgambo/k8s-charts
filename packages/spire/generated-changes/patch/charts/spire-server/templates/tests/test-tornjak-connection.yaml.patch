@@ -1,0 +1,34 @@
+--- charts-original/charts/spire-server/templates/tests/test-tornjak-connection.yaml
++++ charts/charts/spire-server/templates/tests/test-tornjak-connection.yaml
+@@ -9,8 +9,14 @@
+     {{- include "spire-server.labels" . | nindent 4 }}
+     app.kubernetes.io/component: test
+   annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
+     "helm.sh/hook": test
+ spec:
++  # This test hook only curls the tornjak backend Service and has no RBAC bound to its (default)
++  # ServiceAccount -- the token doesn't need to be mounted. Explicit false satisfies
++  # kyverno-cluster-policies' require-explicit-automount, which just requires the field be set one
++  # way or the other.
++  automountServiceAccountToken: false
+   securityContext:
+     {{- include "spire-lib.podsecuritycontext" . | nindent 4 }}
+   containers:
+@@ -20,12 +26,16 @@
+       args: ['-k', '-s', '-f', 'http://{{ include "spire-tornjak.servicename" . }}.{{ include "spire-server.namespace" . }}.svc.{{ include "spire-lib.cluster-domain" . }}:{{ .Values.tornjak.service.ports.http }}/api/v1/tornjak/serverinfo']
+       securityContext:
+         {{- include "spire-lib.securitycontext" . | nindent 8 }}
++      resources:
++        {{- toYaml .Values.tests.resources | nindent 8 }}
+     - name: curl-tornjak-backend-and-spire
+       image: {{ template "spire-lib.image" (dict "image" .Values.tests.bash.image "global" .Values.global) }}
+       command: ['curl']
+       args: ['-k', '-s', '-f', 'http://{{ include "spire-tornjak.servicename" . }}.{{ include "spire-server.namespace" . }}.svc.{{ include "spire-lib.cluster-domain" . }}:{{ .Values.tornjak.service.ports.http }}/api/v1/spire/healthcheck']
+       securityContext:
+         {{- include "spire-lib.securitycontext" . | nindent 8 }}
++      resources:
++        {{- toYaml .Values.tests.resources | nindent 8 }}
+   restartPolicy: Never
+ {{- end }}
+ {{- end }}

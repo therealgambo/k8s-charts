@@ -1,0 +1,16 @@
+--- charts-original/templates/aggregate-clusterrole.yaml
++++ charts/templates/aggregate-clusterrole.yaml
+@@ -5,10 +5,11 @@
+   labels:
+     rbac.authorization.k8s.io/aggregate-to-admin: "true"
+     {{- include "karpenter.labels" . | nindent 4 }}
+-  {{- with .Values.additionalAnnotations }}
+   annotations:
++    {{- include "karpenter.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.additionalAnnotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ rules:
+   - apiGroups: ["karpenter.sh"]
+     resources: ["nodepools", "nodepools/status", "nodeclaims", "nodeclaims/status"]

@@ -1,0 +1,18 @@
+--- charts-original/charts/spire-server/templates/configmap.yaml
++++ charts/charts/spire-server/templates/configmap.yaml
+@@ -680,10 +680,13 @@
+ metadata:
+   name: {{ include "spire-server.fullname" . }}
+   namespace: {{ include "spire-server.namespace" . }}
+-  {{- with .Values.configMap.annotations }}
++  labels:
++    {{- include "spire-server.labels" . | nindent 4 }}
+   annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.configMap.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ data:
+   server.conf: |
+     {{- include "spire-lib.reformat-and-yaml2json" (dict "config" (include "spire-server.yaml-config" .) "root" .) | nindent 4 }}

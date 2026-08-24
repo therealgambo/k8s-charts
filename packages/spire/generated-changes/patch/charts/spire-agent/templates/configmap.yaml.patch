@@ -1,0 +1,18 @@
+--- charts-original/charts/spire-agent/templates/configmap.yaml
++++ charts/charts/spire-agent/templates/configmap.yaml
+@@ -278,10 +278,13 @@
+ metadata:
+   name: {{ printf "%s%s" (include "spire-agent.fullname" .) $nameSuffix | quote }}
+   namespace: {{ include "spire-agent.namespace" . | quote }}
+-  {{- with .Values.configMap.annotations }}
++  labels:
++    {{- include "spire-agent.labels" . | nindent 4 }}
+   annotations:
++    {{- include "spire-agent.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.configMap.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ data:
+   agent.conf: |
+     {{- include "spire-lib.reformat-and-yaml2json" (dict "config" (include "spire-agent.yaml-config" .) "root" .) | nindent 4 }}

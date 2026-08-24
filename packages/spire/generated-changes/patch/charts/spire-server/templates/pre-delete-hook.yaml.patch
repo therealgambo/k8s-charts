@@ -1,0 +1,40 @@
+--- charts-original/charts/spire-server/templates/pre-delete-hook.yaml
++++ charts/charts/spire-server/templates/pre-delete-hook.yaml
+@@ -9,6 +9,7 @@
+   labels:
+     {{- include "spire-server.labels" . | nindent 4 }}
+   annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
+     "helm.sh/hook": pre-delete
+     "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+ ---
+@@ -17,7 +18,10 @@
+ metadata:
+   name: {{ include "spire-server.fullname" . }}-pre-delete
+   namespace: {{ include "spire-server.namespace" . }}
++  labels:
++    {{- include "spire-server.labels" . | nindent 4 }}
+   annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
+     "helm.sh/hook": pre-delete
+     "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+ rules:
+@@ -34,7 +38,10 @@
+ metadata:
+   name: {{ include "spire-server.fullname" . }}-pre-delete
+   namespace: {{ include "spire-server.namespace" . }}
++  labels:
++    {{- include "spire-server.labels" . | nindent 4 }}
+   annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
+     "helm.sh/hook": pre-delete
+     "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+ subjects:
+@@ -54,6 +61,7 @@
+   labels:
+     {{- include "spire-server.labels" . | nindent 4 }}
+   annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
+     "helm.sh/hook": pre-delete
+     "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+ spec:

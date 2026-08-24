@@ -1,0 +1,11 @@
+coder:
+  # Required labels/annotations (app.kubernetes.io/name, app.kubernetes.io/managed-by,
+  # metadata.example.com/team, metadata.example.com/repository) are injected directly by
+  # generated-changes template patches via the coder.patchedLabels/coder.patchedAnnotations
+  # helpers (charts/templates/_coder.tpl) -- do NOT also set coder.labels/coder.annotations/
+  # coder.serviceAccount.{labels,annotations}/coder.service.annotations here, or the values
+  # merged in on top of those helpers will collide with them (duplicate map keys, invalid YAML).
+  securityContext:
+    capabilities:
+      drop:
+      - ALL
