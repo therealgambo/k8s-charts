@@ -1,0 +1,13 @@
+--- charts-original/templates/backend-scheduler/statefulset-backend-scheduler.yaml
++++ charts/templates/backend-scheduler/statefulset-backend-scheduler.yaml
+@@ -13,8 +13,9 @@
+     {{- with .Values.backendScheduler.labels }}
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+-  {{- with .Values.backendScheduler.annotations }}
+   annotations:
++  {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
++  {{- with .Values.backendScheduler.annotations }}
+   {{- toYaml . | nindent 4 }}
+   {{- end }}
+ spec:

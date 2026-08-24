@@ -1,0 +1,10 @@
+--- charts-original/templates/gossip-ring/service-gossip-ring.yaml
++++ charts/templates/gossip-ring/service-gossip-ring.yaml
+@@ -6,6 +6,7 @@
+   labels:
+     {{- include "tempo.labels" (dict "ctx" . "component" "gossip-ring") | nindent 4 }}
+   annotations:
++    {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
+     {{- with .Values.tempo.memberlist.service.annotations | default dict }}
+     {{- toYaml . | nindent 4}}
+     {{- end }}

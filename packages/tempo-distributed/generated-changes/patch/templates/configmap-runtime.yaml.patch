@@ -1,0 +1,11 @@
+--- charts-original/templates/configmap-runtime.yaml
++++ charts/templates/configmap-runtime.yaml
+@@ -6,6 +6,8 @@
+   labels:
+     {{- include "tempo.labels" (dict "ctx" .) | nindent 4 }}
+   namespace: {{ .Release.Namespace | quote }}
++  annotations:
++    {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
+ data:
+   overrides.yaml: |
+     {{ include "tempo.overridesConfig" . | nindent 4 }}

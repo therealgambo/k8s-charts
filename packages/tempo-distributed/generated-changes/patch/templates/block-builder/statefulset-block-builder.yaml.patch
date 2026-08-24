@@ -1,0 +1,13 @@
+--- charts-original/templates/block-builder/statefulset-block-builder.yaml
++++ charts/templates/block-builder/statefulset-block-builder.yaml
+@@ -10,8 +10,9 @@
+     {{- with .Values.blockBuilder.labels }}
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+-  {{- with .Values.blockBuilder.annotations }}
+   annotations:
++  {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
++  {{- with .Values.blockBuilder.annotations }}
+     {{- toYaml . | nindent 4 }}
+   {{- end }}
+ spec:

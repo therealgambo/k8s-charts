@@ -1,0 +1,13 @@
+--- charts-original/templates/distributor/service-distributor-discovery.yaml
++++ charts/templates/distributor/service-distributor-discovery.yaml
+@@ -10,8 +10,9 @@
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+     prometheus.io/service-monitor: "false"
+-  {{- with .Values.distributor.serviceDiscovery.annotations }}
+   annotations:
++    {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
++  {{- with .Values.distributor.serviceDiscovery.annotations }}
+     {{- tpl (toYaml . | nindent 4) $ }}
+   {{- end }}
+ spec:

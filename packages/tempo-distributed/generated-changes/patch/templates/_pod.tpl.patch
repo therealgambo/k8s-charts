@@ -1,0 +1,30 @@
+--- charts-original/templates/_pod.tpl
++++ charts/templates/_pod.tpl
+@@ -67,6 +67,7 @@
+ spec:
+   serviceAccountName: {{ include "tempo.serviceAccountName" . }}
+   enableServiceLinks: false
++  automountServiceAccountToken: false
+   {{- with (coalesce $component.podSecurityContext .Values.tempo.podSecurityContext .Values.defaults.podSecurityContext) }}
+   securityContext:
+     {{- toYaml . | nindent 4 }}
+@@ -211,7 +212,8 @@
+       emptyDir:
+         {{- toYaml $dataEmptyDir | nindent 8 }}
+       {{- else }}
+-      emptyDir: {}
++      emptyDir:
++        sizeLimit: 1Gi
+       {{- end }}
+     {{- else if dig "inMemory" false $persistence }}
+     - name: {{ $dataVolumeName }}
+@@ -223,7 +225,8 @@
+     {{- end }}
+     {{- else }}
+     - name: tempo-{{ $target }}-store
+-      emptyDir: {}
++      emptyDir:
++        sizeLimit: 1Gi
+     {{- end }}
+     {{- if .Values.enterprise.enabled }}
+     - name: license

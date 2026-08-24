@@ -1,0 +1,11 @@
+--- charts-original/templates/backend-worker/service-backend-worker.yaml
++++ charts/templates/backend-worker/service-backend-worker.yaml
+@@ -6,6 +6,8 @@
+   namespace: {{ .Release.Namespace }}
+   labels:
+     {{- include "tempo.labels" (dict "ctx" . "component" "backend-worker") | nindent 4 }}
++  annotations:
++    {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
+   {{- with .Values.backendWorker.service.annotations }}
+   annotations:
+     {{- tpl (toYaml . | nindent 4) $ }}

@@ -1,0 +1,13 @@
+--- charts-original/templates/metrics-generator/deployment-metrics-generator.yaml
++++ charts/templates/metrics-generator/deployment-metrics-generator.yaml
+@@ -7,8 +7,9 @@
+   namespace: {{ .Release.Namespace }}
+   labels:
+   {{- include "tempo.labels" $dict | nindent 4 }}
+-  {{- with .Values.metricsGenerator.annotations }}
+   annotations:
++  {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
++  {{- with .Values.metricsGenerator.annotations }}
+   {{- toYaml . | nindent 4 }}
+   {{- end }}
+ spec:

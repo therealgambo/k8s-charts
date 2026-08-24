@@ -1,0 +1,13 @@
+--- charts-original/templates/backend-worker/statefulset-backend-worker.yaml
++++ charts/templates/backend-worker/statefulset-backend-worker.yaml
+@@ -5,8 +5,9 @@
+ metadata:
+   name: {{ template "tempo.resourceName" $dict }}
+   namespace: {{ .Release.Namespace }}
+-  {{- with .Values.backendWorker.annotations }}
+   annotations:
++  {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
++  {{- with .Values.backendWorker.annotations }}
+   {{- toYaml . | nindent 4 }}
+   {{- end }}
+   labels:

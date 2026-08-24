@@ -1,0 +1,13 @@
+--- charts-original/templates/querier/service-querier.yaml
++++ charts/templates/querier/service-querier.yaml
+@@ -5,7 +5,9 @@
+   namespace: {{ .Release.Namespace }}
+   labels:
+     {{- include "tempo.labels" (dict "ctx" . "component" "querier") | nindent 4 }}
+-  {{- with .Values.querier.service.annotations }}
++  annotations:
++    {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
++    {{- with .Values.querier.service.annotations }}
+   annotations:
+     {{- tpl (toYaml . | nindent 4) $ }}
+   {{- end }}
