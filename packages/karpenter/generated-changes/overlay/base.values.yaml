@@ -1,0 +1,3 @@
+# Patched values for Kyverno policy compliance
+patchedLabels:
+  team: platform
