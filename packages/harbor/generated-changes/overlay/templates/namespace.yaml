@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Release.Namespace }}
+  labels:
+{{ include "harbor.labels" . | indent 4 }}
+    pager.example.com/key: pagerduty-demo
+  annotations:
+{{ include "harbor.requiredAnnotations" . | indent 4 }}

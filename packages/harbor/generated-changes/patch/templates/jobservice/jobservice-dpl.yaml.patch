@@ -1,0 +1,29 @@
+--- charts-original/templates/jobservice/jobservice-dpl.yaml
++++ charts/templates/jobservice/jobservice-dpl.yaml
+@@ -7,6 +7,8 @@
+ {{ include "harbor.labels" . | indent 4 }}
+     component: jobservice
+     app.kubernetes.io/component: jobservice
++  annotations:
++{{ include "harbor.requiredAnnotations" . | indent 4 }}
+ spec:
+   replicas: {{ .Values.jobservice.replicas }}
+   revisionHistoryLimit: {{ .Values.jobservice.revisionHistoryLimit }}
+@@ -92,9 +94,16 @@
+           timeoutSeconds: {{ .Values.jobservice.readinessProbe.timeoutSeconds }}
+           failureThreshold: {{ .Values.jobservice.readinessProbe.failureThreshold }}
+           successThreshold: {{ .Values.jobservice.readinessProbe.successThreshold }}
+-{{- if .Values.jobservice.resources }}
+         resources:
++{{- if .Values.jobservice.resources }}
+ {{ toYaml .Values.jobservice.resources | indent 10 }}
++{{- else }}
++          requests:
++            cpu: 100m
++            memory: 256Mi
++          limits:
++            cpu: 1000m
++            memory: 1024Mi
+ {{- end }}
+         env:
+           - name: CORE_SECRET

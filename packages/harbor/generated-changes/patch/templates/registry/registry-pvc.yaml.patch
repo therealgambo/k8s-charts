@@ -1,0 +1,19 @@
+--- charts-original/templates/registry/registry-pvc.yaml
++++ charts/templates/registry/registry-pvc.yaml
+@@ -7,6 +7,7 @@
+   name: {{ template "harbor.registry" . }}
+   namespace: {{ .Release.Namespace | quote }}
+   annotations:
++{{ include "harbor.requiredAnnotations" . | indent 4 }}
+   {{- range $key, $value := $registry.annotations }}
+     {{ $key }}: {{ $value | quote }}
+   {{- end }}
+@@ -15,8 +16,6 @@
+   {{- end }}
+   labels:
+ {{ include "harbor.labels" . | indent 4 }}
+-    component: registry
+-    app.kubernetes.io/component: registry
+ spec:
+   accessModes: 
+     - {{ $registry.accessMode }}

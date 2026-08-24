@@ -1,0 +1,11 @@
+--- charts-original/templates/jobservice/jobservice-cm.yaml
++++ charts/templates/jobservice/jobservice-cm.yaml
+@@ -5,6 +5,8 @@
+   namespace: {{ .Release.Namespace | quote }}
+   labels:
+ {{ include "harbor.labels" . | indent 4 }}
++  annotations:
++{{ include "harbor.requiredAnnotations" . | indent 4 }}
+ data:
+   config.yml: |+
+     #Server listening port

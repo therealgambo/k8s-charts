@@ -1,0 +1,19 @@
+--- charts-original/templates/jobservice/jobservice-pvc.yaml
++++ charts/templates/jobservice/jobservice-pvc.yaml
+@@ -6,6 +6,7 @@
+   name: {{ template "harbor.jobservice" . }}
+   namespace: {{ .Release.Namespace | quote }}
+   annotations:
++{{ include "harbor.requiredAnnotations" . | indent 4 }}
+   {{- range $key, $value := $jobLog.annotations }}
+     {{ $key }}: {{ $value | quote }}
+   {{- end }}
+@@ -14,8 +15,6 @@
+   {{- end }}
+   labels:
+ {{ include "harbor.labels" . | indent 4 }}
+-    component: jobservice
+-    app.kubernetes.io/component: jobservice
+ spec:
+   accessModes: 
+     - {{ $jobLog.accessMode }}

@@ -1,0 +1,10 @@
+--- charts-original/templates/registry/registryctl-cm.yaml
++++ charts/templates/registry/registryctl-cm.yaml
+@@ -5,5 +5,7 @@
+   namespace: {{ .Release.Namespace | quote }}
+   labels:
+ {{ include "harbor.labels" . | indent 4 }}
++  annotations:
++{{ include "harbor.requiredAnnotations" . | indent 4 }}
+ data:
+   {{- template "harbor.traceEnvsForRegistryCtl" . }}

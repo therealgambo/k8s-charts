@@ -1,0 +1,29 @@
+--- charts-original/templates/redis/statefulset.yaml
++++ charts/templates/redis/statefulset.yaml
+@@ -9,6 +9,8 @@
+ {{ include "harbor.labels" . | indent 4 }}
+     component: redis
+     app.kubernetes.io/component: redis
++  annotations:
++{{ include "harbor.requiredAnnotations" . | indent 4 }}
+ spec:
+   replicas: 1
+   serviceName: {{ template "harbor.redis" . }}
+@@ -69,9 +71,16 @@
+           timeoutSeconds: {{ .Values.redis.internal.readinessProbe.timeoutSeconds }}
+           failureThreshold: {{ .Values.redis.internal.readinessProbe.failureThreshold }}
+           successThreshold: {{ .Values.redis.internal.readinessProbe.successThreshold }}
+-{{- if .Values.redis.internal.resources }}
+         resources:
++{{- if .Values.redis.internal.resources }}
+ {{ toYaml .Values.redis.internal.resources | indent 10 }}
++{{- else }}
++          requests:
++            cpu: 100m
++            memory: 256Mi
++          limits:
++            cpu: 1000m
++            memory: 1024Mi
+ {{- end }}
+ {{- with .Values.redis.internal.extraEnvVars }}
+         env:

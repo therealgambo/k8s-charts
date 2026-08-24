@@ -1,0 +1,21 @@
+{{ $pkg := dict "name" "harbor" "repoURL" "https://helm.goharbor.io" "chartName" "harbor" "github" .github }}
+name: "Bump harbor chart to the latest upstream release"
+pipelineid: "{{ $pkg.name }}"
+
+scms:
+  default:{{ template "common.scm" $pkg }}
+
+sources:
+  lastRelease:{{ template "helmchart.source" $pkg }}
+
+conditions:
+  chartVersionPublished:{{ template "helmchart.condition" $pkg }}
+  upstreamVersionChanged:{{ template "helmchart.upstreamVersionChanged" $pkg }}
+
+targets:
+  packageURL:{{ template "helmchart.packageURL" $pkg }}
+  packageBuildVersion:{{ template "common.packageBuildVersion" $pkg }}
+  buildChart:{{ template "common.buildChart" $pkg }}
+
+actions:
+  default:{{ template "common.action" $pkg }}

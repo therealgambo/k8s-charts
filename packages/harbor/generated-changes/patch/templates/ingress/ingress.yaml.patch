@@ -1,0 +1,10 @@
+--- charts-original/templates/ingress/ingress.yaml
++++ charts/templates/ingress/ingress.yaml
+@@ -42,6 +42,7 @@
+ {{ toYaml $ingress.labels | indent 4 }}
+ {{- end }}
+   annotations:
++{{ include "harbor.requiredAnnotations" . | indent 4 }}
+ {{ toYaml $ingress.annotations | indent 4 }}
+ {{- if .Values.internalTLS.enabled }}
+     nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
