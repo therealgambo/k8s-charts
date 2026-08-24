@@ -2,3 +2,19 @@ global:
   spire:
     namespaces:
       create: true
+      system:
+        labels:
+          pager.example.com/key: "system"
+          app.kubernetes.io/name: spire-system
+          app.kubernetes.io/managed-by: helm
+          metadata.example.com/team: spire
+        annotations:
+          metadata.example.com/repository: "https://github.com/therealgambo/k8s-charts"
+      server:
+        labels:
+          pager.example.com/key: "server"
+          app.kubernetes.io/name: spire-server
+          app.kubernetes.io/managed-by: helm
+          metadata.example.com/team: spire
+        annotations:
+          metadata.example.com/repository: "https://github.com/therealgambo/k8s-charts"
