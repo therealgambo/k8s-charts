@@ -1,0 +1,70 @@
+--- charts-original/templates/rbac.yaml
++++ charts/templates/rbac.yaml
+@@ -1 +1,66 @@
+-{{ include "libcoder.namespace.rbac.tpl" . }}
++---
++apiVersion: rbac.authorization.k8s.io/v1
++kind: Role
++metadata:
++  name: coder-workspace-perms
++  namespace: {{ .Release.Namespace }}
++  labels:
++    app.kubernetes.io/name: coder
++    {{- include "coder.patchedLabels" . | nindent 4 }}
++  annotations:
++    {{- include "coder.patchedAnnotations" . | nindent 4 }}
++rules:
++  - apiGroups: [""]
++    resources: ["pods"]
++    verbs:
++    - create
++    - delete
++    - deletecollection
++    - get
++    - list
++    - patch
++    - update
++    - watch
++  - apiGroups: [""]
++    resources: ["persistentvolumeclaims"]
++    verbs:
++    - create
++    - delete
++    - deletecollection
++    - get
++    - list
++    - patch
++    - update
++    - watch
++  - apiGroups:
++    - apps
++    resources:
++    - deployments
++    verbs:
++    - create
++    - delete
++    - deletecollection
++    - get
++    - list
++    - patch
++    - update
++    - watch
++---
++apiVersion: rbac.authorization.k8s.io/v1
++kind: RoleBinding
++metadata:
++  name: coder
++  namespace: {{ .Release.Namespace }}
++  labels:
++    app.kubernetes.io/name: coder
++    {{- include "coder.patchedLabels" . | nindent 4 }}
++  annotations:
++    {{- include "coder.patchedAnnotations" . | nindent 4 }}
++subjects:
++  - kind: ServiceAccount
++    name: coder
++    namespace: {{ .Release.Namespace }}
++roleRef:
++  apiGroup: rbac.authorization.k8s.io
++  kind: Role
++  name: coder-workspace-perms
