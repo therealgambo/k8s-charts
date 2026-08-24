@@ -1,0 +1,28 @@
+--- charts-original/charts/spire-agent/templates/_helpers.tpl
++++ charts/charts/spire-agent/templates/_helpers.tpl
+@@ -81,6 +81,25 @@
+ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+ {{- end }}
+ app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
++{{ include "spire-agent.patchedLabels" . }}
++{{- end }}
++
++{{/*
++Org-required labels not otherwise emitted by this chart -- see kyverno-cluster-policies'
++config.requiredResourceLabels. Wired into spire-agent.labels above so every resource that already
++renders that helper picks these up for free.
++*/}}
++{{- define "spire-agent.patchedLabels" -}}
++metadata.example.com/team: spire
++{{- end }}
++
++{{/*
++Org-required annotations not otherwise emitted by this chart -- see kyverno-cluster-policies'
++config.requiredResourceAnnotations. Most resources here have no common-annotations helper to hook
++into, so this is included explicitly per-resource rather than transitively like patchedLabels.
++*/}}
++{{- define "spire-agent.patchedAnnotations" -}}
++metadata.example.com/repository: https://github.com/therealgambo/k8s-charts
+ {{- end }}
+ 
+ {{/*

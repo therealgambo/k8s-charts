@@ -1,0 +1,68 @@
+--- charts-original/charts/spire-server/templates/roles.yaml
++++ charts/charts/spire-server/templates/roles.yaml
+@@ -8,6 +8,10 @@
+ metadata:
+   name: {{ include "spire-lib.bundle-configmap" . }}
+   namespace: {{ $bundleNamespace }}
++  labels:
++    {{- include "spire-server.labels" . | nindent 4 }}
++  annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
+ rules:
+   - apiGroups: [""]
+     resources: [configmaps]
+@@ -27,6 +31,10 @@
+ metadata:
+   name: {{ include "spire-server.fullname" . }}-cm
+   namespace: {{ $namespace }}
++  labels:
++    {{- include "spire-server.labels" . | nindent 4 }}
++  annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
+ rules:
+   - apiGroups: ["cert-manager.io"]
+     resources:
+@@ -45,6 +53,10 @@
+ metadata:
+   name: {{ include "spire-server.fullname" . }}-cm
+   namespace: {{ $namespace }}
++  labels:
++    {{- include "spire-server.labels" . | nindent 4 }}
++  annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
+ {{ $subject }}
+ roleRef:
+   kind: Role
+@@ -58,6 +70,10 @@
+ metadata:
+   name: {{ include "spire-lib.bundle-configmap" . }}
+   namespace: {{ $bundleNamespace }}
++  labels:
++    {{- include "spire-server.labels" . | nindent 4 }}
++  annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
+ {{ $subject }}
+ roleRef:
+   kind: Role
+@@ -71,6 +87,10 @@
+ apiVersion: rbac.authorization.k8s.io/v1
+ metadata:
+   name: {{ .Release.Namespace}}-{{ include "spire-server.fullname" . }}
++  labels:
++    {{- include "spire-server.labels" . | nindent 4 }}
++  annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
+ rules:
+   - apiGroups: [authentication.k8s.io]
+     resources: [tokenreviews]
+@@ -92,6 +112,10 @@
+ apiVersion: rbac.authorization.k8s.io/v1
+ metadata:
+   name: {{ .Release.Namespace}}-{{ include "spire-server.fullname" . }}
++  labels:
++    {{- include "spire-server.labels" . | nindent 4 }}
++  annotations:
++    {{- include "spire-server.patchedAnnotations" . | nindent 4 }}
+ {{ $subject }}
+ roleRef:
+   kind: ClusterRole
