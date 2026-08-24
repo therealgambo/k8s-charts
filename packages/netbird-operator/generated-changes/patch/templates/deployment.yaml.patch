@@ -1,0 +1,33 @@
+--- charts-original/templates/deployment.yaml
++++ charts/templates/deployment.yaml
+@@ -5,6 +5,8 @@
+   labels:
+     app.kubernetes.io/component: operator
+     {{- include "netbird-operator.labels" . | nindent 4 }}
++  annotations:
++    {{- include "netbird-operator.patchedAnnotations" . | nindent 4 }}
+ spec:
+   replicas: {{ .Values.operator.replicaCount }}
+   selector:
+@@ -12,10 +14,11 @@
+       {{- include "netbird-operator.selectorLabels" . | nindent 6 }}
+   template:
+     metadata:
+-      {{- with .Values.operator.podAnnotations }}
+       annotations:
++        {{- include "netbird-operator.patchedAnnotations" . | nindent 8 }}
++        {{- with .Values.operator.podAnnotations }}
+         {{- toYaml . | nindent 8 }}
+-      {{- end }}
++        {{- end }}
+       labels:
+         app.kubernetes.io/component: operator
+         {{- include "netbird-operator.labels" . | nindent 8 }}
+@@ -28,6 +31,7 @@
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+       serviceAccountName: {{ include "netbird-operator.serviceAccountName" . }}
++      automountServiceAccountToken: false
+       securityContext:
+         {{- toYaml .Values.operator.podSecurityContext | nindent 8 }}
+       containers:

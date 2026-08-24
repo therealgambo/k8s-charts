@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    {{- include "netbird-operator.labels" . | nindent 4 }}
+    pager.example.com/key: netbird
+  annotations:
+    {{- include "netbird-operator.patchedAnnotations" . | nindent 4 }}
+  name: {{ .Release.Namespace }}

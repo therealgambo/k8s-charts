@@ -1,0 +1,13 @@
+# Kyverno policy compliance overrides
+general:
+  labels:
+    metadata.example.com/team: netbird
+
+operator:
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 250m
+      memory: 128Mi

@@ -1,0 +1,38 @@
+--- charts-original/templates/rbac.yaml
++++ charts/templates/rbac.yaml
+@@ -4,6 +4,8 @@
+   name: {{ include "netbird-operator.fullname" . }}
+   labels:
+     {{- include "netbird-operator.labels" . | nindent 4 }}
++  annotations:
++    {{- include "netbird-operator.patchedAnnotations" . | nindent 4 }}
+ rules:
+ - apiGroups:
+   - netbird.io
+@@ -224,6 +226,8 @@
+   name: {{ include "netbird-operator.fullname" . }}
+   labels:
+     {{- include "netbird-operator.labels" . | nindent 4 }}
++  annotations:
++    {{- include "netbird-operator.patchedAnnotations" . | nindent 4 }}
+ roleRef:
+   apiGroup: rbac.authorization.k8s.io
+   kind: ClusterRole
+@@ -239,6 +243,8 @@
+   name: {{ include "netbird-operator.fullname" . }}
+   labels:
+     {{- include "netbird-operator.labels" . | nindent 4 }}
++  annotations:
++    {{- include "netbird-operator.patchedAnnotations" . | nindent 4 }}
+ rules:
+ - apiGroups:
+   - coordination.k8s.io
+@@ -266,6 +272,8 @@
+   name: {{ include "netbird-operator.fullname" . }}
+   labels:
+     {{- include "netbird-operator.labels" . | nindent 4 }}
++  annotations:
++    {{- include "netbird-operator.patchedAnnotations" . | nindent 4 }}
+ roleRef:
+   apiGroup: rbac.authorization.k8s.io
+   kind: Role
