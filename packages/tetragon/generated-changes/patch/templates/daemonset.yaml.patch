@@ -1,0 +1,32 @@
+--- charts-original/templates/daemonset.yaml
++++ charts/templates/daemonset.yaml
+@@ -2,10 +2,11 @@
+ apiVersion: apps/v1
+ kind: DaemonSet
+ metadata:
+-  {{- with .Values.daemonSetAnnotations }}
+   annotations:
++    {{- include "tetragon.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.daemonSetAnnotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+   labels:
+   {{- with .Values.daemonSetLabelsOverride}}
+     {{- toYaml . | nindent 4 }}
+@@ -26,6 +27,7 @@
+     metadata:
+       annotations:
+         checksum/configmap: {{ toJson .Values.tetragon | sha256sum }}
++        {{- include "tetragon.patchedAnnotations" . | nindent 8 }}
+       {{- with .Values.podAnnotations }}
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+@@ -47,6 +49,7 @@
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+       serviceAccountName: {{ include "tetragon.serviceAccount" . }}
++      automountServiceAccountToken: false
+       {{- with .Values.podSecurityContext }}
+       securityContext:
+         {{- toYaml . | nindent 8 }}

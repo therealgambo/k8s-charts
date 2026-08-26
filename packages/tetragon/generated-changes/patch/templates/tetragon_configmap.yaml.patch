@@ -1,0 +1,11 @@
+--- charts-original/templates/tetragon_configmap.yaml
++++ charts/templates/tetragon_configmap.yaml
+@@ -6,6 +6,8 @@
+   namespace: {{ .Release.Namespace }}
+   labels:
+   {{- include "tetragon.labels" . | nindent 4 }}
++  annotations:
++    {{- include "tetragon.patchedAnnotations" . | nindent 4 }}
+ data:
+   cluster-name: {{ .Values.tetragon.clusterName | quote }}
+ {{- if .Values.tetragon.btf }}

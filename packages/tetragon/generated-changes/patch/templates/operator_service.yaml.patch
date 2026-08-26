@@ -1,0 +1,14 @@
+--- charts-original/templates/operator_service.yaml
++++ charts/templates/operator_service.yaml
+@@ -4,8 +4,10 @@
+ metadata:
+   namespace: {{ .Release.Namespace }}
+   name: {{ include "tetragon-operator.name" . }}-metrics
+-  labels: 
++  labels:
+     {{- include "tetragon-operator.labels" . | nindent 4 }}
++  annotations:
++    {{- include "tetragon.patchedAnnotations" . | nindent 4 }}
+ spec:
+   ports:
+     - name: metrics

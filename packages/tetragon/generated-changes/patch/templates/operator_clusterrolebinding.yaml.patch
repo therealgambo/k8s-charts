@@ -1,0 +1,11 @@
+--- charts-original/templates/operator_clusterrolebinding.yaml
++++ charts/templates/operator_clusterrolebinding.yaml
+@@ -5,6 +5,8 @@
+   name: {{ include "tetragon-operator.roleBindingName" . }}
+   labels:
+   {{- include "tetragon-operator.labels" . | nindent 4 }}
++  annotations:
++    {{- include "tetragon.patchedAnnotations" . | nindent 4 }}
+ roleRef:
+   apiGroup: rbac.authorization.k8s.io
+   kind: ClusterRole
