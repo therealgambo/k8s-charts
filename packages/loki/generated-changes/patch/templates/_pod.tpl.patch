@@ -1,6 +1,6 @@
 --- charts-original/templates/_pod.tpl
 +++ charts/templates/_pod.tpl
-@@ -125,7 +125,8 @@
+@@ -135,7 +135,8 @@
    {{- end }}
    volumes:
      - name: temp
@@ -10,7 +10,7 @@
      {{- if ne $target "canary" }}
      - name: config
        {{- include "loki.configVolume" . | nindent 6 }}
-@@ -187,7 +188,8 @@
+@@ -197,7 +198,8 @@
        emptyDir: {}
        {{- end }}
      - name: sc-rules-temp
