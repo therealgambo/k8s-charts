@@ -1,0 +1,11 @@
+--- charts-original/templates/operator_clusterrole.yaml
++++ charts/templates/operator_clusterrole.yaml
+@@ -5,6 +5,8 @@
+   name: {{ include "tetragon-operator.clusterRole" . }}
+   labels:
+   {{- include "tetragon-operator.labels" . | nindent 4 }}
++  annotations:
++    {{- include "tetragon.patchedAnnotations" . | nindent 4 }}
+ rules:
+   - apiGroups:
+       - ""

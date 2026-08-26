@@ -1,0 +1,11 @@
+--- charts-original/templates/role.yaml
++++ charts/templates/role.yaml
+@@ -6,6 +6,8 @@
+   namespace: {{ .Release.Namespace }}
+   labels:
+   {{- include "tetragon.labels" . | nindent 4 }}
++  annotations:
++    {{- include "tetragon.patchedAnnotations" . | nindent 4 }}
+ rules:
+   {{- include "role.extra" . | nindent 2 }}
+ {{- end }}
