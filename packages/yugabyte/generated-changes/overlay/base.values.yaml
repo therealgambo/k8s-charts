@@ -104,3 +104,4 @@ containerSecurityContext:
       - ALL
   seccompProfile:
     type: RuntimeDefault
+
