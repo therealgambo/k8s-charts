@@ -1,0 +1,93 @@
+--- charts-original/templates/service.yaml
++++ charts/templates/service.yaml
+@@ -88,6 +88,10 @@
+     {{- include "yugabyte.applabel" ($appLabelArgs) | indent 4 }}
+     {{- include "yugabyte.labels" $root | indent 4 }}
+     service-type: "headless"
++  {{- if $root.Values.statefulSetAnnotations }}
++  annotations:
++{{ toYaml $root.Values.statefulSetAnnotations | indent 4 }}
++  {{- end }}
+ spec:
+   clusterIP: None
+   {{- if (or (include "yugabyte.master.readinessProbe" $root) (include "yugabyte.tserver.readinessProbe" $root)) }}
+@@ -224,6 +228,7 @@
+       {{- with $root.Values.master.serviceAccount }}
+       serviceAccountName: {{ . }}
+       {{- end }}
++      automountServiceAccountToken: true
+       {{- if $root.Values.master.tolerations }}
+       tolerations:
+       {{- with $root.Values.master.tolerations }}{{ toYaml . | nindent 8 }}{{ end }}
+@@ -232,6 +237,7 @@
+       {{- with $root.Values.tserver.serviceAccount }}
+       serviceAccountName: {{ . }}
+       {{- end }}
++      automountServiceAccountToken: true
+       {{- if $root.Values.tserver.tolerations }}
+       tolerations:
+       {{- with $root.Values.tserver.tolerations }}{{ toYaml . | nindent 8 }}{{ end }}
+@@ -314,6 +320,8 @@
+         - name: certmanager-init
+           image: {{ $root.Values.Image.repository }}:{{ $root.Values.Image.tag }}
+           imagePullPolicy: {{ $root.Values.Image.pullPolicy }}
++          securityContext:
++{{ toYaml $root.Values.containerSecurityContext | indent 12 }}
+           command:
+             - "/bin/bash"
+             - "-c"
+@@ -365,6 +373,8 @@
+       - name: "{{ .label }}"
+         image: "{{ $root.Values.Image.repository }}:{{ $root.Values.Image.tag }}"
+         imagePullPolicy: {{ $root.Values.Image.pullPolicy }}
++        securityContext:
++{{ toYaml $root.Values.containerSecurityContext | indent 10 }}
+         lifecycle:
+           postStart:
+             exec:
+@@ -566,6 +576,8 @@
+       - name: yb-cleanup
+         image: "{{ $root.Values.Image.repository }}:{{ $root.Values.Image.tag }}"
+         imagePullPolicy: {{ $root.Values.Image.pullPolicy }}
++        securityContext:
++{{ toYaml $root.Values.containerSecurityContext | indent 10 }}
+         env:
+         - name: USER
+           value: "yugabyte"
+@@ -596,6 +608,8 @@
+       - name: yugabyted-ui
+         image: "{{ $root.Values.Image.repository }}:{{ $root.Values.Image.tag }}"
+         imagePullPolicy: "IfNotPresent"
++        securityContext:
++{{ toYaml $root.Values.containerSecurityContext | indent 10 }}
+         env:
+         - name: HOSTNAME
+           valueFrom:
+@@ -607,6 +621,8 @@
+               fieldPath: metadata.namespace
+         - name: YUGABYTED_UI_K8S
+           value: "true"
++        resources:
++{{ toYaml $root.Values.yugabytedUi.resources | indent 10 }}
+         command:
+           - "/sbin/tini"
+           - "--"
+@@ -670,6 +686,8 @@
+       - name: yb-controller
+         image: "{{ $root.Values.Image.repository }}:{{ $root.Values.Image.tag }}"
+         imagePullPolicy: {{ $root.Values.Image.pullPolicy }}
++        securityContext:
++{{ toYaml $root.Values.containerSecurityContext | indent 10 }}
+         lifecycle:
+           postStart:
+             exec:
+@@ -749,7 +767,8 @@
+             secretName: {{ include "yugabyte.fullname" $root }}-tserver-gflags
+             defaultMode: 0755
+         - name: tserver-tmp
+-          emptyDir: {}
++          emptyDir:
++            sizeLimit: {{ ($root.Values.tserver.tmpVolume | default dict).sizeLimit | default "1Gi" }}
+         {{- end }}
+         {{- if $root.Values.tls.enabled }}
+         {{- if $root.Values.tls.certManager.enabled }}
