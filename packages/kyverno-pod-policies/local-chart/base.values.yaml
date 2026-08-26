@@ -115,3 +115,24 @@ exceptions:
         matchLabels:
           app.kubernetes.io/instance: spire
           app.kubernetes.io/name: agent
+
+  # packages/tetragon's DaemonSet is a kernel probe-based security monitoring agent that needs to
+  # share the host's network namespace to observe system events, mount hostPath volumes for kubelet
+  # socket/driver access and BPF filesystem (disallow-host-path), and run privileged to attach to
+  # kernel probes and access /proc/sys/kernel/perf_event_paranoid -- none of this is a
+  # misconfiguration, it's the fundamental architecture of how eBPF-based observation works.
+  # Scoped by namespace + DaemonSet name. Restricted-tier fallout (disallow-capabilities-strict,
+  # disallow-privilege-escalation, require-run-as-nonroot, restrict-seccomp-strict,
+  # restrict-volume-types) is intentionally left OUT since those are Audit-tier (report-only, never
+  # block), so there's nothing to exempt; leaving them un-exempted keeps them visible in
+  # PolicyReport rather than silently suppressed.
+  tetragon-agent:
+    policies: [disallow-host-namespaces, disallow-host-path, disallow-privileged-containers]
+    match:
+      kinds: [DaemonSet]
+      namespaces: [tetragon]
+      names: [tetragon]
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: tetragon
+          app.kubernetes.io/instance: tetragon

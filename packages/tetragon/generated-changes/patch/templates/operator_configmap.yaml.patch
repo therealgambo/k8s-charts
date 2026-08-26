@@ -1,0 +1,11 @@
+--- charts-original/templates/operator_configmap.yaml
++++ charts/templates/operator_configmap.yaml
+@@ -6,6 +6,8 @@
+   namespace: {{ .Release.Namespace }}
+   labels:
+   {{- include "tetragon-operator.labels" . | nindent 4 }}
++  annotations:
++    {{- include "tetragon.patchedAnnotations" . | nindent 4 }}
+ data:
+   {{- if eq .Values.crds.installMethod "operator" }}
+   skip-crd-creation: "false"

@@ -1,0 +1,39 @@
+# Fix dnsPolicy to match kyverno requirement (ClusterFirst or ClusterFirstWithHostNet)
+# Tetragon uses hostNetwork, so ClusterFirstWithHostNet is appropriate
+dnsPolicy: ClusterFirstWithHostNet
+
+# Fix automountServiceAccountToken to be explicit (required by kyverno policy)
+serviceAccount:
+  automountServiceAccountToken: false
+
+# Add resource requests/limits for tetragon DaemonSet (kyverno require-resource-requests-limits)
+tetragon:
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+# Add resource requests/limits for export-stdout container
+export:
+  resources:
+    limits:
+      cpu: 100m
+      memory: 256Mi
+    requests:
+      cpu: 10m
+      memory: 64Mi
+
+# Add resource requests/limits for tetragon-operator Deployment
+tetragonOperator:
+  serviceAccount:
+    automountServiceAccountToken: false
+  resources:
+    limits:
+      cpu: 200m
+      memory: 512Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi

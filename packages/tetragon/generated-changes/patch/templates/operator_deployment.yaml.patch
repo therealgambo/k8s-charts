@@ -1,0 +1,37 @@
+--- charts-original/templates/operator_deployment.yaml
++++ charts/templates/operator_deployment.yaml
+@@ -2,11 +2,12 @@
+ apiVersion: apps/v1
+ kind: Deployment
+ metadata:
+-  {{- with .Values.tetragonOperator.annotations }}
+   annotations:
++    {{- include "tetragon.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.tetragonOperator.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
+-  labels: 
++    {{- end }}
++  labels:
+     {{- include "tetragon-operator.labels" . | nindent 4 }}
+     {{- with .Values.tetragonOperator.extraLabels }}
+     {{- toYaml . | nindent 4 }}
+@@ -20,8 +21,9 @@
+   replicas: {{ .Values.tetragonOperator.replicas }}
+   template:
+     metadata:
+-      {{- with .Values.tetragonOperator.podAnnotations }}
+       annotations:
++        {{- include "tetragon.patchedAnnotations" . | nindent 8 }}
++      {{- with .Values.tetragonOperator.podAnnotations }}
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+       labels: 
+@@ -102,6 +104,7 @@
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+       serviceAccountName: {{ include "tetragon-operator.serviceAccount" . }}
++      automountServiceAccountToken: false
+       terminationGracePeriodSeconds: 10
+       volumes:
+         - name: tetragon-operator-config
