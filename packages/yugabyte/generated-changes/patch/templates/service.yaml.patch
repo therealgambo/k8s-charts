@@ -1,0 +1,29 @@
+--- charts-original/templates/service.yaml
++++ charts/templates/service.yaml
+@@ -88,6 +88,10 @@
+     {{- include "yugabyte.applabel" ($appLabelArgs) | indent 4 }}
+     {{- include "yugabyte.labels" $root | indent 4 }}
+     service-type: "headless"
++  {{- if $root.Values.statefulSetAnnotations }}
++  annotations:
++{{ toYaml $root.Values.statefulSetAnnotations | indent 4 }}
++  {{- end }}
+ spec:
+   clusterIP: None
+   {{- if (or (include "yugabyte.master.readinessProbe" $root) (include "yugabyte.tserver.readinessProbe" $root)) }}
+@@ -224,6 +228,7 @@
+       {{- with $root.Values.master.serviceAccount }}
+       serviceAccountName: {{ . }}
+       {{- end }}
++      automountServiceAccountToken: true
+       {{- if $root.Values.master.tolerations }}
+       tolerations:
+       {{- with $root.Values.master.tolerations }}{{ toYaml . | nindent 8 }}{{ end }}
+@@ -232,6 +237,7 @@
+       {{- with $root.Values.tserver.serviceAccount }}
+       serviceAccountName: {{ . }}
+       {{- end }}
++      automountServiceAccountToken: true
+       {{- if $root.Values.tserver.tolerations }}
+       tolerations:
+       {{- with $root.Values.tserver.tolerations }}{{ toYaml . | nindent 8 }}{{ end }}
