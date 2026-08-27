@@ -94,7 +94,7 @@ conditions:
 
 targets:
   packageURL:
-    name: "Point packages/{{ $pkg.name }}/package.yaml at the new release commit"
+    name: "Bump packages/{{ $pkg.name }}/package.yaml to the new release commit"
     kind: yaml
     sourceid: "lastReleaseCommit"
     scmid: "default"

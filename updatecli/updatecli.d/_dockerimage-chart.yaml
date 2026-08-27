@@ -43,7 +43,7 @@ don't need one, like kargo's).
 {{ end }}
 
 {{ define "dockerimage.packageURL" }}
-    name: "Point packages/{{ .name }}/package.yaml at the new release tag"
+    name: "Bump packages/{{ .name }}/package.yaml to the new release tag"
     kind: yaml
     sourceid: "lastRelease"
     scmid: "default"

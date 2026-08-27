@@ -39,7 +39,7 @@ $pkg needs: name, repoURL, chartName.
 {{ end }}
 
 {{ define "helmchart.packageURL" }}
-    name: "Point packages/{{ .name }}/package.yaml at the new release asset"
+    name: "Bump packages/{{ .name }}/package.yaml to the new release asset"
     kind: yaml
     sourceid: "lastRelease"
     scmid: "default"
