@@ -1,0 +1,10 @@
+--- charts-original/templates/bootstrap-job.yaml
++++ charts/templates/bootstrap-job.yaml
+@@ -21,6 +21,7 @@
+         helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+     spec:
+       serviceAccountName: {{ include "infisical.serviceAccountName" . }}
++      automountServiceAccountToken: true
+     {{- with $infisicalValues.podSecurityContext }}
+       securityContext: {{- toYaml . | nindent 8 }}
+     {{- end }}

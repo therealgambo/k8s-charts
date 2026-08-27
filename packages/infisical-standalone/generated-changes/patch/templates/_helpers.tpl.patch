@@ -1,0 +1,25 @@
+--- charts-original/templates/_helpers.tpl
++++ charts/templates/_helpers.tpl
+@@ -25,14 +25,22 @@
+ heritage: {{ .Release.Service }}
+ {{- end -}}
+ 
++{{- define "infisical.patchedLabels" -}}
++app.kubernetes.io/name: {{ template "infisical.name" . }}
++app.kubernetes.io/managed-by: Helm
++metadata.example.com/team: "infisical"
++{{- end -}}
++
+ {{- define "infisical.common.labels" -}}
+ {{ include "infisical.common.matchLabels" . }}
+ {{ include "infisical.common.metaLabels" . }}
++{{ include "infisical.patchedLabels" . }}
+ {{- end -}}
+ 
+ {{- define "infisical.labels" -}}
+ {{ include "infisical.matchLabels" . }}
+ {{ include "infisical.common.metaLabels" . }}
++{{ include "infisical.patchedLabels" . }}
+ {{- end -}}
+ 
+ {{- define "infisical.matchLabels" -}}
