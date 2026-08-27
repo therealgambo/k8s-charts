@@ -1,13 +1,13 @@
 --- charts-original/templates/live-store/statefulset-live-store.yaml
 +++ charts/templates/live-store/statefulset-live-store.yaml
-@@ -10,8 +10,9 @@
-     {{- with .Values.liveStore.labels }}
-     {{- toYaml . | nindent 4 }}
-     {{- end }}
--  {{- with .Values.liveStore.annotations }}
+@@ -36,8 +36,9 @@
+   {{- end }}
+   {{- end }}
+   {{- end }}
+-  {{- with $annotations }}
    annotations:
 +  {{- include "tempo.patchedAnnotations" (dict "ctx" .) | nindent 4 }}
-+  {{- with .Values.liveStore.annotations }}
++  {{- with $annotations }}
      {{- toYaml . | nindent 4 }}
    {{- end }}
  spec:
