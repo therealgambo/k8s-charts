@@ -1,0 +1,16 @@
+--- charts-original/templates/ingress.yaml
++++ charts/templates/ingress.yaml
+@@ -9,9 +9,13 @@
+ kind: Ingress
+ metadata:
+   name: infisical-ingress
++  labels:
++    {{- include "infisical.labels" . | nindent 4 }}
+   {{- with $ingress.annotations }}
+   annotations:
+     {{- toYaml . | nindent 4 }}
++  {{- else }}
++  annotations: {}
+   {{- end }}
+ spec:
+   {{- if (semverCompare ">=1.18-0" .Capabilities.KubeVersion.GitVersion) }}

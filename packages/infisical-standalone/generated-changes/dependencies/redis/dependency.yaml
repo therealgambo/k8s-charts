@@ -1,0 +1,4 @@
+workingDir: ""
+url: oci://registry-1.docker.io/bitnamicharts/redis:18.14.1
+ignoreDependencies: []
+replacePaths: []

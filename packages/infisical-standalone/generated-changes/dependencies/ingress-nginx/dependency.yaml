@@ -1,0 +1,4 @@
+workingDir: ""
+url: https://github.com/kubernetes/ingress-nginx/releases/download/helm-chart-4.0.13/ingress-nginx-4.0.13.tgz
+ignoreDependencies: []
+replacePaths: []

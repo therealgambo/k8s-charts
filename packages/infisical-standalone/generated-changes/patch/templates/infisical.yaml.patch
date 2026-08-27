@@ -1,0 +1,27 @@
+--- charts-original/templates/infisical.yaml
++++ charts/templates/infisical.yaml
+@@ -26,6 +26,7 @@
+         {{- end }}
+     spec:
+       serviceAccountName: {{ include "infisical.serviceAccountName" . }}
++      automountServiceAccountToken: true
+     {{- with $infisicalValues.podSecurityContext }}
+       securityContext: {{- toYaml . | nindent 8 }}
+     {{- end }}
+@@ -107,13 +108,14 @@
+ ---
+ 
+ apiVersion: v1
+-kind: Service 
++kind: Service
+ metadata:
+   name: {{ include "infisical.fullname" . }}
+   labels:
+     {{- include "infisical.labels" . | nindent 4 }}
+-  {{- with $infisicalValues.service.annotations }}
+   annotations:
++    metadata.example.com/repository: "https://github.com/therealgambo/k8s-charts"
++  {{- with $infisicalValues.service.annotations }}
+     {{- toYaml . | nindent 4 }}
+   {{- end }}
+ spec:
