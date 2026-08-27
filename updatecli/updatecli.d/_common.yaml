@@ -72,13 +72,12 @@ of once here generically.
     spec:
       title: 'chore({{ .name }}): bump chart to {{ source "lastRelease" }}'
       description: |
-        This is an automated upstream sync via [updatecli](https://www.updatecli.io/).
+        Bumps `{{ if .displayName }}{{ .displayName }}{{ else }}{{ .name }}{{ end }}` to upstream release {{ template "common.releaseLink" . }} and regenerates the chart via `make prepare`, `make patch` and `make charts`.
 
-        Pulls in changes for `{{ if .displayName }}{{ .displayName }}{{ else }}{{ .name }}{{ end }}` due to new upstream release {{ template "common.releaseLink" . }} and regenerates the patched chart via `make prepare`, `make patch` and `make charts`.
         Review the diff under `packages/{{ .name }}/` as you would any other chart bump before merging.
       labels:
         - "dependencies"
-        - "{{ .name }}"
+        - "updatecli"
 {{ end }}
 
 {{/*
