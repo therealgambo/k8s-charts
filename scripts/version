@@ -8,7 +8,7 @@
 
 # https://github.com/rancher/charts-build-scripts
 CHARTS_BUILD_SCRIPTS_REPO="https://github.com/rancher/charts-build-scripts"
-CHARTS_BUILD_SCRIPT_VERSION="${CHARTS_BUILD_SCRIPT_VERSION:-v1.9.27}"
+CHARTS_BUILD_SCRIPT_VERSION="${CHARTS_BUILD_SCRIPT_VERSION:-v1.9.33}"
 
 # https://github.com/yannh/kubeconform
 KUBECONFORM_REPO="https://github.com/yannh/kubeconform"
