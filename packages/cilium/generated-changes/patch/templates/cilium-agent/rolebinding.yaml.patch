@@ -14,10 +14,10 @@
    labels:
      app.kubernetes.io/part-of: cilium
 +    app.kubernetes.io/name: cilium
-     helm.sh/chart: {{ include "cilium.chart" . }}
      {{- with .Values.commonLabels }}
      {{- toYaml . | nindent 4 }}
-@@ -34,12 +36,14 @@
+     {{- end }}
+@@ -33,12 +35,14 @@
  metadata:
    name: cilium-secrets
    namespace: {{ .Values.ingressController.secretsNamespace.name | quote }}
@@ -31,10 +31,10 @@
    labels:
      app.kubernetes.io/part-of: cilium
 +    app.kubernetes.io/name: cilium
-     helm.sh/chart: {{ include "cilium.chart" . }}
      {{- with .Values.commonLabels }}
      {{- toYaml . | nindent 4 }}
-@@ -61,12 +65,14 @@
+     {{- end }}
+@@ -59,12 +63,14 @@
  metadata:
    name: cilium-gateway-secrets
    namespace: {{ .Values.gatewayAPI.secretsNamespace.name | quote }}
@@ -48,10 +48,10 @@
    labels:
      app.kubernetes.io/part-of: cilium
 +    app.kubernetes.io/name: cilium
-     helm.sh/chart: {{ include "cilium.chart" . }}
      {{- with .Values.commonLabels }}
      {{- toYaml . | nindent 4 }}
-@@ -88,12 +94,14 @@
+     {{- end }}
+@@ -85,12 +91,14 @@
  metadata:
    name: cilium-envoy-config-secrets
    namespace: {{ .Values.envoyConfig.secretsNamespace.name | quote }}
@@ -65,10 +65,10 @@
    labels:
      app.kubernetes.io/part-of: cilium
 +    app.kubernetes.io/name: cilium
-     helm.sh/chart: {{ include "cilium.chart" . }}
      {{- with .Values.commonLabels }}
      {{- toYaml . | nindent 4 }}
-@@ -115,8 +123,14 @@
+     {{- end }}
+@@ -111,8 +119,14 @@
  metadata:
    name: cilium-bgp-control-plane-secrets
    namespace: {{ .Values.bgpControlPlane.secretsNamespace.name | quote }}
@@ -80,10 +80,10 @@
    labels:
      app.kubernetes.io/part-of: cilium
 +    app.kubernetes.io/name: cilium
-     helm.sh/chart: {{ include "cilium.chart" . }}
      {{- with .Values.commonLabels }}
      {{- toYaml . | nindent 4 }}
-@@ -138,8 +152,14 @@
+     {{- end }}
+@@ -133,8 +147,14 @@
  metadata:
    name: cilium-tlsinterception-secrets
    namespace: {{ .Values.tls.secretsNamespace.name | quote }}
@@ -95,6 +95,6 @@
    labels:
      app.kubernetes.io/part-of: cilium
 +    app.kubernetes.io/name: cilium
-     helm.sh/chart: {{ include "cilium.chart" . }}
      {{- with .Values.commonLabels }}
      {{- toYaml . | nindent 4 }}
+     {{- end }}
