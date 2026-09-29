@@ -1,0 +1,17 @@
+--- charts-original/templates/startupapicheck-job.yaml
++++ charts/templates/startupapicheck-job.yaml
+@@ -10,10 +10,11 @@
+     app.kubernetes.io/instance: {{ .Release.Name }}
+     app.kubernetes.io/component: "startupapicheck"
+     {{- include "labels" . | nindent 4 }}
+-  {{- with .Values.startupapicheck.jobAnnotations }}
+   annotations:
+-    {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.startupapicheck.jobAnnotations }}
++      {{- toYaml . | nindent 4 }}
++    {{- end }}
+ spec:
+   backoffLimit: {{ .Values.startupapicheck.backoffLimit }}
+   {{- if hasKey .Values.startupapicheck "ttlSecondsAfterFinished" }}

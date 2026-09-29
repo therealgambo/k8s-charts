@@ -1,0 +1,16 @@
+--- charts-original/templates/deployment.yaml
++++ charts/templates/deployment.yaml
+@@ -7,10 +7,11 @@
+   namespace: {{ include "external-dns.namespace" . }}
+   labels:
+     {{- include "external-dns.labels" . | nindent 4 }}
+-  {{- with .Values.deploymentAnnotations }}
+   annotations:
++    {{- include "external-dns.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.deploymentAnnotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ spec:
+   {{- /* values.schema.json bounds replicaCount to 0-1, but that is skipped by e.g. `helm template | kubectl apply`, so guard here too. */}}
+   {{- if gt (int .Values.replicaCount) 1 }}

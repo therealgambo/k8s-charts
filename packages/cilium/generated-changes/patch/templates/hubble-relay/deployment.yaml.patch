@@ -14,15 +14,3 @@
    labels:
      k8s-app: hubble-relay
      app.kubernetes.io/name: hubble-relay
-@@ -174,7 +175,10 @@
-       {{- end }}
-       volumes:
-       - name: tmp-volume
--        emptyDir: {}
-+        # require-emptydir-sizelimit (kyverno-policy-fix): no values knob reaches this volume
-+        # upstream, so the sizeLimit is set directly here.
-+        emptyDir:
-+          sizeLimit: 100Mi
-       - name: config
-         configMap:
-           name: hubble-relay-config

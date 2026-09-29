@@ -1,0 +1,26 @@
+--- charts-original/templates/_helpers.tpl
++++ charts/templates/_helpers.tpl
+@@ -16,6 +16,23 @@
+ {{- end -}}
+ 
+ {{/*
++Labels required by kyverno-cluster-policies' require-resource-labels that this chart's own
++hardcoded label block (app/chart/heritage/release/component) doesn't already provide.
++*/}}
++{{- define "consul.patchedLabels" -}}
++app.kubernetes.io/name: {{ template "consul.name" . }}
++app.kubernetes.io/managed-by: {{ .Release.Service }}
++metadata.example.com/team: demo-team
++{{- end -}}
++
++{{/*
++Annotations required by kyverno-cluster-policies' require-resource-annotations.
++*/}}
++{{- define "consul.patchedAnnotations" -}}
++metadata.example.com/repository: https://github.com/therealgambo/k8s-charts
++{{- end -}}
++
++{{/*
+ Resolve the Consul namespace that a terminating gateway service should be
+ registered into. Resolution order:
+   1. Per-gateway consulNamespace.

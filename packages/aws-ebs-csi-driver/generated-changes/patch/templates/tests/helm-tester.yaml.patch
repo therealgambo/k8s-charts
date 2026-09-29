@@ -60,4 +60,4 @@
 +  automountServiceAccountToken: true
    containers:
      - name: kubetest2
-       image: {{ .Values.helmTester.image }}
+       image: {{ .Values.helmTester.image | quote }}

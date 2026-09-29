@@ -1,0 +1,11 @@
+--- charts-original/templates/memberlist-service.yaml
++++ charts/templates/memberlist-service.yaml
+@@ -5,6 +5,8 @@
+   namespace: {{ .Release.Namespace }}
+   labels:
+     {{- include "pyroscope.labels" . | nindent 4 }}
++  annotations:
++    {{- include "pyroscope.patchedAnnotations" . | nindent 4 }}
+ spec:
+   type: ClusterIP
+   clusterIP: None

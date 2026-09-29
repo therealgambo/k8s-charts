@@ -1,0 +1,13 @@
+--- charts-original/templates/service.yaml
++++ charts/templates/service.yaml
+@@ -4,8 +4,9 @@
+ metadata:
+   name: {{ template "cert-manager.fullname" . }}
+   namespace: {{ include "cert-manager.namespace" . }}
+-{{- with .Values.serviceAnnotations }}
+   annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
++{{- with .Values.serviceAnnotations }}
+ {{ toYaml . | indent 4 }}
+ {{- end }}
+   labels:

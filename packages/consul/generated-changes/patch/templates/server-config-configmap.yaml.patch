@@ -1,0 +1,12 @@
+--- charts-original/templates/server-config-configmap.yaml
++++ charts/templates/server-config-configmap.yaml
+@@ -13,6 +13,9 @@
+     heritage: {{ .Release.Service }}
+     release: {{ .Release.Name }}
+     component: server
++    {{- include "consul.patchedLabels" . | nindent 4 }}
++  annotations:
++    {{- include "consul.patchedAnnotations" . | nindent 4 }}
+ data:
+   server.json: |
+     {

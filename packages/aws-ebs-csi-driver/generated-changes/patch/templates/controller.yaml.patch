@@ -1,7 +1,7 @@
 --- charts-original/templates/controller.yaml
 +++ charts/templates/controller.yaml
 @@ -7,10 +7,11 @@
-   namespace: {{ .Release.Namespace }}
+   namespace: {{ .Release.Namespace | quote }}
    labels:
      {{- include "aws-ebs-csi-driver.labels" . | nindent 4 }}
 -  {{- with .Values.controller.deploymentAnnotations }}
@@ -14,11 +14,11 @@
  spec:
    replicas: {{ .Values.controller.replicaCount }}
    {{- if or (kindIs "float64" .Values.controller.revisionHistoryLimit) (kindIs "int64" .Values.controller.revisionHistoryLimit) }}
-@@ -43,6 +44,7 @@
+@@ -48,6 +49,7 @@
          {{- toYaml . | nindent 8 }}
          {{- end }}
-       serviceAccountName: {{ .Values.controller.serviceAccount.name }}
+       serviceAccountName: {{ .Values.controller.serviceAccount.name | quote }}
 +      automountServiceAccountToken: true
-       priorityClassName: {{ .Values.controller.priorityClassName }}
+       priorityClassName: {{ .Values.controller.priorityClassName | quote }}
        {{- with default .Values.controller.affinity }}
        affinity:

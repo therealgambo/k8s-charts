@@ -8,4 +8,4 @@
 +    {{- include "aws-ebs-csi-driver.patchedAnnotations" . | nindent 4 }}
  subjects:
    - kind: ServiceAccount
-     name: {{ .Values.node.serviceAccount.name }}
+     name: {{ .Values.node.serviceAccount.name | quote }}

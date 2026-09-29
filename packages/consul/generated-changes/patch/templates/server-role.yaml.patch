@@ -1,0 +1,12 @@
+--- charts-original/templates/server-role.yaml
++++ charts/templates/server-role.yaml
+@@ -10,6 +10,9 @@
+     heritage: {{ .Release.Service }}
+     release: {{ .Release.Name }}
+     component: server
++    {{- include "consul.patchedLabels" . | nindent 4 }}
++  annotations:
++    {{- include "consul.patchedAnnotations" . | nindent 4 }}
+ {{- if (or (and .Values.global.openshift.enabled .Values.server.exposeGossipAndRPCPorts) .Values.global.enablePodSecurityPolicies) }}
+ rules:
+ {{- if .Values.global.enablePodSecurityPolicies }}
