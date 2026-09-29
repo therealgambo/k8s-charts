@@ -1,0 +1,13 @@
+--- charts-original/templates/cainjector-service.yaml
++++ charts/templates/cainjector-service.yaml
+@@ -5,8 +5,9 @@
+ metadata:
+   name: {{ template "cainjector.fullname" . }}
+   namespace: {{ include "cert-manager.namespace" . }}
+-{{- with .Values.cainjector.serviceAnnotations }}
+   annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
++{{- with .Values.cainjector.serviceAnnotations }}
+ {{ toYaml . | indent 4 }}
+ {{- end }}
+   labels:

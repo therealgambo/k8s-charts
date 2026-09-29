@@ -1,0 +1,56 @@
+--- charts-original/templates/cainjector-rbac.yaml
++++ charts/templates/cainjector-rbac.yaml
+@@ -4,6 +4,8 @@
+ kind: ClusterRole
+ metadata:
+   name: {{ template "cainjector.fullname" . }}
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cainjector.name" . }}
+     app.kubernetes.io/name: {{ include "cainjector.name" . }}
+@@ -34,6 +36,8 @@
+ kind: ClusterRoleBinding
+ metadata:
+   name: {{ template "cainjector.fullname" . }}
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cainjector.name" . }}
+     app.kubernetes.io/name: {{ include "cainjector.name" . }}
+@@ -56,6 +60,8 @@
+ metadata:
+   name: {{ template "cainjector.fullname" . }}:leaderelection
+   namespace: {{ .Values.global.leaderElection.namespace }}
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cainjector.name" . }}
+     app.kubernetes.io/name: {{ include "cainjector.name" . }}
+@@ -85,6 +91,8 @@
+ metadata:
+   name: {{ include "cainjector.fullname" . }}:leaderelection
+   namespace: {{ .Values.global.leaderElection.namespace }}
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cainjector.name" . }}
+     app.kubernetes.io/name: {{ include "cainjector.name" . }}
+@@ -113,6 +121,8 @@
+ metadata:
+   name: {{ template "cainjector.fullname" . }}:dynamic-serving
+   namespace: {{ include "cert-manager.namespace" . }}
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cainjector.name" . }}
+     app.kubernetes.io/name: {{ include "cainjector.name" . }}
+@@ -138,6 +148,8 @@
+ metadata:
+   name: {{ include "cainjector.fullname" . }}:dynamic-serving
+   namespace: {{ include "cert-manager.namespace" . }}
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cainjector.name" . }}
+     app.kubernetes.io/name: {{ include "cainjector.name" . }}

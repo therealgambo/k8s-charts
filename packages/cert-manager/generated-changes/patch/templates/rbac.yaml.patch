@@ -1,0 +1,191 @@
+--- charts-original/templates/rbac.yaml
++++ charts/templates/rbac.yaml
+@@ -4,6 +4,8 @@
+ metadata:
+   name: {{ template "cert-manager.fullname" . }}:leaderelection
+   namespace: {{ .Values.global.leaderElection.namespace }}
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cert-manager.name" . }}
+     app.kubernetes.io/name: {{ include "cert-manager.name" . }}
+@@ -28,6 +30,8 @@
+ metadata:
+   name: {{ include "cert-manager.fullname" . }}:leaderelection
+   namespace: {{ .Values.global.leaderElection.namespace }}
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cert-manager.name" . }}
+     app.kubernetes.io/name: {{ include "cert-manager.name" . }}
+@@ -50,6 +54,8 @@
+ kind: ClusterRole
+ metadata:
+   name: {{ template "cert-manager.fullname" . }}-controller-issuers
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cert-manager.name" . }}
+     app.kubernetes.io/name: {{ include "cert-manager.name" . }}
+@@ -76,6 +82,8 @@
+ kind: ClusterRole
+ metadata:
+   name: {{ template "cert-manager.fullname" . }}-controller-clusterissuers
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cert-manager.name" . }}
+     app.kubernetes.io/name: {{ include "cert-manager.name" . }}
+@@ -103,6 +111,8 @@
+ kind: ClusterRole
+ metadata:
+   name: {{ template "cert-manager.fullname" . }}-controller-certificates
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cert-manager.name" . }}
+     app.kubernetes.io/name: {{ include "cert-manager.name" . }}
+@@ -139,6 +149,8 @@
+ kind: ClusterRole
+ metadata:
+   name: {{ template "cert-manager.fullname" . }}-controller-orders
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cert-manager.name" . }}
+     app.kubernetes.io/name: {{ include "cert-manager.name" . }}
+@@ -181,6 +193,8 @@
+ kind: ClusterRole
+ metadata:
+   name: {{ template "cert-manager.fullname" . }}-controller-challenges
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cert-manager.name" . }}
+     app.kubernetes.io/name: {{ include "cert-manager.name" . }}
+@@ -242,6 +256,8 @@
+ kind: ClusterRole
+ metadata:
+   name: {{ template "cert-manager.fullname" . }}-controller-ingress-shim
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cert-manager.name" . }}
+     app.kubernetes.io/name: {{ include "cert-manager.name" . }}
+@@ -280,6 +296,8 @@
+ kind: ClusterRoleBinding
+ metadata:
+   name: {{ template "cert-manager.fullname" . }}-controller-issuers
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cert-manager.name" . }}
+     app.kubernetes.io/name: {{ include "cert-manager.name" . }}
+@@ -301,6 +319,8 @@
+ kind: ClusterRoleBinding
+ metadata:
+   name: {{ template "cert-manager.fullname" . }}-controller-clusterissuers
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cert-manager.name" . }}
+     app.kubernetes.io/name: {{ include "cert-manager.name" . }}
+@@ -322,6 +342,8 @@
+ kind: ClusterRoleBinding
+ metadata:
+   name: {{ template "cert-manager.fullname" . }}-controller-certificates
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cert-manager.name" . }}
+     app.kubernetes.io/name: {{ include "cert-manager.name" . }}
+@@ -343,6 +365,8 @@
+ kind: ClusterRoleBinding
+ metadata:
+   name: {{ template "cert-manager.fullname" . }}-controller-orders
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cert-manager.name" . }}
+     app.kubernetes.io/name: {{ include "cert-manager.name" . }}
+@@ -364,6 +388,8 @@
+ kind: ClusterRoleBinding
+ metadata:
+   name: {{ template "cert-manager.fullname" . }}-controller-challenges
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cert-manager.name" . }}
+     app.kubernetes.io/name: {{ include "cert-manager.name" . }}
+@@ -385,6 +411,8 @@
+ kind: ClusterRoleBinding
+ metadata:
+   name: {{ template "cert-manager.fullname" . }}-controller-ingress-shim
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cert-manager.name" . }}
+     app.kubernetes.io/name: {{ include "cert-manager.name" . }}
+@@ -407,6 +435,8 @@
+ kind: ClusterRole
+ metadata:
+   name: {{ template "cert-manager.fullname" . }}-cluster-view
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cert-manager.name" . }}
+     app.kubernetes.io/name: {{ include "cert-manager.name" . }}
+@@ -426,6 +456,8 @@
+ kind: ClusterRole
+ metadata:
+   name: {{ template "cert-manager.fullname" . }}-view
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cert-manager.name" . }}
+     app.kubernetes.io/name: {{ include "cert-manager.name" . }}
+@@ -453,6 +485,8 @@
+ kind: ClusterRole
+ metadata:
+   name: {{ template "cert-manager.fullname" . }}-edit
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cert-manager.name" . }}
+     app.kubernetes.io/name: {{ include "cert-manager.name" . }}
+@@ -503,6 +537,8 @@
+ kind: ClusterRole
+ metadata:
+   name: {{ template "cert-manager.fullname" . }}-controller-approve:cert-manager-io
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cert-manager.name" . }}
+     app.kubernetes.io/name: {{ include "cert-manager.name" . }}
+@@ -526,6 +562,8 @@
+ kind: ClusterRoleBinding
+ metadata:
+   name: {{ template "cert-manager.fullname" . }}-controller-approve:cert-manager-io
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cert-manager.name" . }}
+     app.kubernetes.io/name: {{ include "cert-manager.name" . }}
+@@ -552,6 +590,8 @@
+ kind: ClusterRole
+ metadata:
+   name: {{ template "cert-manager.fullname" . }}-controller-certificatesigningrequests
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cert-manager.name" . }}
+     app.kubernetes.io/name: {{ include "cert-manager.name" . }}
+@@ -579,6 +619,8 @@
+ kind: ClusterRoleBinding
+ metadata:
+   name: {{ template "cert-manager.fullname" . }}-controller-certificatesigningrequests
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "cert-manager.name" . }}
+     app.kubernetes.io/name: {{ include "cert-manager.name" . }}

@@ -1,0 +1,18 @@
+--- charts-original/templates/_helpers.tpl
++++ charts/templates/_helpers.tpl
+@@ -162,6 +162,15 @@
+ {{- end -}}
+ 
+ {{/*
++Annotations required by this repo's kyverno-cluster-policies require-resource-annotations
++policy (see config.requiredResourceAnnotations). This chart has no common-annotations values
++knob, so this is included explicitly on every resource kind that policy checks.
++*/}}
++{{- define "cert-manager.patchedAnnotations" -}}
++metadata.example.com/repository: https://github.com/therealgambo/k8s-charts
++{{- end -}}
++
++{{/*
+ Namespace for all resources to be installed into
+ If not defined in values file then the helm release namespace is used
+ By default this is not set so the helm release namespace will be used
