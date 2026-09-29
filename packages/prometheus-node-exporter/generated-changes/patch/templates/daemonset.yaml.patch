@@ -1,0 +1,16 @@
+--- charts-original/templates/daemonset.yaml
++++ charts/templates/daemonset.yaml
+@@ -5,10 +5,11 @@
+   namespace: {{ include "prometheus-node-exporter.namespace" . }}
+   labels:
+     {{- include "prometheus-node-exporter.labels" . | nindent 4 }}
+-  {{- with .Values.daemonsetAnnotations }}
+   annotations:
++    {{- include "prometheus-node-exporter.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.daemonsetAnnotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ spec:
+   selector:
+     matchLabels:
