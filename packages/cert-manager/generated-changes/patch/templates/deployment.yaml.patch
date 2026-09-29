@@ -1,0 +1,17 @@
+--- charts-original/templates/deployment.yaml
++++ charts/templates/deployment.yaml
+@@ -9,10 +9,11 @@
+     app.kubernetes.io/instance: {{ .Release.Name }}
+     app.kubernetes.io/component: "controller"
+     {{- include "labels" . | nindent 4 }}
+-  {{- with .Values.deploymentAnnotations }}
+   annotations:
+-    {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.deploymentAnnotations }}
++      {{- toYaml . | nindent 4 }}
++    {{- end }}
+ spec:
+   replicas: {{ .Values.replicaCount }}
+   {{- /* The if statement below is equivalent to {{- if $value }} but will also return true for 0. */ -}}

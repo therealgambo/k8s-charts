@@ -1,0 +1,17 @@
+--- charts-original/templates/cainjector-deployment.yaml
++++ charts/templates/cainjector-deployment.yaml
+@@ -10,10 +10,11 @@
+     app.kubernetes.io/instance: {{ .Release.Name }}
+     app.kubernetes.io/component: "cainjector"
+     {{- include "labels" . | nindent 4 }}
+-  {{- with .Values.cainjector.deploymentAnnotations }}
+   annotations:
+-    {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.cainjector.deploymentAnnotations }}
++      {{- toYaml . | nindent 4 }}
++    {{- end }}
+ spec:
+   replicas: {{ .Values.cainjector.replicaCount }}
+   {{- /* The if statement below is equivalent to {{- if $value }} but will also return true for 0. */ -}}

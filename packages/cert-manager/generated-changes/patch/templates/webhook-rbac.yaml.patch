@@ -1,0 +1,38 @@
+--- charts-original/templates/webhook-rbac.yaml
++++ charts/templates/webhook-rbac.yaml
+@@ -4,6 +4,8 @@
+ metadata:
+   name: {{ template "webhook.fullname" . }}:dynamic-serving
+   namespace: {{ include "cert-manager.namespace" . }}
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "webhook.name" . }}
+     app.kubernetes.io/name: {{ include "webhook.name" . }}
+@@ -36,6 +38,8 @@
+ metadata:
+   name: {{ template "webhook.fullname" . }}:dynamic-serving
+   namespace: {{ include "cert-manager.namespace" . }}
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "webhook.name" . }}
+     app.kubernetes.io/name: {{ include "webhook.name" . }}
+@@ -57,6 +61,8 @@
+ kind: ClusterRole
+ metadata:
+   name: {{ template "webhook.fullname" . }}:subjectaccessreviews
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "webhook.name" . }}
+     app.kubernetes.io/name: {{ include "webhook.name" . }}
+@@ -73,6 +79,8 @@
+ kind: ClusterRoleBinding
+ metadata:
+   name: {{ template "webhook.fullname" . }}:subjectaccessreviews
++  annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
+   labels:
+     app: {{ include "webhook.name" . }}
+     app.kubernetes.io/name: {{ include "webhook.name" . }}
