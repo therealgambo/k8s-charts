@@ -1,7 +1,7 @@
 --- charts-original/templates/_node.tpl
 +++ charts/templates/_node.tpl
 @@ -8,10 +8,11 @@
-   namespace: {{ .Values.node.namespaceOverride | default .Release.Namespace }}
+   namespace: {{ .Values.node.namespaceOverride | default .Release.Namespace | quote }}
    labels:
      {{- include "aws-ebs-csi-driver.labels" . | nindent 4 }}
 -  {{- with .Values.node.daemonSetAnnotations }}
@@ -17,8 +17,8 @@
 @@ -44,6 +45,7 @@
          {{- toYaml . | nindent 8 }}
          {{- end }}
-       serviceAccountName: {{ .Values.node.serviceAccount.name }}
+       serviceAccountName: {{ .Values.node.serviceAccount.name | quote }}
 +      automountServiceAccountToken: true
        terminationGracePeriodSeconds: {{ .Values.node.terminationGracePeriodSeconds }}
-       priorityClassName: {{ .Values.node.priorityClassName | default "system-node-critical" }}
+       priorityClassName: {{ .Values.node.priorityClassName | default "system-node-critical" | quote }}
        tolerations:
