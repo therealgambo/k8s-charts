@@ -116,6 +116,29 @@ exceptions:
           app.kubernetes.io/instance: spire
           app.kubernetes.io/name: agent
 
+  # packages/prometheus-node-exporter's DaemonSet collects host-level metrics: it needs the host's
+  # network namespace (to report the node's real network stats, not a pod-sandbox veth's) and
+  # PID namespace (disallow-host-namespaces), and it bind-mounts the host's /proc and /sys
+  # (disallow-host-path) to read the kernel counters the exporter's whole job is to expose --
+  # that's the fundamental architecture of a node-level metrics exporter, not a
+  # misconfiguration. Scoped by namespace + DaemonSet name -- `make template` always renders a
+  # package into --namespace <package name> (see Makefile), so this package's own name is a
+  # reliable namespace filter here, not just a label/name belt-and-suspenders. Audit-tier fallout
+  # from the same root cause (disallow-capabilities-strict, disallow-privilege-escalation,
+  # restrict-seccomp-strict, restrict-volume-types) is intentionally left OUT of this exception --
+  # those are Audit-tier (report-only, never block), so there's nothing to exempt; leaving them
+  # un-exempted keeps them visible in PolicyReport rather than silently suppressed, same as the
+  # other examples in this file.
+  prometheus-node-exporter-agent:
+    policies: [disallow-host-namespaces, disallow-host-path]
+    match:
+      kinds: [DaemonSet]
+      namespaces: [prometheus-node-exporter]
+      names: [prometheus-node-exporter]
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus-node-exporter
+
   # packages/tetragon's DaemonSet is a kernel probe-based security monitoring agent that needs to
   # share the host's network namespace to observe system events, mount hostPath volumes for kubelet
   # socket/driver access and BPF filesystem (disallow-host-path), and run privileged to attach to

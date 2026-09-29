@@ -1,0 +1,19 @@
+# Local overrides on top of values.yaml -- see ../../../README.md#values-file-ordering.
+# values.yaml itself is never edited; anything needed to pass `make kyverno-policy-check` that a
+# values key already covers goes here instead. See the kyverno-policy-fix skill
+# (.claude/skills/kyverno-policy-fix/SKILL.md) for how each of these was found.
+
+# require-resource-labels (kyverno-cluster-policies): prometheus-node-exporter.labels already
+# renders .Values.commonLabels via toYaml and is included by the ServiceAccount, Service and
+# DaemonSet templates the policy flags, so this alone satisfies it -- no template edit needed.
+commonLabels:
+  metadata.example.com/team: demo-team
+
+# require-resource-requests-limits (kyverno-cluster-policies): .Values.resources is passed
+# straight through to the node-exporter container's resources block, no template edit needed.
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 64Mi

@@ -1,0 +1,19 @@
+--- charts-original/templates/service.yaml
++++ charts/templates/service.yaml
+@@ -9,15 +9,14 @@
+     {{- with .Values.service.labels }}
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+-  {{- if or .Values.prometheusScrape .Values.service.annotations }}
+   annotations:
++    {{- include "prometheus-node-exporter.patchedAnnotations" . | nindent 4 }}
+     {{- if .Values.prometheusScrape }}
+     prometheus.io/scrape: {{ .Values.prometheusScrape | quote }}
+     {{- end }}
+     {{- with .Values.service.annotations }}
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+-  {{- end }}
+ spec:
+ {{- if .Values.service.ipDualStack.enabled }}
+   ipFamilies: {{ toYaml .Values.service.ipDualStack.ipFamilies | nindent 4 }}
