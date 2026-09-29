@@ -1,0 +1,12 @@
+--- charts-original/templates/deployment-main.yaml
++++ charts/templates/deployment-main.yaml
+@@ -237,7 +237,8 @@
+             claimName: {{ if .Values.persistence.existingClaim }}{{ .Values.persistence.existingClaim }}{{ else }}{{ include "n8n.fullname" . }}{{ end }}
+         {{- else }}
+         - name: data
+-          emptyDir: {}
++          emptyDir:
++            sizeLimit: 1Gi
+         {{- end }}
+         {{- if and (include "n8n.mainTaskRunnersEnabled" .) .Values.taskRunners.customConfig.enabled }}
+         - name: task-runner-config
