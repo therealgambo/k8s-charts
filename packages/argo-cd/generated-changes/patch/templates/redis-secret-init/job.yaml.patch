@@ -8,9 +8,9 @@
      "helm.sh/hook": pre-install,pre-upgrade
      "helm.sh/hook-delete-policy": before-hook-creation
      {{- range $key, $value := .Values.redisSecretInit.jobAnnotations }}
-@@ -73,4 +74,5 @@
-         {{- toYaml . | nindent 8 }}
+@@ -81,4 +82,5 @@
        {{- end }}
+       dnsPolicy: {{ .Values.redisSecretInit.dnsPolicy }}
        serviceAccountName: {{ include "argo-cd.redisSecretInit.serviceAccountName" . }}
 +      automountServiceAccountToken: {{ .Values.redisSecretInit.automountServiceAccountToken }}
  {{- end }}
