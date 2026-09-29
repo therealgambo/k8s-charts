@@ -1,0 +1,17 @@
+--- charts-original/templates/ui-service.yaml
++++ charts/templates/ui-service.yaml
+@@ -11,10 +11,12 @@
+     heritage: {{ .Release.Service }}
+     release: {{ .Release.Name }}
+     component: ui
+-  {{- if .Values.ui.service.annotations }}
++    {{- include "consul.patchedLabels" . | nindent 4 }}
+   annotations:
++    {{- include "consul.patchedAnnotations" . | nindent 4 }}
++    {{- if .Values.ui.service.annotations }}
+     {{ tpl .Values.ui.service.annotations . | nindent 4 | trim }}
+-  {{- end }}
++    {{- end }}
+ spec:
+   selector:
+     app: {{ template "consul.name" . }}

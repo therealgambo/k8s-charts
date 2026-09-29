@@ -1,0 +1,37 @@
+--- charts-original/templates/tests/test-runner.yaml
++++ charts/templates/tests/test-runner.yaml
+@@ -9,9 +9,12 @@
+     chart: {{ template "consul.chart" . }}
+     heritage: {{ .Release.Service }}
+     release: {{ .Release.Name }}
++    {{- include "consul.patchedLabels" . | nindent 4 }}
+   annotations:
+     "helm.sh/hook": test-success
++    {{- include "consul.patchedAnnotations" . | nindent 4 }}
+ spec:
++  automountServiceAccountToken: false
+   {{- if .Values.global.tls.enabled }}
+   volumes:
+     {{- if not (and .Values.externalServers.enabled .Values.externalServers.useSystemRoots) }}
+@@ -29,6 +32,7 @@
+     - name: consul-auto-encrypt-ca-cert
+       emptyDir:
+         medium: "Memory"
++        sizeLimit: 16Mi
+   {{- end }}
+   {{- if and .Values.global.tls.enabled .Values.global.tls.enableAutoEncrypt }}
+   initContainers:
+@@ -38,6 +42,13 @@
+     - name: consul-test
+       image: "{{ .Values.global.image }}"
+       {{ template "consul.imagePullPolicy" . }}
++      resources:
++        requests:
++          cpu: 50m
++          memory: 50Mi
++        limits:
++          cpu: 100m
++          memory: 100Mi
+       env:
+         - name: HOST_IP
+           valueFrom:

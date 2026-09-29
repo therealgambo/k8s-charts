@@ -1,0 +1,16 @@
+--- charts-original/charts/alloy/templates/service.yaml
++++ charts/charts/alloy/templates/service.yaml
+@@ -8,10 +8,11 @@
+   labels:
+     {{- include "alloy.labels" . | nindent 4 }}
+     app.kubernetes.io/component: networking
+-  {{- with .Values.service.annotations }}
+   annotations:
++    {{- include "alloy.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.service.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ spec:
+   type: {{ .Values.service.type }}
+   {{- if .Values.service.clusterIP }}

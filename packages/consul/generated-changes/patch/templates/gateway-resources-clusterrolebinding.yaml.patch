@@ -1,0 +1,12 @@
+--- charts-original/templates/gateway-resources-clusterrolebinding.yaml
++++ charts/templates/gateway-resources-clusterrolebinding.yaml
+@@ -9,6 +9,9 @@
+     heritage: {{ .Release.Service }}
+     release: {{ .Release.Name }}
+     component: gateway-resources
++    {{- include "consul.patchedLabels" . | nindent 4 }}
++  annotations:
++    {{- include "consul.patchedAnnotations" . | nindent 4 }}
+ roleRef:
+   apiGroup: rbac.authorization.k8s.io
+   kind: ClusterRole

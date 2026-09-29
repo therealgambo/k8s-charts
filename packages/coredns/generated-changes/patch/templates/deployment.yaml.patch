@@ -1,0 +1,13 @@
+--- charts-original/templates/deployment.yaml
++++ charts/templates/deployment.yaml
+@@ -69,8 +69,8 @@
+       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+       {{- end }}
+       serviceAccountName: {{ template "coredns.serviceAccountName" . }}
+-      {{- if eq .Values.automountServiceAccountToken false }}
+-      automountServiceAccountToken: false
++      {{- if hasKey .Values "automountServiceAccountToken" }}
++      automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
+       {{- end }}
+       {{- if .Values.priorityClassName }}
+       priorityClassName: {{ .Values.priorityClassName | quote }}

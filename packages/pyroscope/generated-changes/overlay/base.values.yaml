@@ -1,0 +1,38 @@
+# Local overrides on top of upstream's values.yaml -- see docs/values-layering.md.
+#
+# kyverno-pod-policies/kyverno-cluster-policies compliance (make kyverno-policy-check
+# PACKAGE=pyroscope):
+# - require-resource-requests-limits: upstream ships `pyroscope.resources: {}` deliberately (see
+#   that key's own comment) and the alloy subchart's own container/configReloader resources are
+#   likewise unset/incomplete by default -- both are Enforce-tier here, so this repo can't leave
+#   them unset the way upstream does.
+# - require-emptydir-sizelimit: the StatefulSet's `data` emptyDir (used when
+#   pyroscope.persistence.enabled is false, the default) had no sizeLimit knob upstream --
+#   templates/deployments-statefulsets.yaml was patched to read
+#   pyroscope.persistence.emptyDirSizeLimit; set below.
+pyroscope:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+  persistence:
+    emptyDirSizeLimit: 10Gi
+
+alloy:
+  alloy:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+  configReloader:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 50Mi
+      limits:
+        memory: 100Mi

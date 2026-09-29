@@ -1,0 +1,38 @@
+--- charts-original/charts/alloy/templates/rbac.yaml
++++ charts/charts/alloy/templates/rbac.yaml
+@@ -10,6 +10,8 @@
+   labels:
+     {{- include "alloy.labels" $ | nindent 4 }}
+     app.kubernetes.io/component: rbac
++  annotations:
++    {{- include "alloy.patchedAnnotations" $ | nindent 4 }}
+ rules:
+   {{- $.Values.rbac.rules | toYaml | nindent 2 }}
+ ---
+@@ -21,6 +23,8 @@
+   labels:
+     {{- include "alloy.labels" $ | nindent 4 }}
+     app.kubernetes.io/component: rbac
++  annotations:
++    {{- include "alloy.patchedAnnotations" $ | nindent 4 }}
+ roleRef:
+   apiGroup: rbac.authorization.k8s.io
+   kind: Role
+@@ -39,6 +43,8 @@
+   labels:
+     {{- include "alloy.labels" . | nindent 4 }}
+     app.kubernetes.io/component: rbac
++  annotations:
++    {{- include "alloy.patchedAnnotations" . | nindent 4 }}
+ rules:
+   {{- .Values.rbac.rules | toYaml | nindent 2 }}
+   {{- .Values.rbac.clusterRules | toYaml | nindent 2 }}
+@@ -50,6 +56,8 @@
+   labels:
+     {{- include "alloy.labels" . | nindent 4 }}
+     app.kubernetes.io/component: rbac
++  annotations:
++    {{- include "alloy.patchedAnnotations" . | nindent 4 }}
+ roleRef:
+   apiGroup: rbac.authorization.k8s.io
+   kind: ClusterRole

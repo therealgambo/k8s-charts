@@ -1,0 +1,16 @@
+--- charts-original/charts/alloy/templates/controllers/statefulset.yaml
++++ charts/charts/alloy/templates/controllers/statefulset.yaml
+@@ -12,10 +12,11 @@
+     {{- with .Values.controller.extraLabels }}
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+-  {{- with .Values.controller.extraAnnotations }}
+   annotations:
++    {{- include "alloy.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.controller.extraAnnotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ spec:
+   {{- if (and (not .Values.controller.autoscaling.enabled) (not .Values.controller.autoscaling.horizontal.enabled)) }}
+   replicas: {{ .Values.controller.replicas }}

@@ -1,6 +1,6 @@
 --- charts-original/templates/cilium-configmap.yaml
 +++ charts/templates/cilium-configmap.yaml
-@@ -98,10 +98,13 @@
+@@ -96,10 +96,13 @@
  metadata:
    name: cilium-config
    namespace: {{ include "cilium.namespace" . }}

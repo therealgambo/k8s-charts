@@ -1,0 +1,11 @@
+--- charts-original/charts/alloy/templates/cluster_service.yaml
++++ charts/charts/alloy/templates/cluster_service.yaml
+@@ -8,6 +8,8 @@
+   labels:
+     {{- include "alloy.labels" . | nindent 4 }}
+     app.kubernetes.io/component: networking
++  annotations:
++    {{- include "alloy.patchedAnnotations" . | nindent 4 }}
+ spec:
+   type: ClusterIP
+   clusterIP: 'None'

@@ -1,0 +1,55 @@
+# Kyverno policy compliance overrides.
+#
+# global.commonLabels / the cert-manager.patchedAnnotations helper (see
+# generated-changes/patch/templates/_helpers.tpl.patch) cover
+# require-resource-labels/require-resource-annotations. The per-component
+# automountServiceAccountToken and resources below cover
+# require-explicit-automount and require-resource-requests-limits for every
+# Deployment/Job this chart renders (controller, cainjector, webhook,
+# startupapicheck).
+global:
+  commonLabels:
+    metadata.example.com/team: platform
+
+# Pod-level automount for the main controller Deployment (distinct from
+# serviceAccount.automountServiceAccountToken above, which only sets it on
+# the ServiceAccount object).
+automountServiceAccountToken: true
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+cainjector:
+  automountServiceAccountToken: true
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+webhook:
+  automountServiceAccountToken: true
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+startupapicheck:
+  automountServiceAccountToken: true
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi

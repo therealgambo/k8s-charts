@@ -1,0 +1,13 @@
+--- charts-original/templates/webhook-service.yaml
++++ charts/templates/webhook-service.yaml
+@@ -3,8 +3,9 @@
+ metadata:
+   name: {{ template "webhook.fullname" . }}
+   namespace: {{ include "cert-manager.namespace" . }}
+-{{- with .Values.webhook.serviceAnnotations }}
+   annotations:
++    {{- include "cert-manager.patchedAnnotations" . | nindent 4 }}
++{{- with .Values.webhook.serviceAnnotations }}
+ {{ toYaml . | indent 4 }}
+ {{- end }}
+   labels:

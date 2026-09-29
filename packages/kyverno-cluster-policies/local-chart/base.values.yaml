@@ -81,6 +81,27 @@ exceptions:
         matchLabels:
           app.kubernetes.io/part-of: argocd
 
+  # packages/pyroscope's bundled grafana/alloy subchart ships a ClusterRole with a metrics-scraping
+  # rule shaped as `nonResourceURLs: ["/metrics"], verbs: ["get"]` -- valid, narrowly-scoped RBAC
+  # (no apiGroups/resources at all, since nonResourceURLs rules can't carry either) required for
+  # Alloy's own `/metrics` self-scrape, not a wildcard over-grant. disallow-wildcard-rbac's
+  # wildcard-resources/wildcard-apigroups CEL (`'*' in rule.resources`/`rule.apiGroups`) doesn't
+  # guard the "rule has neither key at all" case the way it guards `object.rules == null` --
+  # confirmed via `kyverno apply`: both fail with "no such key: resources"/"no such key:
+  # apiGroups", an expression *error* (counted as a violation), not a genuine wildcard match.
+  # wildcard-verbs isn't exempted -- it evaluates fine here (verbs is always present) and never
+  # fires, so nothing to carve out. No `namespaces:` filter -- ClusterRole is cluster-scoped, and
+  # (per argo-cd-server above) adding one here makes the exception never match at all.
+  pyroscope-alloy:
+    policies: [disallow-wildcard-rbac]
+    match:
+      kinds: [ClusterRole]
+      names: [pyroscope-alloy]
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: pyroscope
+          app.kubernetes.io/name: alloy
+
   # packages/kargo dynamically provisions per-Project RBAC: as each Kargo Project namespace is
   # created, the API server/webhooks-server/management-controller bind their most sensitive
   # permissions (on Secrets/ConfigMaps/ServiceAccounts, and on Roles/RoleBindings themselves) into
@@ -186,3 +207,23 @@ exceptions:
       kinds: [ClusterRole, ClusterRoleBinding, Role, RoleBinding, Deployment, Service, ServiceAccount]
       namespaces: [default, mimir-distributed]
       names: ["*rollout-operator*"]
+
+  # packages/coredns's Deployment ships dnsPolicy: Default by upstream default when
+  # isClusterService is true (the chart's own values.yaml documents why: "to avoid circular DNS
+  # resolution"). restrict-dns-policy exists so ordinary workloads can't dodge CoreDNS/
+  # node-local-dns by pointing at the node's own resolv.conf instead -- but CoreDNS itself IS the
+  # cluster DNS server, so it can't resolve its own upstream queries through itself; forcing
+  # ClusterFirst here would route CoreDNS's own DNS traffic back at the CoreDNS Service, which is
+  # a real functional break (circular resolution / pod fails to come up), not just a silenced
+  # check. Scoped by namespace + label + name -- `make template` always renders a package into
+  # --namespace <package name> (see Makefile), so coredns's own package name is a reliable
+  # namespace filter here, not just a label/name belt-and-suspenders.
+  coredns:
+    policies: [restrict-dns-policy]
+    match:
+      kinds: [Deployment]
+      namespaces: [coredns]
+      names: [coredns]
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: coredns
