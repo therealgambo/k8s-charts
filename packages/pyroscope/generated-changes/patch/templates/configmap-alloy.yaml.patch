@@ -1,0 +1,11 @@
+--- charts-original/templates/configmap-alloy.yaml
++++ charts/templates/configmap-alloy.yaml
+@@ -6,6 +6,8 @@
+   namespace: {{ .Release.Namespace }}
+   labels:
+     {{- include "pyroscope.labels" . | nindent 4 }}
++  annotations:
++    {{- include "pyroscope.patchedAnnotations" . | nindent 4 }}
+ data:
+   config.alloy: |
+     logging {

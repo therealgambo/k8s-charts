@@ -1,0 +1,11 @@
+--- charts-original/charts/alloy/templates/configmap.yaml
++++ charts/charts/alloy/templates/configmap.yaml
+@@ -8,6 +8,8 @@
+   labels:
+     {{- include "alloy.labels" . | nindent 4 }}
+     app.kubernetes.io/component: config
++  annotations:
++    {{- include "alloy.patchedAnnotations" . | nindent 4 }}
+ data:
+   {{- if $values.configMap.content }}
+   config.alloy: |- {{- (tpl  $values.configMap.content .) | nindent 4 }}
