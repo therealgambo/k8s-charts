@@ -1,0 +1,12 @@
+--- charts-original/templates/connect-inject-leader-election-rolebinding.yaml
++++ charts/templates/connect-inject-leader-election-rolebinding.yaml
+@@ -10,6 +10,9 @@
+     heritage: {{ .Release.Service }}
+     release: {{ .Release.Name }}
+     component: connect-injector
++    {{- include "consul.patchedLabels" . | nindent 4 }}
++  annotations:
++    {{- include "consul.patchedAnnotations" . | nindent 4 }}
+ roleRef:
+   apiGroup: rbac.authorization.k8s.io
+   kind: Role

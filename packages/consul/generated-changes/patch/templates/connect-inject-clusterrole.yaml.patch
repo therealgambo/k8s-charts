@@ -1,0 +1,12 @@
+--- charts-original/templates/connect-inject-clusterrole.yaml
++++ charts/templates/connect-inject-clusterrole.yaml
+@@ -10,6 +10,9 @@
+     heritage: {{ .Release.Service }}
+     release: {{ .Release.Name }}
+     component: connect-injector
++    {{- include "consul.patchedLabels" . | nindent 4 }}
++  annotations:
++    {{- include "consul.patchedAnnotations" . | nindent 4 }}
+ rules:
+ - apiGroups:
+   - consul.hashicorp.com

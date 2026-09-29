@@ -1,0 +1,20 @@
+--- charts-original/templates/webhook-cert-manager-deployment.yaml
++++ charts/templates/webhook-cert-manager-deployment.yaml
+@@ -14,6 +14,9 @@
+     {{- if .Values.global.extraLabels }}
+       {{- toYaml .Values.global.extraLabels | nindent 4 }}
+     {{- end }}
++    {{- include "consul.patchedLabels" . | nindent 4 }}
++  annotations:
++    {{- include "consul.patchedAnnotations" . | nindent 4 }}
+ spec:
+   replicas: 1
+   selector:
+@@ -63,6 +66,7 @@
+           mountPath: /bootstrap/config
+       terminationGracePeriodSeconds: 10
+       serviceAccountName: {{ template "consul.fullname" . }}-webhook-cert-manager
++      automountServiceAccountToken: true
+       volumes:
+       - name: config
+         configMap:

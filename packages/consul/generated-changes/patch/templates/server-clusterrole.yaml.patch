@@ -1,0 +1,12 @@
+--- charts-original/templates/server-clusterrole.yaml
++++ charts/templates/server-clusterrole.yaml
+@@ -9,6 +9,9 @@
+     heritage: {{ .Release.Service }}
+     release: {{ .Release.Name }}
+     component: server
++    {{- include "consul.patchedLabels" . | nindent 4 }}
++  annotations:
++    {{- include "consul.patchedAnnotations" . | nindent 4 }}
+ rules:
+ - apiGroups: [""]
+   resources: ["nodes"]

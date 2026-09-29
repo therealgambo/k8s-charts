@@ -1,0 +1,51 @@
+--- charts-original/templates/server-statefulset.yaml
++++ charts/templates/server-statefulset.yaml
+@@ -37,6 +37,9 @@
+     {{- if .Values.global.extraLabels }}
+       {{- toYaml .Values.global.extraLabels | nindent 4 }}
+     {{- end }}
++    {{- include "consul.patchedLabels" . | nindent 4 }}
++  annotations:
++    {{- include "consul.patchedAnnotations" . | nindent 4 }}
+ spec:
+   serviceName: {{ template "consul.fullname" . }}-server
+   podManagementPolicy: Parallel
+@@ -221,18 +224,21 @@
+     {{- end }}
+       terminationGracePeriodSeconds: 30
+       serviceAccountName: {{ template "consul.fullname" . }}-server
++      automountServiceAccountToken: true
+       {{- if not .Values.global.openshift.enabled }}
+       securityContext:
+         {{- toYaml .Values.server.securityContext | nindent 8 }}
+       {{- end }}
+       volumes:
+         - name: tmp
+-          emptyDir: {}
++          emptyDir:
++            sizeLimit: 128Mi
+         - name: config
+           configMap:
+             name: {{ template "consul.fullname" . }}-server-config
+         - name: extra-config
+-          emptyDir: {}
++          emptyDir:
++            sizeLimit: 128Mi
+         - name: tmp-extra-config
+           configMap:
+             name: {{ template "consul.fullname" . }}-server-tmp-extra-config
+@@ -286,12 +292,14 @@
+         - name: extra-ssl-certs
+           emptyDir:
+             medium: "Memory"
++            sizeLimit: 16Mi
+         {{- end }}
+         {{- end }}
+         {{- if .Values.global.trustedCAs }}
+         - name: trusted-cas
+           emptyDir:
+             medium: "Memory"
++            sizeLimit: 16Mi
+         {{- end }}
+         {{- if and .Values.global.metrics.datadog.enabled .Values.global.metrics.datadog.dogstatsd.enabled (eq .Values.global.metrics.datadog.dogstatsd.socketTransportType "UDS" ) }}
+         - name: dsdsocket
