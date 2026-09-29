@@ -56,6 +56,25 @@ gateway:
     annotations:
       metadata.example.com/repository: https://github.com/therealgambo/k8s-charts
 
+# Helm test hook pod (loki-helm-test) configuration
+test:
+  # Pin the mutable "latest" upstream default to a real released tag
+  image:
+    tag: "3.7.8"
+  # Explicit automount token setting -- the test pod doesn't need API access
+  automountServiceAccountToken: false
+  # Resource requests and limits
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 50m
+      memory: 64Mi
+  # Annotation for resource-level metadata
+  annotations:
+    metadata.example.com/repository: https://github.com/therealgambo/k8s-charts
+
 # Canary configuration
 lokiCanary:
   # Annotation for resource-level metadata
