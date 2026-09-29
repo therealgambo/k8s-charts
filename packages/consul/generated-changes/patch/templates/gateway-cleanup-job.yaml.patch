@@ -1,0 +1,23 @@
+--- charts-original/templates/gateway-cleanup-job.yaml
++++ charts/templates/gateway-cleanup-job.yaml
+@@ -13,10 +13,12 @@
+     {{- if .Values.global.extraLabels }}
+       {{- toYaml .Values.global.extraLabels | nindent 4 }}
+     {{- end }}
++    {{- include "consul.patchedLabels" . | nindent 4 }}
+   annotations:
+     "helm.sh/hook": pre-delete
+     "helm.sh/hook-weight": "0"
+     "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
++    {{- include "consul.patchedAnnotations" . | nindent 4 }}
+ spec:
+   template:
+     metadata:
+@@ -35,6 +37,7 @@
+     spec:
+       restartPolicy: Never
+       serviceAccountName: {{ template "consul.fullname" . }}-gateway-cleanup
++      automountServiceAccountToken: true
+       containers:
+         - name: gateway-cleanup
+           image: {{ .Values.global.imageK8S }}

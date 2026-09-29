@@ -1,0 +1,12 @@
+--- charts-original/templates/server-service.yaml
++++ charts/templates/server-service.yaml
+@@ -15,7 +15,9 @@
+     heritage: {{ .Release.Service }}
+     release: {{ .Release.Name }}
+     component: server
++    {{- include "consul.patchedLabels" . | nindent 4 }}
+   annotations:
++    {{- include "consul.patchedAnnotations" . | nindent 4 }}
+     {{- if .Values.server.service.annotations }}
+     {{ tpl .Values.server.service.annotations . | nindent 4 | trim }}
+     {{- end }}

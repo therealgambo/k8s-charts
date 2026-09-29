@@ -1,0 +1,12 @@
+--- charts-original/templates/gateway-resources-configmap.yaml
++++ charts/templates/gateway-resources-configmap.yaml
+@@ -16,6 +16,9 @@
+     heritage: {{ .Release.Service }}
+     release: {{ .Release.Name }}
+     component: gateway-resources
++    {{- include "consul.patchedLabels" . | nindent 4 }}
++  annotations:
++    {{- include "consul.patchedAnnotations" . | nindent 4 }}
+ data:
+   {{- if .Values.connectInject.apiGateway.managedGatewayClass.resources }}
+   resources.json: |

@@ -1,0 +1,12 @@
+--- charts-original/templates/webhook-cert-manager-clusterrole.yaml
++++ charts/templates/webhook-cert-manager-clusterrole.yaml
+@@ -10,6 +10,9 @@
+     heritage: {{ .Release.Service }}
+     release: {{ .Release.Name }}
+     component: webhook-cert-manager
++    {{- include "consul.patchedLabels" . | nindent 4 }}
++  annotations:
++    {{- include "consul.patchedAnnotations" . | nindent 4 }}
+ rules:
+ - apiGroups:
+   - ""
