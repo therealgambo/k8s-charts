@@ -1,0 +1,16 @@
+--- charts-original/templates/service.yaml
++++ charts/templates/service.yaml
+@@ -7,10 +7,11 @@
+   namespace: {{ include "external-dns.namespace" . }}
+   labels:
+     {{- include "external-dns.labels" . | nindent 4 }}
+-  {{- with .Values.service.annotations }}
+   annotations:
++    {{- include "external-dns.patchedAnnotations" . | nindent 4 }}
++    {{- with .Values.service.annotations }}
+     {{- toYaml . | nindent 4 }}
+-  {{- end }}
++    {{- end }}
+ spec:
+ {{- with .Values.service.ipFamilies }}
+   ipFamilies:

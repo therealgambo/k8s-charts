@@ -1,0 +1,29 @@
+--- charts-original/templates/clusterrolebinding.yaml
++++ charts/templates/clusterrolebinding.yaml
+@@ -8,6 +8,8 @@
+   {{- end }}
+   labels:
+     {{- include "external-dns.labels" . | nindent 4 }}
++  annotations:
++    {{- include "external-dns.patchedAnnotations" . | nindent 4 }}
+ roleRef:
+   apiGroup: rbac.authorization.k8s.io
+   kind: {{ .Values.namespaced | ternary "Role" "ClusterRole" }}
+@@ -29,6 +31,8 @@
+   name: {{ template "external-dns.fullname" . }}-namespaces
+   labels:
+     {{- include "external-dns.labels" . | nindent 4 }}
++  annotations:
++    {{- include "external-dns.patchedAnnotations" . | nindent 4 }}
+ roleRef:
+   apiGroup: rbac.authorization.k8s.io
+   kind: ClusterRole
+@@ -47,6 +51,8 @@
+   namespace: {{ .Values.gatewayNamespace }}
+   labels:
+     {{- include "external-dns.labels" . | nindent 4 }}
++  annotations:
++    {{- include "external-dns.patchedAnnotations" . | nindent 4 }}
+ roleRef:
+   apiGroup: rbac.authorization.k8s.io
+   kind: Role
