@@ -49,12 +49,16 @@ exceptions:
   # resources actually are. Deliberately NO `namespaces:` filter -- ClusterRole is cluster-scoped
   # (no namespace of its own), and confirmed empirically that adding one here makes the exception
   # never match at all (kyverno apply kept reporting the same failures) rather than being a no-op;
-  # name + selector carry the scoping instead.
+  # name + selector carry the scoping instead. `names:` must match what `make template
+  # PACKAGE=argo-cd` actually renders -- release name "argo-cd" (the package name; see the
+  # Makefile's `template` target), not helm template's own "release-name" default -- confirmed
+  # by rendering the chart directly: the ClusterRole is named argo-cd-argocd-application-
+  # controller, never release-name-argocd-application-controller.
   argo-cd-application-controller:
     policies: [disallow-wildcard-rbac, disallow-rbac-escalation-verbs]
     match:
       kinds: [ClusterRole]
-      names: [release-name-argocd-application-controller]
+      names: [argo-cd-argocd-application-controller]
       selector:
         matchLabels:
           app.kubernetes.io/part-of: argocd
@@ -66,12 +70,13 @@ exceptions:
   # application-controller, this ClusterRole's verbs are a fixed list (delete/get/patch, plus a
   # few narrowly-scoped rules below it), never '*', so disallow-rbac-escalation-verbs' `escalate`
   # rule doesn't fire on it and isn't exempted. No `namespaces:` filter, same reason as
-  # application-controller above.
+  # application-controller above. Same release-name-vs-package-name naming fix as
+  # argo-cd-application-controller above -- the rendered name is argo-cd-argocd-server.
   argo-cd-server:
     policies: [disallow-wildcard-rbac]
     match:
       kinds: [ClusterRole]
-      names: [release-name-argocd-server]
+      names: [argo-cd-argocd-server]
       selector:
         matchLabels:
           app.kubernetes.io/part-of: argocd
