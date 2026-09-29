@@ -96,4 +96,10 @@ hubble:
           memory: 64Mi
         limits:
           memory: 256Mi
+    # require-emptydir-sizelimit (kyverno-policy-fix): upstream 1.19.8 added a "tmp-dir" emptyDir
+    # volume to the hubble-ui Deployment (templates/hubble-ui/deployment.yaml), gated behind this
+    # same values knob the cilium-agent DaemonSet already uses for its own tmp volume above.
+    tmpVolume:
+      emptyDir:
+        sizeLimit: 100Mi
 
