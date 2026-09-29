@@ -181,3 +181,23 @@ exceptions:
       kinds: [ClusterRole, ClusterRoleBinding, Role, RoleBinding, Deployment, Service, ServiceAccount]
       namespaces: [default, mimir-distributed]
       names: ["*rollout-operator*"]
+
+  # packages/coredns's Deployment ships dnsPolicy: Default by upstream default when
+  # isClusterService is true (the chart's own values.yaml documents why: "to avoid circular DNS
+  # resolution"). restrict-dns-policy exists so ordinary workloads can't dodge CoreDNS/
+  # node-local-dns by pointing at the node's own resolv.conf instead -- but CoreDNS itself IS the
+  # cluster DNS server, so it can't resolve its own upstream queries through itself; forcing
+  # ClusterFirst here would route CoreDNS's own DNS traffic back at the CoreDNS Service, which is
+  # a real functional break (circular resolution / pod fails to come up), not just a silenced
+  # check. Scoped by namespace + label + name -- `make template` always renders a package into
+  # --namespace <package name> (see Makefile), so coredns's own package name is a reliable
+  # namespace filter here, not just a label/name belt-and-suspenders.
+  coredns:
+    policies: [restrict-dns-policy]
+    match:
+      kinds: [Deployment]
+      namespaces: [coredns]
+      names: [coredns]
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: coredns

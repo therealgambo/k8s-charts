@@ -1,5 +1,22 @@
 replicaCount: 3
 
+# require-resource-labels/require-resource-annotations (kyverno-policy-fix): customLabels/
+# customAnnotations are already wired by upstream into every RBAC/workload/Service template this
+# chart renders (ConfigMap, ClusterRole, ClusterRoleBinding, Service, Deployment), so setting the
+# two keys kyverno-cluster-policies requires clears both policies with no template changes needed
+# for wiring -- app.kubernetes.io/name and app.kubernetes.io/managed-by are already emitted by the
+# chart's own coredns.labels helper.
+customLabels:
+  metadata.example.com/team: demo-team
+customAnnotations:
+  metadata.example.com/repository: https://github.com/therealgambo/k8s-charts
+
+# require-explicit-automount (kyverno-policy-fix): the Deployment template only ever rendered
+# automountServiceAccountToken when it was explicitly false, so an unset value left the field
+# absent (implicit true) instead of explicit -- see the matching templates/deployment.yaml.patch
+# that changes the condition to render whenever the key is set at all, true or false.
+automountServiceAccountToken: true
+
 topologySpreadConstraints:
   - labelSelector:
       matchLabels:
