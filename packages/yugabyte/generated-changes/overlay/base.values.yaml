@@ -92,16 +92,26 @@ podSecurityContext:
   runAsUser: 10001
   runAsGroup: 10001
 
-# Container-level securityContext, applied to every container in the chart (main yb-master/
-# yb-tserver, yb-cleanup, yugabyted-ui, yb-controller, certmanager-init) via the
-# service.yaml.patch wiring -- no upstream equivalent existed, this is a genuinely new value.
+# Container-level securityContext, applied to every container in the chart (certmanager-init,
+# data-dir-init, main yb-master/yb-tserver, yb-cleanup, yugabyted-ui, yb-controller) via
+# upstream's own `getSecurityContext` helper (templates/_helpers.tpl) -- upstream added this
+# native containerSecurityContext.enabled/runAsUser/runAsGroup/runAsNonRoot/additionalSettings
+# knob as of the 2026.1.2 bump (previously there was no upstream equivalent and this repo wired
+# securityContext in by hand via service.yaml.patch). enabled defaults to false upstream, so it
+# must be turned on here; additionalSettings is toYaml'd verbatim into the rendered
+# securityContext alongside runAsUser/runAsGroup/runAsNonRoot below.
 # readOnlyRootFilesystem is deliberately omitted: yugabyted writes scripts/logs under its own
 # working dir at runtime and isn't validated against a read-only root here.
 containerSecurityContext:
-  allowPrivilegeEscalation: false
-  capabilities:
-    drop:
-      - ALL
-  seccompProfile:
-    type: RuntimeDefault
+  enabled: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  runAsNonRoot: true
+  additionalSettings:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
 
