@@ -1,0 +1,33 @@
+--- charts-original/templates/deployments-statefulsets.yaml
++++ charts/templates/deployments-statefulsets.yaml
+@@ -18,6 +18,8 @@
+   labels:
+     {{- include "pyroscope.labels" . | nindent 4 }}
+     app.kubernetes.io/component: {{ $component | quote }}
++  annotations:
++    {{- include "pyroscope.patchedAnnotations" . | nindent 4 }}
+ spec:
+ {{- if eq $values.kind "StatefulSet" }}
+   serviceName: {{ $values.name }}-headless
+@@ -55,6 +57,9 @@
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+       serviceAccountName: {{ include "pyroscope.serviceAccountName" . }}
++      {{- /* kubernetes:/// service discovery (v2 architecture / rbac-discovery Role) needs the
++      token mounted by default; explicit so require-explicit-automount is satisfied either way. */}}
++      automountServiceAccountToken: {{ $values.automountServiceAccountToken | default true }}
+       securityContext:
+         {{- toYaml $values.podSecurityContext | nindent 8 }}
+       {{- if hasKey $values "hostNetwork" }}
+@@ -268,7 +273,10 @@
+   {{- $persistence := $values.persistence }}
+   {{- if not $persistence.enabled }}
+         - name: data
+-          emptyDir: {}
++          emptyDir:
++            {{- with $persistence.emptyDirSizeLimit }}
++            sizeLimit: {{ . }}
++            {{- end }}
+   {{- else if $persistence.existingClaim}}
+         - name: data
+           persistentVolumeClaim:

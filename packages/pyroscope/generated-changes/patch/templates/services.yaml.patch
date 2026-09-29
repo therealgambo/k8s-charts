@@ -1,0 +1,34 @@
+--- charts-original/templates/services.yaml
++++ charts/templates/services.yaml
+@@ -14,10 +14,11 @@
+   labels:
+     {{- include "pyroscope.labels" . | nindent 4 }}
+     app.kubernetes.io/component: {{ $component | quote }}
+-  {{- if $values.service.annotations }}
+   annotations:
+-    {{- toYaml $values.service.annotations | nindent 4 }}
+-  {{- end }}
++    {{- include "pyroscope.patchedAnnotations" . | nindent 4 }}
++    {{- with $values.service.annotations }}
++    {{- toYaml . | nindent 4 }}
++    {{- end }}
+ spec:
+   type: {{ $values.service.type }}
+   ports:
+@@ -52,15 +53,14 @@
+   labels:
+     {{- include "pyroscope.labels" . | nindent 4 }}
+     app.kubernetes.io/component: {{ $component | quote }}
+-  {{- if or .Values.serviceMonitor.enabled $values.service.headlessAnnotations }}
+   annotations:
++    {{- include "pyroscope.patchedAnnotations" . | nindent 4 }}
+     {{- if .Values.serviceMonitor.enabled }}
+     prometheus.io/service-monitor: "false"
+     {{- end }}
+     {{- with $values.service.headlessAnnotations }}
+     {{- toYaml . | nindent 4 }}
+     {{- end }}
+-  {{- end }}
+ spec:
+   type: ClusterIP
+   clusterIP: None

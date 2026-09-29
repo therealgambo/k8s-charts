@@ -1,0 +1,20 @@
+--- charts-original/templates/connect-inject-deployment.yaml
++++ charts/templates/connect-inject-deployment.yaml
+@@ -29,6 +29,9 @@
+     {{- if .Values.global.extraLabels }}
+       {{- toYaml .Values.global.extraLabels | nindent 4 }}
+     {{- end }}
++    {{- include "consul.patchedLabels" . | nindent 4 }}
++  annotations:
++    {{- include "consul.patchedAnnotations" . | nindent 4 }}
+ spec:
+   replicas: {{ .Values.connectInject.replicas }}
+   selector:
+@@ -94,6 +97,7 @@
+         {{- end }}
+     spec:
+       serviceAccountName: {{ template "consul.fullname" . }}-connect-injector
++      automountServiceAccountToken: true
+       containers:
+         - name: sidecar-injector
+           image: "{{ default .Values.global.imageK8S .Values.connectInject.image }}"

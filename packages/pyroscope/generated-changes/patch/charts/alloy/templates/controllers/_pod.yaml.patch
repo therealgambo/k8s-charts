@@ -1,0 +1,10 @@
+--- charts-original/charts/alloy/templates/controllers/_pod.yaml
++++ charts/charts/alloy/templates/controllers/_pod.yaml
+@@ -20,6 +20,7 @@
+     {{- toYaml . | nindent 4 }}
+   {{- end }}
+   serviceAccountName: {{ include "alloy.serviceAccountName" . }}
++  automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+   {{- if or .Values.global.image.pullSecrets .Values.image.pullSecrets }}
+   imagePullSecrets:
+     {{- if .Values.global.image.pullSecrets }}

@@ -1,0 +1,12 @@
+--- charts-original/templates/clusterrole.yaml
++++ charts/templates/clusterrole.yaml
+@@ -4,6 +4,9 @@
+ metadata:
+   name: {{ template "coredns.clusterRoleName" . }}
+   labels: {{- include "coredns.labels" . | nindent 4 }}
++{{- if .Values.customLabels }}
++{{ toYaml .Values.customLabels | indent 4 }}
++{{- end }}
+ {{- with .Values.customAnnotations }}
+   annotations:
+ {{- toYaml . | nindent 4 }}

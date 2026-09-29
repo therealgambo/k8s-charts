@@ -1,0 +1,12 @@
+--- charts-original/templates/server-tmp-extra-config-configmap.yaml
++++ charts/templates/server-tmp-extra-config-configmap.yaml
+@@ -15,6 +15,9 @@
+     heritage: {{ .Release.Service }}
+     release: {{ .Release.Name }}
+     component: server
++    {{- include "consul.patchedLabels" . | nindent 4 }}
++  annotations:
++    {{- include "consul.patchedAnnotations" . | nindent 4 }}
+ data:
+   extra-from-values.json: |-
+ {{ tpl .Values.server.extraConfig . | trimAll "\"" | indent 4 }}

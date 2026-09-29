@@ -1,0 +1,17 @@
+--- charts-original/templates/dns-service.yaml
++++ charts/templates/dns-service.yaml
+@@ -12,10 +12,12 @@
+     heritage: {{ .Release.Service }}
+     release: {{ .Release.Name }}
+     component: dns
+-  {{- if .Values.dns.annotations }}
++    {{- include "consul.patchedLabels" . | nindent 4 }}
+   annotations:
++    {{- include "consul.patchedAnnotations" . | nindent 4 }}
++    {{- if .Values.dns.annotations }}
+     {{ tpl .Values.dns.annotations . | nindent 4 | trim }}
+-  {{- end }}
++    {{- end }}
+ spec:
+ {{- if .Values.dns.type }}
+   type: {{ .Values.dns.type }}

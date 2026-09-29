@@ -1,0 +1,23 @@
+--- charts-original/templates/gateway-resources-job.yaml
++++ charts/templates/gateway-resources-job.yaml
+@@ -14,10 +14,12 @@
+     {{- if .Values.global.extraLabels }}
+       {{- toYaml .Values.global.extraLabels | nindent 4 }}
+     {{- end }}
++    {{- include "consul.patchedLabels" . | nindent 4 }}
+   annotations:
+     "helm.sh/hook": post-install,post-upgrade
+     "helm.sh/hook-weight": "0"
+     "helm.sh/hook-delete-policy": hook-succeeded
++    {{- include "consul.patchedAnnotations" . | nindent 4 }}
+ spec:
+   template:
+     metadata:
+@@ -36,6 +38,7 @@
+     spec:
+       restartPolicy: Never
+       serviceAccountName: {{ template "consul.fullname" . }}-gateway-resources
++      automountServiceAccountToken: true
+       containers:
+         - name: gateway-resources
+           image: {{ .Values.global.imageK8S }}
