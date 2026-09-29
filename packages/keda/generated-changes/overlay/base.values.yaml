@@ -1,0 +1,28 @@
+# Local overrides on top of values.yaml -- see ../../../README.md#values-file-ordering.
+# values.yaml itself is never edited; anything needed to pass `make kyverno-policy-check` that a
+# values key already covers goes here instead. See the kyverno-policy-fix skill
+# (.claude/skills/kyverno-policy-fix/SKILL.md) for how each of these was found.
+
+# require-resource-labels / require-resource-annotations (kyverno-cluster-policies):
+# keda.labels already renders .Values.additionalLabels via toYaml and is included by every
+# RBAC/workload template the label policy flags; .Values.additionalAnnotations is likewise
+# rendered (unconditionally, via `with`) by every RBAC/workload template the annotation policy
+# flags except templates/manager/serviceaccount.yaml, whose outer `annotations:` guard didn't
+# include it -- see generated-changes/patch/templates/manager/serviceaccount.yaml.patch for that
+# one template fix.
+additionalLabels:
+  metadata.example.com/team: demo-team
+additionalAnnotations:
+  metadata.example.com/repository: https://github.com/therealgambo/k8s-charts
+
+# disallow-wildcard-rbac (kyverno-cluster-policies): with rbac.enabledCustomScaledRefKinds: true,
+# the chart's default rbac.scaledRefKinds ([{apiGroup: "*", kind: "*"}]) grants keda-operator's
+# ClusterRole a wildcard apiGroups/resources rule so ScaledObjects can target the scale
+# subresource of ANY custom resource kind. Standard Deployment/StatefulSet scaling is already
+# granted unconditionally by a separate, non-wildcard rule earlier in the same ClusterRole, so
+# disabling this doesn't reduce KEDA's out-of-box functionality -- it only removes standing
+# access to scale arbitrary/unspecified CRDs. Re-enable with an explicit
+# rbac.scaledRefKinds: [{apiGroup: ..., kind: ...}] entry if a specific custom scale target (e.g.
+# Argo Rollouts) is ever needed.
+rbac:
+  enabledCustomScaledRefKinds: false
