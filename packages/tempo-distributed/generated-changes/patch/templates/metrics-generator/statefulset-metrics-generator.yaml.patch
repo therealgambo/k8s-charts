@@ -1,6 +1,6 @@
 --- charts-original/templates/metrics-generator/statefulset-metrics-generator.yaml
 +++ charts/templates/metrics-generator/statefulset-metrics-generator.yaml
-@@ -9,8 +9,9 @@
+@@ -7,8 +7,9 @@
    namespace: {{ .Release.Namespace }}
    labels:
    {{- include "tempo.labels" $dict | nindent 4 }}
