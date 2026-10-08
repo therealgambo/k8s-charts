@@ -1,4 +1,4 @@
 url: https://github.com/spiffe/helm-charts-hardened.git
 subdirectory: charts/spire
-commit: e5901d68d0f57da338ca70257f60513c33110b48
+commit: f63489126fd413e801b456dd2d1be95dba4c900e
 packageVersion: 01
