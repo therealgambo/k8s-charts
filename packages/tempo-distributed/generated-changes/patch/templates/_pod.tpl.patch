@@ -8,7 +8,7 @@
    {{- with (coalesce $component.podSecurityContext .Values.tempo.podSecurityContext .Values.defaults.podSecurityContext) }}
    securityContext:
      {{- toYaml . | nindent 4 }}
-@@ -212,7 +213,8 @@
+@@ -216,7 +217,8 @@
        emptyDir:
          {{- toYaml $dataEmptyDir | nindent 8 }}
        {{- else }}
@@ -18,7 +18,7 @@
        {{- end }}
      {{- else if dig "inMemory" false $persistence }}
      - name: {{ $dataVolumeName }}
-@@ -224,7 +226,8 @@
+@@ -228,7 +230,8 @@
      {{- end }}
      {{- else }}
      - name: tempo-{{ $target }}-store
