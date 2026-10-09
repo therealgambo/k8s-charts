@@ -1,0 +1,5 @@
+workingDir: ""
+url: oci://ghcr.io/kyverno/charts/kyverno:3.9.1
+subdirectory: charts/crds
+ignoreDependencies: []
+replacePaths: []
