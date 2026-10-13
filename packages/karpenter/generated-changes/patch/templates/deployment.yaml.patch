@@ -1,6 +1,6 @@
 --- charts-original/templates/deployment.yaml
 +++ charts/templates/deployment.yaml
-@@ -5,10 +5,11 @@
+@@ -6,10 +6,11 @@
    namespace: {{ .Release.Namespace }}
    labels:
      {{- include "karpenter.labels" . | nindent 4 }}
