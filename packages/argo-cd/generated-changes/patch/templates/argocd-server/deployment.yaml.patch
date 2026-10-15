@@ -1,6 +1,6 @@
 --- charts-original/templates/argocd-server/deployment.yaml
 +++ charts/templates/argocd-server/deployment.yaml
-@@ -1,12 +1,13 @@
+@@ -2,12 +2,13 @@
  apiVersion: apps/v1
  kind: Deployment
  metadata:
