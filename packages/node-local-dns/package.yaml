@@ -1,2 +1,2 @@
-url: oci://ghcr.io/deliveryhero/helm-charts/node-local-dns:2.9.2
-packageVersion: 02
+url: oci://ghcr.io/deliveryhero/helm-charts/node-local-dns:2.9.3
+packageVersion: 01
