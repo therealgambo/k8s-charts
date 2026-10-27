@@ -1,2 +1,2 @@
-url: oci://ghcr.io/netbirdio/helm-charts/netbird-operator:0.8.0
-packageVersion: 02
+url: oci://ghcr.io/netbirdio/helm-charts/netbird-operator:0.9.0
+packageVersion: 01
