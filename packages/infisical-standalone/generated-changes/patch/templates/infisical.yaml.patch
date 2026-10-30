@@ -1,14 +1,14 @@
 --- charts-original/templates/infisical.yaml
 +++ charts/templates/infisical.yaml
-@@ -26,6 +26,7 @@
-         {{- end }}
+@@ -35,6 +35,7 @@
+       {{- end }}
      spec:
        serviceAccountName: {{ include "infisical.serviceAccountName" . }}
 +      automountServiceAccountToken: true
      {{- with $infisicalValues.podSecurityContext }}
        securityContext: {{- toYaml . | nindent 8 }}
      {{- end }}
-@@ -107,13 +108,14 @@
+@@ -116,13 +117,14 @@
  ---
  
  apiVersion: v1
