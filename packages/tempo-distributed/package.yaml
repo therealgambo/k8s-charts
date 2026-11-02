@@ -1,2 +1,2 @@
-url: oci://ghcr.io/grafana-community/helm-charts/tempo-distributed:3.17.1
+url: oci://ghcr.io/grafana-community/helm-charts/tempo-distributed:3.18.0
 packageVersion: 01
