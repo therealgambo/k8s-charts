@@ -9,7 +9,7 @@
 +  automountServiceAccountToken: false
    containers:
      - name: wget
-       image: docker.io/busybox:1.37
+       image: docker.io/busybox:1.38
 @@ -35,3 +37,5 @@
      runAsUser: 65534
      runAsGroup: 65534
