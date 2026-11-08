@@ -1,6 +1,6 @@
 --- charts-original/templates/redis/deployment.yaml
 +++ charts/templates/redis/deployment.yaml
-@@ -3,12 +3,13 @@
+@@ -6,12 +6,13 @@
  apiVersion: apps/v1
  kind: Deployment
  metadata:
