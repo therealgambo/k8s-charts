@@ -1,6 +1,6 @@
 --- charts-original/templates/argocd-server/service.yaml
 +++ charts/templates/argocd-server/service.yaml
-@@ -9,12 +9,13 @@
+@@ -10,12 +10,13 @@
      {{- with .Values.server.service.labels }}
        {{- toYaml . | nindent 4 }}
      {{- end }}
