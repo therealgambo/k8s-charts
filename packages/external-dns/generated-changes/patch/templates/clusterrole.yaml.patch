@@ -9,7 +9,7 @@
  rules:
  {{- if and (not .Values.namespaced) (or (has "node" .Values.sources) (has "pod" .Values.sources) (has "service" .Values.sources) (has "contour-httpproxy" .Values.sources) (has "gloo-proxy" .Values.sources) (has "openshift-route" .Values.sources) (has "skipper-routegroup" .Values.sources)) }}
    - apiGroups: [""]
-@@ -164,6 +166,8 @@
+@@ -169,6 +171,8 @@
    name: {{ template "external-dns.fullname" . }}-namespaces
    labels:
      {{- include "external-dns.labels" . | nindent 4 }}
@@ -18,7 +18,7 @@
  rules:
    - apiGroups: [""]
      resources: ["namespaces"]
-@@ -178,6 +182,8 @@
+@@ -183,6 +187,8 @@
    namespace: {{ .Values.gatewayNamespace }}
    labels:
      {{- include "external-dns.labels" . | nindent 4 }}
