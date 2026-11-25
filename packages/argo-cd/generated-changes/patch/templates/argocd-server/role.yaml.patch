@@ -1,6 +1,6 @@
 --- charts-original/templates/argocd-server/role.yaml
 +++ charts/templates/argocd-server/role.yaml
-@@ -1,6 +1,8 @@
+@@ -2,6 +2,8 @@
  apiVersion: rbac.authorization.k8s.io/v1
  kind: Role
  metadata:
