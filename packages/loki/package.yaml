@@ -1,2 +1,2 @@
-url: oci://ghcr.io/grafana-community/helm-charts/loki:21.6.0
+url: oci://ghcr.io/grafana-community/helm-charts/loki:21.6.3
 packageVersion: 01
